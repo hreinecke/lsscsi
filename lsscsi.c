@@ -22,12 +22,12 @@
 
 #define NAME_LEN_MAX 260
 
-static const char * version_str = "0.09  2003/4/4";
+static const char * version_str = "0.10  2003/5/6";
 static char sysfsroot[NAME_LEN_MAX];
 static const char * sysfs_name = "sysfs";
 static const char * proc_mounts = "/proc/mounts";
 static const char * scsi_devs = "/bus/scsi/devices";
-static const char * scsi_hosts = "/class/scsi-host/devices";
+static const char * scsi_hosts = "/class/scsi_host";
 
 #define MASK_CLASSIC 1
 #define MASK_LONG 2
@@ -555,42 +555,44 @@ static void one_host_entry(const char * dir_name, const char * devname,
 	if (out_mask & MASK_CLASSIC) {
 		// one_classic_host_entry(dir_name, devname, do_verbose, 
 				       // out_mask);
+		printf("  <'--classic' not supported for hosts>\n");
 		return;
 	}
+	if (1 == sscanf(devname, "host%u", &host_id))
+		printf("[%u]  ", host_id);
+	else
+		printf("[?]  ");
 	strcpy(buff, dir_name);
 	strcat(buff, "/");
 	strcat(buff, devname);
-	if (get_value(buff, "class_name", value, NAME_LEN_MAX)) {
-		if (1 == sscanf(value, "scsi%u", &host_id))
-			printf("[%u]  ", host_id);
+	if (get_value(buff, "device/name", value, NAME_LEN_MAX))
+		printf("  %s\n", value);
+	else
+		printf("  ??\n");
+	if (out_mask & MASK_LONG) {
+		if (get_value(buff, "cmd_per_lun", value, NAME_LEN_MAX))
+			printf("  cmd_per_lun=%-4s ", value);
 		else
-			printf("[?]  ");
+			printf("  cmd_per_lun=???? ");
+
+		if (get_value(buff, "host_busy", value, NAME_LEN_MAX))
+			printf("host_busy=%-4s ", value);
+		else
+			printf("host_busy=???? ");
+
+		if (get_value(buff, "sg_tablesize", value, NAME_LEN_MAX))
+			printf("sg_tablesize=%-4s ", value);
+		else
+			printf("sg_tablesize=???? ");
+
+		if (get_value(buff, "unchecked_isa_dma", value, NAME_LEN_MAX))
+			printf("unchecked_isa_dma=%-2s ", value);
+		else
+			printf("unchecked_isa_dma=?? ");
+		printf("\n");
 	}
-	else
-		printf("[??] ");
-
-	if (get_value(buff, "cmd_per_lun", value, NAME_LEN_MAX))
-		printf("cmd_per_lun=%-4s ", value);
-	else
-		printf("cmd_per_lun=???? ");
-
-	if (get_value(buff, "host_busy", value, NAME_LEN_MAX))
-		printf("host_busy=%-4s ", value);
-	else
-		printf("host_busy=???? ");
-
-	if (get_value(buff, "sg_tablesize", value, NAME_LEN_MAX))
-		printf("sg_tablesize=%-4s ", value);
-	else
-		printf("sg_tablesize=???? ");
-
-	if (get_value(buff, "unchecked_isa_dma", value, NAME_LEN_MAX))
-		printf("unchecked_isa_dma=%-2s ", value);
-	else
-		printf("unchecked_isa_dma=?? ");
-	printf("\n");
 	if (out_mask & MASK_NAME) {
-		if (get_value(buff, "name", value, NAME_LEN_MAX))
+		if (get_value(buff, "adapter/name", value, NAME_LEN_MAX))
 			printf("  name: %s\n", value);
 		else
 			printf("  name: ??\n");
@@ -611,7 +613,7 @@ static void one_host_entry(const char * dir_name, const char * devname,
 
 static int host_scandir_select(const struct dirent * s)
 {
-	if (isdigit(s->d_name[0]))
+	if (0 == strncmp("host", s->d_name, 4))
 		return 1;
 	return 0;
 }
@@ -622,9 +624,9 @@ static int host_scandir_sort(const void * a, const void * b)
 	const char * rnam = (*(struct dirent **)b)->d_name;
 	unsigned int l, r;
 
-	if (1 != sscanf(lnam, "%u", &l))
+	if (1 != sscanf(lnam, "host%u", &l))
 		return -1;
-	if (1 != sscanf(rnam, "%u", &r))
+	if (1 != sscanf(rnam, "host%u", &r))
 		return 1;
 	if (l < r)
 		return -1;

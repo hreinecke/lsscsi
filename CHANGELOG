@@ -1,3 +1,6 @@
+Version 0.10 2003/5/6
+  - adjust HBA listing (-H) for new struct scsi_host in lk 2.5.69++
+
 Version 0.09 2003/4/4
   - fix up sorting
   - add GPL + copyright notice

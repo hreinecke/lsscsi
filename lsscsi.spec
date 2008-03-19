@@ -6,18 +6,21 @@
 
 Summary: List all SCSI devices (or hosts) and associated information
 Name: lsscsi
-Version: 0.09
+Version: 0.10
 Release: 1
 Packager: dgilbert@interlog.com
 License: GPL
 Group: Utilities/System
-Source: ftp://www.torque.net/scsi/lsscsi-0.09.tgz
+Source: ftp://www.torque.net/scsi/lsscsi-0.10.tgz
 Url: http://www.torque.net/scsi/lsscsi.html
 Provides: lsscsi
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root/
 
 %description
 Uses information provided by sysfs in Linux kernel from around 2.5.50
-to list all SCSI devices (or hosts).
+to list all SCSI devices. There is also an option to list SCSI hosts.
+As well as the name of the device or host (driver) various other
+parameters are optionally displayed.
 
 Author:
 --------
@@ -30,7 +33,10 @@ Author:
 make
 
 %install
-make install INSTDIR=%{_bindir} MANDIR=%{_mandir}
+if [ "$RPM_BUILD_ROOT" != "/" ]; then
+        rm -rf $RPM_BUILD_ROOT
+fi
+make install INSTDIR=$RPM_BUILD_ROOT/usr/bin MANDIR=$RPM_BUILD_ROOT/usr/share/man
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -43,6 +49,9 @@ rm -rf $RPM_BUILD_ROOT
  
 
 %changelog
+* Tue May 06 2003 - dgilbert@interlog.com
+- adjust HBA listsing for lk > 2.5.69
+  * lsscsi-0.09
 * Fri Apr 04 2003 - dgilbert@interlog.com
 - fix up sorting, GPL + copyright notice
   * lsscsi-0.09
