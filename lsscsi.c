@@ -25,8 +25,12 @@
 #include <time.h>
 
 #define NAME_LEN_MAX 260
+#define FT_OTHER 0
+#define FT_BLOCK 1
+#define FT_CHAR 2
 
-static const char * version_str = "0.17  2006/2/6";
+
+static const char * version_str = "0.18  2006/3/24";
 static char sysfsroot[NAME_LEN_MAX];
 static const char * sysfs_name = "sysfs";
 static const char * sysfs_test_dir = "/sys/class";
@@ -130,6 +134,16 @@ struct dev_node_list {
 };
 static struct dev_node_list* dev_node_listhead = NULL;
 
+struct sg_item_t {
+        char name[NAME_LEN_MAX];
+        int ft;
+};
+
+static struct sg_item_t non_sg;
+static struct sg_item_t aa_sg;
+
+
+
 static int cmp_hctl(const struct addr_hctl * le, const struct addr_hctl * ri)
 {
         if (le->h == ri->h) {
@@ -179,6 +193,95 @@ static void usage()
         fprintf(stderr, "\t--version|-V  output version string and exit\n");
         fprintf(stderr, "\t<h:c:t:l>  filter output list (def: "
                         "'- - - -' (all))\n");
+}
+
+static int non_sg_scandir_select(const struct dirent * s)
+{
+	int len;
+
+        if (FT_OTHER != non_sg.ft)
+                return 0;
+        if (DT_LNK != s->d_type)
+                return 0;
+        if (0 == strncmp("scsi_changer", s->d_name, 12)) {
+                strncpy(non_sg.name, s->d_name, NAME_LEN_MAX);
+                non_sg.ft = FT_CHAR;
+                return 1;
+        } else if (0 == strncmp("block", s->d_name, 5)) {
+                strncpy(non_sg.name, s->d_name, NAME_LEN_MAX);
+                non_sg.ft = FT_BLOCK;
+                return 1;
+        } else if (0 == strcmp("tape", s->d_name)) {
+                strcpy(non_sg.name, s->d_name);
+                non_sg.ft = FT_CHAR;
+                return 1;
+        } else if (0 == strncmp("scsi_tape:st", s->d_name, 12)) {
+		len = strlen(s->d_name);
+		if (isdigit(s->d_name[len - 1])) {
+			/* want 'st<num>' symlink only */
+                	strcpy(non_sg.name, s->d_name);
+                	non_sg.ft = FT_CHAR;
+                	return 1;
+		} else
+                	return 0;
+        } else if (0 == strncmp("onstream_tape:os", s->d_name, 16)) {
+                strcpy(non_sg.name, s->d_name);
+                non_sg.ft = FT_CHAR;
+                return 1;
+        } else
+                return 0;
+}
+
+static int non_sg_scan(const char * dir_name,
+                       const struct lsscsi_opt_coll * opts)
+{
+        char name[NAME_LEN_MAX];
+        struct dirent ** namelist;
+        int num, k;
+
+        non_sg.ft = FT_OTHER;
+        num = scandir(dir_name, &namelist, non_sg_scandir_select, NULL);
+        if (num < 0) {
+                if (opts->verbose > 0) {
+                        snprintf(name, NAME_LEN_MAX, "scandir: %s", dir_name);
+                        perror(name);
+                }
+                return -1;
+        }
+        for (k = 0; k < num; ++k)
+                free(namelist[k]);
+        free(namelist);
+        return num;
+}
+
+
+static int sg_scandir_select(const struct dirent * s)
+{
+        if (FT_OTHER != aa_sg.ft)
+                return 0;
+        if (DT_LNK != s->d_type)
+                return 0;
+        if (0 == strncmp("scsi_generic", s->d_name, 12)) {
+                strncpy(aa_sg.name, s->d_name, NAME_LEN_MAX);
+                aa_sg.ft = FT_CHAR;
+                return 1;
+        } else
+                return 0;
+}
+
+static int sg_scan(const char * dir_name)
+{
+        struct dirent ** namelist;
+        int num, k;
+
+        aa_sg.ft = FT_OTHER;
+        num = scandir(dir_name, &namelist, sg_scandir_select, NULL);
+        if (num < 0)
+                return -1;
+        for (k = 0; k < num; ++k)
+                free(namelist[k]);
+        free(namelist);
+        return num;
 }
 
 
@@ -233,6 +336,37 @@ static int if_directory_chdir(const char * dir_name, const char * base_name)
         strcpy(buff, dir_name);
         strcat(buff, "/");
         strcat(buff, base_name);
+        if (stat(buff, &a_stat) < 0)
+                return 0;
+        if (S_ISDIR(a_stat.st_mode)) {
+                if (chdir(buff) < 0)
+                        return 0;
+                return 1;
+        }
+        return 0;
+}
+
+/* Return 1 if directory, else 0 */
+static int if_directory_ch2generic(const char * dir_name)
+{
+        char buff[NAME_LEN_MAX];
+        struct stat a_stat;
+        const char * old_name = "generic";
+
+        strcpy(buff, dir_name);
+        strcat(buff, "/");
+        strcat(buff, old_name);
+        if ((stat(buff, &a_stat) >= 0) && S_ISDIR(a_stat.st_mode)) {
+                if (chdir(buff) < 0)
+                        return 0;
+                return 1;
+        }
+        /* No "generic", so now look for "scsi_generic:sg<n>" */
+        if (1 != sg_scan(dir_name))
+                return 0;
+        strcpy(buff, dir_name);
+        strcat(buff, "/");
+        strcat(buff, aa_sg.name);
         if (stat(buff, &a_stat) < 0)
                 return 0;
         if (S_ISDIR(a_stat.st_mode)) {
@@ -602,7 +736,7 @@ static void one_classic_sdev_entry(const char * dir_name,
                 printf("ANSI SCSI revision: %02x\n", (scsi_level - 1) ?
                                             scsi_level - 1 : 1);
         if (opts->generic) {
-                if (if_directory_chdir(buff, "generic")) { 
+                if (if_directory_ch2generic(buff)) { 
                         char wd[NAME_LEN_MAX];
 
                         if (NULL == getcwd(wd, NAME_LEN_MAX))
@@ -626,65 +760,6 @@ static void one_classic_sdev_entry(const char * dir_name,
                 longer_entry(buff, opts);
         if (opts->verbose)
                 printf("  dir: %s\n", buff);
-}
-
-#define FT_OTHER 0
-#define FT_BLOCK 1
-#define FT_CHAR 2
-
-struct non_sg_item {
-        char name[NAME_LEN_MAX];
-        int ft;
-};
-
-static struct non_sg_item non_sg;
-
-static int non_sg_scandir_select(const struct dirent * s)
-{
-        if (FT_OTHER != non_sg.ft)
-                return 0;
-        if (DT_LNK != s->d_type)
-                return 0;
-        if (0 == strncmp("scsi_changer", s->d_name, 12)) {
-                strncpy(non_sg.name, s->d_name, NAME_LEN_MAX);
-                non_sg.ft = FT_CHAR;
-                return 1;
-        } else if (0 == strncmp("block", s->d_name, 5)) {
-                strncpy(non_sg.name, s->d_name, NAME_LEN_MAX);
-                non_sg.ft = FT_BLOCK;
-                return 1;
-        } else if (0 == strcmp("tape", s->d_name)) {
-                strcpy(non_sg.name, s->d_name);
-                non_sg.ft = FT_CHAR;
-                return 1;
-        } else if (0 == strncmp("onstream_tape:os", s->d_name, 16)) {
-                strcpy(non_sg.name, s->d_name);
-                non_sg.ft = FT_CHAR;
-                return 1;
-        } else
-                return 0;
-}
-
-static int non_sg_scan(const char * dir_name,
-                       const struct lsscsi_opt_coll * opts)
-{
-        char name[NAME_LEN_MAX];
-        struct dirent ** namelist;
-        int num, k;
-
-        non_sg.ft = FT_OTHER;
-        num = scandir(dir_name, &namelist, non_sg_scandir_select, NULL);
-        if (num < 0) {
-                if (opts->verbose > 0) {
-                        snprintf(name, NAME_LEN_MAX, "scandir: %s", dir_name);
-                        perror(name);
-                }
-                return -1;
-        }
-        for (k = 0; k < num; ++k)
-                free(namelist[k]);
-        free(namelist);
-        return num;
 }
 
 static void one_sdev_entry(const char * dir_name, const char * devname,
@@ -756,7 +831,7 @@ static void one_sdev_entry(const char * dir_name, const char * devname,
                 printf("-       ");
 
         if (opts->generic) {
-                if (if_directory_chdir(buff, "generic")) { 
+                if (if_directory_ch2generic(buff)) { 
                         char wd[NAME_LEN_MAX];
 
                         if (NULL == getcwd(wd, NAME_LEN_MAX))

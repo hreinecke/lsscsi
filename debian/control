@@ -2,7 +2,7 @@ Source: lsscsi
 Section: admin
 Priority: optional
 Maintainer: Matt Taggart <taggart@debian.org>
-Build-Depends: debhelper (>= 4.0.0), autoconf
+Build-Depends: debhelper (>= 4.0.0), autotools-dev
 Standards-Version: 3.6.2.1
 
 Package: lsscsi

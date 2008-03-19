@@ -1,5 +1,5 @@
 %define name    lsscsi
-%define version 0.17
+%define version 0.18
 %define release 1
 
 Summary: 	List SCSI devices (or hosts) and associated information
@@ -55,6 +55,9 @@ make install \
 
 
 %changelog
+* Fri Mar 24 2006 - dgilbert at interlog dot com
+- cope with dropping of 'generic' symlink post lk 2.6.16
+  * lsscsi-0.18
 * Mon Feb 06 2006 - dgilbert at interlog dot com
 - fix disappearance of block device names in lk 2.6.16-rc1
   * lsscsi-0.17

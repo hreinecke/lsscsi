@@ -1,4 +1,4 @@
-.TH lsscsi "8" "December 2005" "lsscsi-0.16" LSSCSI
+.TH lsscsi "8" "March 2006" "lsscsi-0.18" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
@@ -9,7 +9,7 @@ lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
-Uses information in sysfs (linux kernels 2.6.0 and later) to list
+Uses information in sysfs (linux kernel series 2.6 and later) to list
 scsi devices (or hosts) currently attached to the system. Options can
 be used to control the amount and form of information provided for
 each device.
@@ -45,14 +45,14 @@ major and minor numbers are shown in brackets (e.g. "/dev/sda[8:0]").
 .TP
 --generic | -g
 Output the scsi generic device file name. Note that if the sg driver
-is a module it needs to be loaded otherwise '-' will appear
+is a module it needs to be loaded otherwise '-' will appear.
 .TP
 --help | -h
-Output the usage message and exit
+Output the usage message and exit.
 .TP
 --hosts | -H
 List the SCSI hosts currently attached to the system. If this option is
-not given then SCSI devices are listed
+not given then SCSI devices are listed.
 .TP
 --kname | -k
 Use linux default algorithm for naming devices (e.g. block major 8,
@@ -71,7 +71,7 @@ outputs directory names where information is found. Use twice for
 more output.
 .TP
 --version | -V
-outputs version number information and exits
+outputs version number information and exits.
 .PP
 Information for this command is derived from the the sysfs file system
 whose mount point is found by examining the contents of /proc/mounts .
@@ -88,7 +88,7 @@ Written by Doug Gilbert
 .SH "REPORTING BUGS"
 Report bugs to <dgilbert at interlog dot com>.
 .SH COPYRIGHT
-Copyright \(co 2003-2005 Douglas Gilbert
+Copyright \(co 2003-2006 Douglas Gilbert
 .br
 This software is distributed under the GPL version 2. There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
