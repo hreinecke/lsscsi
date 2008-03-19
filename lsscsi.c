@@ -22,7 +22,7 @@
 
 #define NAME_LEN_MAX 260
 
-static const char * version_str = "0.12  2004/5/9";
+static const char * version_str = "0.13  2004/8/12";
 static char sysfsroot[NAME_LEN_MAX];
 static const char * sysfs_name = "sysfs";
 static const char * proc_mounts = "/proc/mounts";
@@ -272,6 +272,10 @@ static void longer_entry(const char * path_name)
 		printf(" device_blocked=%s", value);
 	else
 		printf(" device_blocked=?");
+	if (get_value(path_name, "timeout", value, NAME_LEN_MAX))
+		printf(" timeout=%s", value);
+	else
+		printf(" timeout=?");
 	printf("\n");
 }
 
@@ -499,9 +503,14 @@ static void list_sdevices(int do_verbose, int out_mask)
 
 	num = scandir(buff, &namelist, sdev_scandir_select, 
 		      sdev_scandir_sort);
-	if (num < 0) {
-		snprintf(name, NAME_LEN_MAX, "scandir: %s", buff);
-		perror(name);
+	if (num < 0) {	/* scsi mid level may not be loaded */
+		if (do_verbose) {
+			snprintf(name, NAME_LEN_MAX, "scandir: %s", buff);
+			perror(name);
+			printf("SCSI mid level module may not be loaded\n");
+		}
+		if (out_mask & MASK_CLASSIC)
+			printf("Attached devices: none\n");
 		return;
 	}
 	if (out_mask & MASK_CLASSIC)
@@ -690,6 +699,7 @@ int main(int argc, char **argv)
 		while (optind < argc)
 			fprintf(stderr, "%s ", argv[optind++]);
 		fprintf(stderr, "\n");
+		return 1;
 	}
 	if ('\0' == sysfsroot[0]) {
 		if (! find_sysfsroot()) {

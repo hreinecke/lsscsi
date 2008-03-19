@@ -1,3 +1,7 @@
+Version 0.13 2004/8/20
+  - add 'timeout' to long device option output
+  - quiet (unless verbose) if no mid level (hence no SCSI devices or hosts)
+
 Version 0.12 2004/5/9
   - rework for lk 2.6.6
   - add proc_name for hosts

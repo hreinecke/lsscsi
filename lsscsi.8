@@ -1,9 +1,9 @@
-.TH lsscsi "8" "May 2004" "lsscsi-0.12" LSSCSI
+.TH lsscsi "8" "August 2004" "lsscsi-0.13" LSSCSI
 .SH NAME
 lsscsi \- list all SCSI devices (or hosts) currently on system
 .SH SYNOPSIS
 .B lsscsi
-[\fI--classic|-c\fR] [\fI--classic|-c\fR] [\fI--generic|-g\fR]
+[\fI--classic|-c\fR] [\fI--device|-d\fR] [\fI--generic|-g\fR]
 [\fI--help|-h\fR] [\fI--hosts|-H\fR] [\fI--long|-l\fR] 
 [\fI--sysfsroot <dir>\fR] [\fI--verbose|-v\fR] [\fI--version|-V\fR]
 .SH DESCRIPTION
@@ -60,7 +60,7 @@ name.
 .SH AUTHOR
 Written by Doug Gilbert
 .SH "REPORTING BUGS"
-Report bugs to <dgilbert@interlog.com>.
+Report bugs to <dgilbert at interlog dot com>.
 .SH COPYRIGHT
 Copyright \(co 2002-2004 Douglas Gilbert
 .br
@@ -69,7 +69,6 @@ warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 .SH "SEE ALSO"
 .B lspci
 .B lsusb
-.B lsbus
 and
 .B systool
-The latter two can be found in sysfsutils.
+The latter utility can be found in the sysfsutils package.

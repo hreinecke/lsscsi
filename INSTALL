@@ -23,6 +23,6 @@ is to place the tarball in the /usr/src/redhat/SOURCE directory and
 the spec file in the /usr/src/redhat/SPEC directory. Then execute
 'rpmbuild -ba lsscsi.spec' from the "SPEC" directory. If successful then
 will deposit the binary rpm in the /usr/src/redhat/RPMS/i386 directory
-and the source rpm in the /usr/src/redhat/SRPMS directory. Building
+and the source rpm in the /usr/src/redhat/SRPMS directory. Building an
 rpm on Suse and Mandrake is quite similar (although they use their names
 rather than "redhat" in the above paths).
