@@ -1,6 +1,18 @@
+Version 0.15 2005/6/29
+  - option '-ll' gives more attributes and '-lll' gives attributes
+    one per line
+  - change reporting if device node:
+    - use "match major+minor" with "/dev" directory (default)
+    - use synthetic device node names when '--kname' given
+      {this was the default in earlier versions}
+  - add filtering, sync with lk 2.6.12
+    {e.g. 'lsscsi 1' lists all SCSI devices on host1}
+  - convert to autotools
+  - builds on version 0.13 (does not use libsysfs)
+    {because dlist_sort_custom() does not have filter() callback}
+
 Version 0.14 2004/9/20
-  - port to depend on sysfutils-1.2.0 or later. Needs dlist_sort_custom().
-  - remove 'sysfsroot' command line option
+  - version of 0.13 based on libsysfs-1.20
 
 Version 0.13 2004/8/20
   - add 'timeout' to long device option output

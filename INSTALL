@@ -1,7 +1,5 @@
-This version depends on sysfsutils-1.2.0 or later. See:
-http://linux-diag.sourceforge.net for that package.
-
-To build call make with no arguments:
+To build:
+ $ ./configure
  $ make
 
 To install call:
@@ -11,19 +9,15 @@ in the /usr/local/bin directory while the man page is placed in the
 /usr/local/man/man8 directory. The install directory are controlled by
 the PREFIX variable in the Makefile.
 
-This package now depends on the sysfsutils package (version 1.1.0 or
-later). Further it requires a proposed third party sorting facility in
-sysfsutils via the dlist_sort_custom() function. If that function is
-not available then comment out the line "#define HAVE_DLIST_SORT_CUSTOM".
-
 To uninstall the executable and man page call:
  $ make uninstall
 
 To clean out object and executable files from the working directory call:
  $ make clean
 
-A dependency file (named .depend) can be built using:
- $ make dep
+To clean out prior to making a tarball (so ./configure needs to be run
+on the target system):
+ $ make distclean
 
 Rpms are also available. A lsscsi.spec file is included in the tarball
 to facilitate building rpms. One way of doing this on a RedHat system
@@ -32,5 +26,5 @@ the spec file in the /usr/src/redhat/SPEC directory. Then execute
 'rpmbuild -ba lsscsi.spec' from the "SPEC" directory. If successful then
 will deposit the binary rpm in the /usr/src/redhat/RPMS/i386 directory
 and the source rpm in the /usr/src/redhat/SRPMS directory. Building an
-rpm on Suse and Mandrake is quite similar (although they use their names
+rpm on Suse and Mandrake is similar (although they use their names
 rather than "redhat" in the above paths).

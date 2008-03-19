@@ -1,59 +1,64 @@
-#
-# spec file for lsscsi
-# 
-# please send bugfixes or comments to dgilbert at interlog dot com
-#
+%define name    lsscsi
+%define version 0.15
+%define release 1
 
-Summary: List all SCSI devices (or hosts) and associated information
-Name: lsscsi
-Version: 0.14
-Release: 1
-Packager: dgilbert at interlog dot com
-License: GPL
-Group: Utilities/System
-Source: ftp://www.torque.net/scsi/lsscsi-0.14.tgz
-Url: http://www.torque.net/scsi/lsscsi.html
-Provides: lsscsi
-BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root/
+Summary: 	List SCSI devices (or hosts) and associated information
+Name: 		%{name}
+Version: 	%{version}
+Release: 	%{release}
+License:	GPL
+Group:		Utilities/System
+Source0:	http://www.torque.net/scsi/%{name}-%{version}.tgz
+Url:		http://www.torque.net/scsi/lsscsi.html
+BuildRoot:	%{_tmppath}/%{name}-%{version}-root/
+Packager:	dgilbert at interlog dot com
 
 %description
 Uses information provided by the sysfs pseudo file system in Linux kernel
-2.6 series to list all SCSI devices or all SCSI hosts. Includes a "classic"
+2.6 series to list SCSI devices or all SCSI hosts. Includes a "classic"
 option to mimic the output of "cat /proc/scsi/scsi" that has been widely
-used prior to the lk 2.6 series. Requires sysfsutils-1.2.0 or later.
+used prior to the lk 2.6 series.
 
 Author:
 --------
     Doug Gilbert <dgilbert at interlog dot com>
 
 %prep
-%setup
+
+%setup -q
 
 %build
+
+./configure --prefix=%{_prefix} --mandir=%{_mandir}
 make
 
 %install
-if [ "$RPM_BUILD_ROOT" != "/" ]; then
-        rm -rf $RPM_BUILD_ROOT
-fi
-make install INSTDIR=$RPM_BUILD_ROOT/usr/bin MANDIR=$RPM_BUILD_ROOT/usr/share/man
+
+[ "%{buildroot}" != "/" ] && rm -rf %{buildroot}
+
+make install \
+        DESTDIR=$RPM_BUILD_ROOT
+
+%post
+
+%postun
 
 %clean
-rm -rf $RPM_BUILD_ROOT
+
+[ "%{buildroot}" != "/" ] && rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root)
-%attr(-,root,root) %doc README CHANGELOG INSTALL
-%attr(755,root,root) %{_bindir}/lsscsi
-# Mandrake compresses man pages with bzip2, RedHat with gzip
-%attr(-,root,root) %doc %{_mandir}/man8/lsscsi.8*
- 
+%doc ChangeLog INSTALL README CREDITS AUTHORS COPYING
+%attr(0755,root,root) %{_bindir}/*
+%{_mandir}/man8/*
+
 
 %changelog
-* Mon Sep 20 2004 - dgilbert at interlog dot com
-- port to depend on sysfsutils (1.2.0 or later)
-  * lsscsi-0.14
-* Thu Aug 12 2004 - dgilbert at interlog dot com
+* Tue Jul 19 2005 - dgilbert at interlog dot com
+- does not use libsysfs, add filter argument, /dev scanning
+  * lsscsi-0.15
+* Fri Aug 20 2004 - dgilbert at interlog dot com
 - add 'timeout'
   * lsscsi-0.13
 * Sun May 9 2004 - dgilbert at interlog dot com

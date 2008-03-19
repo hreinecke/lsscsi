@@ -1,18 +1,40 @@
-.TH lsscsi "8" "August 2004" "lsscsi-0.14" LSSCSI
+.TH lsscsi "8" "June 2005" "lsscsi-0.15" LSSCSI
 .SH NAME
-lsscsi \- list all SCSI devices (or hosts) currently on system
+lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
 .B lsscsi
 [\fI--classic|-c\fR] [\fI--device|-d\fR] [\fI--generic|-g\fR]
-[\fI--help|-h\fR] [\fI--hosts|-H\fR] [\fI--long|-l\fR] 
-[\fI--verbose|-v\fR] [\fI--version|-V\fR]
+[\fI--help|-h\fR] [\fI--hosts|-H\fR] [\fI--kname|-k\fR] [\fI--long|-l\fR]
+[\fI--verbose\fR] [\fI--version\fR] [\fI<h:c:t:l>\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
-Uses information in sysfs (linux kernels 2.6.0 and later) to list all 
+Uses information in sysfs (linux kernels 2.6.0 and later) to list
 scsi devices (or hosts) currently attached to the system. Options can
 be used to control the amount and form of information provided for
 each device.
+.PP
+If a <h:c:t:l> argument is given then it acts as a filter and only
+devices that match it are listed. The colons don't have to be
+present, and '-', '*', '?' or missing arguments at the end are
+wildcards. '-' needs to stand alone or else it is taken as the
+beginning of an option (e.g. '-:-:-:-' is illegal). '*' needs
+to be escaped from the shell. A leading '[' and trailing ']'
+are permitted (e.g. '[1:0:0]' matches all luns on 1:0:0). 
+.PP
+By default in this utility device node names (e.g. "/dev/sda"
+or "/dev/root_disk") are obtained by noting the major and minor
+numbers for the listed device obtained from sysfs (e.g. the
+contents of /sys/block/sda/dev) and then looking for a match
+in the "/dev" directory. This "match by major and minor" will allow
+devices that have been given a different name by udev (for example)
+to be correctly reported by this utility.
+.PP
+In some situations it may be useful to see the device node name that
+linux would produce by default, so the '--kname' option is provided.
+An example of where this may be useful is kernel error logs which
+tend to report disk error messages using the disk's default kernel
+name.
 .TP
 --classic | -c
 The output is similar to that obtained from 'cat /proc/scsi/scsi'
@@ -32,8 +54,17 @@ Output the usage message and exit
 List the SCSI hosts currently attached to the system. If this option is
 not given then SCSI devices are listed
 .TP
+--kname | -k
+Use linux default algorithm for naming devices (e.g. block major 8,
+minor 0 is "/dev/sda") rather than the "match by major and minor"
+in the "/dev" diretory as discussed above.
+.TP
 --long | -l
-Output additional information for each SCSI device (host)
+Output additional information for each SCSI device (host). Can be
+used multiple times for more output in which case the shorter
+form is more convenient (e.g. '-lll'). When used three times (i.e. '-lll')
+outputs SCSI device (host) attributes one per line; preceded by
+two spaces; in the form "<attribute_name>=<value>".
 .TP
 --verbose | -v
 outputs directory names where information is found. Use twice for
@@ -57,7 +88,7 @@ Written by Doug Gilbert
 .SH "REPORTING BUGS"
 Report bugs to <dgilbert at interlog dot com>.
 .SH COPYRIGHT
-Copyright \(co 2002-2004 Douglas Gilbert
+Copyright \(co 2003-2005 Douglas Gilbert
 .br
 This software is distributed under the GPL version 2. There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.

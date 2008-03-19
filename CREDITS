@@ -1,0 +1,11 @@
+The author of lsscsi would like to thank the following people who
+have made contributions:
+
+Nate Dailey <Nate dot Dailey at stratus dot com>
+Code to get actual /dev device name rather than produce synthetic
+device name based on major and minor number. '--kname' option
+shows "synthetic" device name; /dev device name is now the
+default. [20050620]
+
+Doug Gilbert
+22nd June 2005
