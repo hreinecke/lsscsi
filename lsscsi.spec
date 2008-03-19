@@ -1,5 +1,5 @@
 %define name    lsscsi
-%define version 0.19
+%define version 0.20
 %define release 1
 
 Summary: 	List SCSI devices (or hosts) and associated information
@@ -55,6 +55,9 @@ make install \
 
 
 %changelog
+* Thu Jan 25 2007 - dgilbert at interlog dot com
+- xxxxxxxxx
+  * lsscsi-0.20
 * Thu Jan 25 2007 - dgilbert at interlog dot com
 - add transport information (target+initiator)
   * lsscsi-0.19

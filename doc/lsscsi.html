@@ -37,26 +37,26 @@ information</a></li>
   </li>
 </ol>
 <h2><a class="mozTocH2" name="mozTocId557900"></a><b>Introduction</b></h2>
-In the 2.6 linux kernel series a new pseudo file system call <b>sysfs</b>
-reflects the way that various devices and their drivers are configured
-in the system. Sysfs support has been added to the SCSI subsystem (as
-well as most other driver subsystems) so that a reasonable amount of
-information can be deduced by scanning the sysfs tree. The <b>lsscsi</b>
-command scans the sysfs tree and outputs information about SCSI
-devices (or SCSI hosts) that are attached.&nbsp;
-<h2><a class="mozTocH2" name="mozTocId305911"></a> Overview</h2>
-The <span style="font-weight: bold;">lsscsi</span> command accesses
-the sysfs file system (usually mounted under <span
- style="font-family: monospace;">/sys</span> ) to obtain information
-rather than opening the SCSI device nodes (e.g. <span
- style="font-family: monospace;">/dev/sda</span> ) in the system.
-Reading information within the sysfs file system is usually available
-to all users (as is the information in procfs). However the permissions
-on SCSI device nodes are necessarily tight which precludes normal users
-from directly interrogating these devices. The <span
- style="font-weight: bold;">lsscsi</span> command will typically be
-available to all users.<br>
+The <span style="font-weight: bold;">lsscsi</span> command lists
+information about SCSI devices or hosts in Linux. Using SCSI
+terminology, <span style="font-weight: bold;">lsscsi</span> lists
+information about SCSI <span style="font-style: italic;">logical units</span>
+(or <span style="font-style: italic;">targets</span> when the
+'--transport' option is given) or <span style="font-style: italic;">initiators</span>.
+The default action is to produce one line of output for each SCSI
+device attached to the system.<br>
 <br>
+The <span style="font-weight: bold;">lsscsi</span> command scans the <span
+ style="font-weight: bold;">sysfs</span> pseudo file system introduced
+in the 2.6 linux kernel series. Since most users have permissions to
+read sysfs (usually mounted at <span style="font-family: monospace;">/sys</span>
+) then meta information can be found on some or all SCSI devices
+without a user needing elevated permissions to access special files
+(e.g. <span style="font-family: monospace;">/dev/sda</span> ). The <span
+ style="font-weight: bold;">lsscsi</span> command can also show the
+relationship between a device's primary node name, its scsi generic
+(sg) node name and its kernel name.<br>
+<h2><a class="mozTocH2" name="mozTocId305911"></a> Overview</h2>
 When executed without any options <b>lsscsi</b> outputs one line for
 each SCSI device attached to the system:<br>
 <tt>$&nbsp;lsscsi<br>
@@ -65,7 +65,7 @@ MAM3184MP&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 0105&nbsp; /dev/sda<br>
 [2:0:0:0]&nbsp;&nbsp;&nbsp; cd &nbsp;&nbsp; &nbsp; CREATIVE
 CD5233E&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 1.00&nbsp;
-/dev/sr0</tt><tt><br>
+/dev/scd0</tt><tt><br>
 [3:0:5:0] &nbsp; &nbsp;tape &nbsp; &nbsp;HP &nbsp; &nbsp;
 &nbsp; C5713A &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; H910
 &nbsp;/dev/st0<br>
@@ -79,25 +79,26 @@ The first entry on each line is the scsi_host,channel,target_number,lun
 tuple. It is placed in brackets and each element is colon separated.
 When there are multiple SCSI devices their entries are sorted in
 ascending tuple order.
-The next column is the SCSI peripheral type; rather than the formal
+The next column is the SCSI peripheral type; rather than using the
+formal
 name (e.g.
 "direct access device") a shorter name is used. Then follows the
 vendor name, the model name and the revision string. The last
-entry is the device file node name. This assumes that the naming of
-files in the /dev directory follows Linux conventions (if in doubt use
-the '-d' option to see the device node's major and minor numbers). Note
-that some distributions favour
-the "/dev/scd0" over the older "/dev/sr0" form for CD/DVD devices. Also
-note that the tape medium
-exchanger does not have a primary device name and thus can only be
-accessed via its corresponding scsi generic (sg) device name.<br>
+entry is the primary device node name. The "primary" device node name
+is associated with the upper level SCSI driver that "owns" the device.
+Examples of upper level SCSI drivers are sd (for disks), sr (for
+optical drives whose devices are often named <span
+ style="font-family: monospace;">/dev/scd&lt;n&gt;</span> ) and st (for
+tapes). Some SCSI devices have peripheral types that either don't have
+upper level drivers to control them, or the associated driver module is
+not loaded. Such devices have '-' given for their device node name. All
+SCSI devices can be accessed via their corresponding scsi generic (sg)
+device node name (e.g. <span style="font-family: monospace;">/dev/sg&lt;n&gt;</span>
+) which can be seen by adding a '--generic' option to the above lsscsi
+invocation.<br>
 <br>
-The target_number (the third element of the tuple) is the target
-identifier for the SCSI Parallel Interface (SPI). For all other
-transports the target_number is simply a kernel generated enumeration
-(as is the scsi_host value).<br>
-<br>
-Here is a "long" variant of this command:<br>
+Here is a "long" variant of this command. The '-l' (or '--long') option
+can be used multiple time for more output.<br>
 $ lscssi -l<br>
 <tt>[0:0:1:0]&nbsp;&nbsp;&nbsp; disk&nbsp;&nbsp;&nbsp; FUJITSU&nbsp;
 MAM3184MP&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 0105&nbsp; /dev/sda<br>
@@ -111,7 +112,8 @@ The device node major and minor numbers can also be output with the
 MAM3184MP&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 0105&nbsp;
 /dev/sda[8:0]</tt><br>
 <br>
-The '-g' option can be used to show the corresponding scsi generic
+The '-g' (or '--generic') option can be used to show the corresponding
+scsi generic
 device name:<br>
 <tt>$ lsscsi -g<br>
 [0:0:1:0]&nbsp;&nbsp;&nbsp; disk&nbsp;&nbsp;&nbsp; FUJITSU&nbsp;
@@ -719,7 +721,6 @@ aic94xx&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; sas:50000d100f2dc000</span><br>
 <br>
 Adding a '--list' option will print multiple 'name=value' pair lines,
 each indented with two or more spaces.<br>
-<br>
 <h3><a class="mozTocH3" name="mozTocId798449"></a>SPI</h3>
 The SCSI parallel interface (SPI) can be detected (as indicated by the
 "spi:" prefix) but sysfs provides no world wide unique names (there may
@@ -822,7 +823,6 @@ Extra SCSI device and host attributes (as found in lk 2.6.12) can be
 seen by using the '--long' option twice (or more conveniently using
 '-ll'). Attributes are listed as "&lt;name&gt;=&lt;value&gt;" pairs,
 one per line (indented two spaces) when the '--list' option is given.<br>
-<br>
 <p> </p>
 <p> </p>
 <h2><a class="mozTocH2" name="mozTocId856130"></a> Download and Build
@@ -943,7 +943,7 @@ the link and select "Save link as ..." to download the file.
 </p>
 <p> </p>
 <div style="text-align: center;">Doug Gilbert (dgilbert@interlog.com) <br>
-Last updated: 25th January 2007<br>
+Last updated: 4th February 2007<br>
 </div>
 <p>&nbsp; </p>
 </body>

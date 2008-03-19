@@ -1,4 +1,7 @@
 
+Version 0.20 2007/1/25
+  - xxxxxxxxxx
+
 Version 0.19 2007/1/25
   - add transport information (target + initiator)
     - start with FC, SAS, SPI, iSCSI and SBP

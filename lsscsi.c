@@ -26,7 +26,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.19  2007/01/25";
+static const char * version_str = "0.20  2007/01/25";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
