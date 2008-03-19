@@ -6,21 +6,21 @@
 
 Summary: List all SCSI devices (or hosts) and associated information
 Name: lsscsi
-Version: 0.10
+Version: 0.11
 Release: 1
 Packager: dgilbert@interlog.com
 License: GPL
 Group: Utilities/System
-Source: ftp://www.torque.net/scsi/lsscsi-0.10.tgz
+Source: ftp://www.torque.net/scsi/lsscsi-0.11.tgz
 Url: http://www.torque.net/scsi/lsscsi.html
 Provides: lsscsi
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root/
 
 %description
-Uses information provided by sysfs in Linux kernel from around 2.5.50
-to list all SCSI devices. There is also an option to list SCSI hosts.
-As well as the name of the device or host (driver) various other
-parameters are optionally displayed.
+Uses information provided by the sysfs pseudo file system in Linux kernel
+2.6 series to list all SCSI devices or all SCSI hosts. Includes a "classic"
+option to mimic the output of "cat /proc/scsi/scsi" that has been widely
+used prior to the lk 2.6 series.
 
 Author:
 --------
@@ -45,13 +45,17 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(-,root,root)
 %attr(-,root,root) %doc README CHANGELOG INSTALL
 %attr(755,root,root) %{_bindir}/lsscsi
-%attr(-,root,root) %doc %{_mandir}/man8/lsscsi.8.gz
+# Mandrake compresses man pages with bzip2, RedHat with gzip
+%attr(-,root,root) %doc %{_mandir}/man8/lsscsi.8*
  
 
 %changelog
+* Fri Jan 09 2004 - dgilbert@interlog.com
+- rework fro lk 2.6.1
+  * lsscsi-0.11
 * Tue May 06 2003 - dgilbert@interlog.com
-- adjust HBA listsing for lk > 2.5.69
-  * lsscsi-0.09
+- adjust HBA listing for lk > 2.5.69
+  * lsscsi-0.10
 * Fri Apr 04 2003 - dgilbert@interlog.com
 - fix up sorting, GPL + copyright notice
   * lsscsi-0.09

@@ -1,10 +1,10 @@
-.TH lsscsi "8" "April 2003" "lsscsi-0.09" LSSCSI
+.TH lsscsi "8" "January 2004" "lsscsi-0.11" LSSCSI
 .SH NAME
 lsscsi \- list all SCSI devices (or hosts) currently on system
 .SH SYNOPSIS
 .B lsscsi
 [\fI--classic|-c\fR] [\fI--generic|-g\fR] [\fI--help|-h\fR] [\fI--hosts|-H\fR]
-[\fI--long|-l\fR] [\fI--name|-n\fR] [\fI--sysfsroot=<dir>\fR] 
+[\fI--long|-l\fR] [\fI--sysfsroot=<dir>\fR] 
 [\fI--verbose|-v\fR] [\fI--version|-V\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
@@ -30,10 +30,6 @@ not given then SCSI devices are listed
 .TP
 --long | -l
 Output additional information for each SCSI device (host)
-.TP
---name | -n
-Output the name derived from the INQUIRY VPD page 0x83 or the name that
-the SCSI subsystem manufacturers when VPD page 0x83 is not available
 .TP
 --sysfsroot=<dir>
 This command usually find the sysfs root directory by examining the
@@ -61,10 +57,14 @@ Written by Doug Gilbert
 .SH "REPORTING BUGS"
 Report bugs to <dgilbert@interlog.com>.
 .SH COPYRIGHT
-Copyright \(co 2002-2003 Douglas Gilbert
+Copyright \(co 2002-2004 Douglas Gilbert
 .br
 This software is distributed under the GPL version 2. There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 .SH "SEE ALSO"
 .B lspci
 .B lsusb
+.B lsbus
+and
+.B systool
+The latter two can be found in sysfsutils.

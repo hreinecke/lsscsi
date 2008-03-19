@@ -1,7 +1,7 @@
 /* This is a utility program for listing SCSI devices and hosts (HBAs)
  * in the Linux operating system. It is applicable to kernel versions
- * greater than lk 2.5.50 .
- *  Copyright (C) 2002, 2003 D. Gilbert
+ * 2.6.1 and greater.
+ *  Copyright (C) 2002-2004 D. Gilbert
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 2, or (at your option)
@@ -22,7 +22,7 @@
 
 #define NAME_LEN_MAX 260
 
-static const char * version_str = "0.10  2003/5/6";
+static const char * version_str = "0.11  2004/1/9";
 static char sysfsroot[NAME_LEN_MAX];
 static const char * sysfs_name = "sysfs";
 static const char * proc_mounts = "/proc/mounts";
@@ -31,7 +31,7 @@ static const char * scsi_hosts = "/class/scsi_host";
 
 #define MASK_CLASSIC 1
 #define MASK_LONG 2
-#define MASK_NAME 4
+/* #define MASK_NAME 4 */
 #define MASK_GENERIC 8
 
 
@@ -55,7 +55,8 @@ static const char * scsi_device_types[] =
         "Optical card read/writer",
         "Unknown (expander)",
         "Object based storage",
-	"Reserved (0x12)", "Reserved (0x13)", "Reserved (0x14)", 
+	"Automation Drive interface",
+	"Reserved (0x13)", "Reserved (0x14)", 
 	"Reserved (0x15)", "Reserved (0x16)", "Reserved (0x17)", 
 	"Reserved (0x18)", "Reserved (0x19)", "Reserved (0x1a)", 
 	"Reserved (0x1b)", "Reserved (0x1c)", "Reserved (0x1e)", 
@@ -65,10 +66,10 @@ static const char * scsi_device_types[] =
 
 static const char * scsi_short_device_types[] =
 {
-        "disk   ", "tape   ", "printer", "process", "worm   ", "cd     ",
+        "disk   ", "tape   ", "printer", "process", "worm   ", "cd/dvd ",
         "scanner", "optical", "mediumx", "comms  ", "(0xa)  ", "(0xb)  ",
-        "storage", "enclosu", "s. disk", "opti rd", "expande", "obs    ",
-	"(0x12) ", "(0x13) ", "(0x14) ", "(0x15) ", "(0x16) ", "(0x17) ", 
+        "storage", "enclosu", "s. disk", "opti rd", "expande", "osd    ",
+	"adi    ", "(0x13) ", "(0x14) ", "(0x15) ", "(0x16) ", "(0x17) ", 
 	"(0x18) ", "(0x19) ", "(0x1a) ", "(0x1b) ", "(0x1c) ", "(0x1e) ", 
 	"know LU", "no dev ", 
 };
@@ -79,7 +80,7 @@ static struct option long_options[] = {
 	{"help", 0, 0, 'h'},
 	{"hosts", 0, 0, 'H'},
 	{"long", 0, 0, 'l'},
-	{"name", 0, 0, 'n'},
+/*	{"name", 0, 0, 'n'},	*/
 	{"sysfsroot", 1, 0, 'y'},
 	{"verbose", 0, 0, 'v'},
 	{"version", 0, 0, 'z'},
@@ -122,7 +123,7 @@ static void usage()
 {
 	fprintf(stderr, "Usage: lsscsi   [--classic|-c] [--generic|-g]"
 			" [--help|-h] [--hosts|-H]"
-			"\n\t\t\[--long|-l] [--name|-n] [--sysfsroot=<dir>]"
+			"\n\t\t\[--long|-l] [--sysfsroot=<dir>]"
 			" [--verbose|-v]"
 			"\n\t\t[--version|-V]\n");
 	fprintf(stderr, "\t--classic  alternate output that is similar "
@@ -132,8 +133,6 @@ static void usage()
 	fprintf(stderr, "\t--hosts  lists scsi hosts rather than scsi "
 			"devices\n");
 	fprintf(stderr, "\t--long  additional information output\n");
-	fprintf(stderr, "\t--name  from INQUIRY VPD page 0x83 or "
-			"manufactured name\n");
 	fprintf(stderr, "\t--sysfsroot=<dir>  use /proc/mounts or <dir> "
 			"for root of sysfs\n");
 	fprintf(stderr, "\t--verbose  output path names were data "
@@ -253,10 +252,6 @@ static void longer_entry(const char * path_name)
 		printf("  online=%s", value);
 	else
 		printf(" online=?");
-	if (get_value(path_name, "access_count", value, NAME_LEN_MAX))
-		printf(" access_count=%s", value);
-	else
-		printf(" access_count=?");
 	if (get_value(path_name, "queue_depth", value, NAME_LEN_MAX))
 		printf(" queue_depth=%s", value);
 	else
@@ -269,6 +264,10 @@ static void longer_entry(const char * path_name)
 		printf(" type=%s", value);
 	else
 		printf(" type=?");
+	if (get_value(path_name, "device_blocked", value, NAME_LEN_MAX))
+		printf(" device_blocked=%s", value);
+	else
+		printf(" device_blocked=?");
 	printf("\n");
 }
 
@@ -318,34 +317,16 @@ static void one_classic_sdev_entry(const char * dir_name,
 		printf("ANSI SCSI revision: %02x\n", (scsi_level - 1) ?
 		                            scsi_level - 1 : 1);
 	if (out_mask & MASK_GENERIC) {
-		char extra[NAME_LEN_MAX];
-		const char * bnp;
+		if (if_directory_chdir(buff, "generic")) { 
+                	char wd[NAME_LEN_MAX];
 
-		bnp = basename(buff);
-		strcpy(extra, bnp);
-		strcat(extra, ":gen/kdev");
-		if (get_value(buff, extra, value, NAME_LEN_MAX)) {
-			int kd, majj, minn;
-
-			if (1 == sscanf(value, "%x", &kd)) {
-				majj = kd / 256;
-				minn = kd % 256;
-				if (SCSI_GENERIC_MAJOR == majj)
-					printf("/dev/sg%d\n", minn);
-				else
-					printf("unexpected sg major\n");
-			}
-			else
-				printf("unable to decode kdev\n");
+                	if (NULL == getcwd(wd, NAME_LEN_MAX))
+                        	printf("generic_dev error\n");
+                	else
+                        	printf("/dev/%s\n", basename(wd));
 		}
 		else
 			printf("-\n");
-	}
-	if (out_mask & MASK_NAME) {
-		if (get_value(buff, "name", value, NAME_LEN_MAX))
-			printf("  name: %s\n", value);
-		else
-			printf("  name: ??\n");
 	}
 	if (out_mask & MASK_LONG)
 		longer_entry(buff);
@@ -403,73 +384,36 @@ static void one_sdev_entry(const char * dir_name, const char * devname,
 			printf("/dev/%s", basename(wd));
 	}
 	else { /* look for tape device */
-		char extra[NAME_LEN_MAX];
-		const char * bnp;
-		int found = 0;
+		if (if_directory_chdir(buff, "tape")) { 
+                	char wd[NAME_LEN_MAX];
+                        char s[NAME_LEN_MAX];
+                        char * cp;
 
-		bnp = basename(buff);
-		strcpy(extra, bnp);
-		strcat(extra, ":mt/kdev");
-		if (get_value(buff, extra, value, NAME_LEN_MAX))
-	       		found = 1; /* st device */
-		else {
-			strcpy(extra, bnp);
-			strcat(extra, ":ot/kdev");
-			if (get_value(buff, extra, value, NAME_LEN_MAX))
-				found = 1;	/* osst device */
-		}
-		if (found) {
-			int kd, majj, minn;
-
-			if (1 == sscanf(value, "%x", &kd)) {
-				majj = kd / 256;
-				minn = kd % 256;
-				/* for tape devices, 0 <= minn <= 31 */
-				if (SCSI_TAPE_MAJOR == majj)
-					printf("/dev/st%d", minn);
-				else if (OSST_MAJOR == majj)
-					printf("/dev/osst%d", minn);
-				else
-					printf("unexpected tape major");
-			}
-			else
-				printf("unable to decode kdev");
-		}
-		else
+                	if (NULL == getcwd(wd, NAME_LEN_MAX))
+                        	printf("tape_dev error");
+                	else {
+                                strcpy(s, basename(wd));
+                                if ((cp = strchr(s, 'm')))
+                                    s[cp - s] = '\0';
+                                printf("/dev/%s", s);
+                        }
+		} else
 			printf("-       ");
 	}
 
 	if (out_mask & MASK_GENERIC) {
-		char extra[NAME_LEN_MAX];
-		const char * bnp;
+		if (if_directory_chdir(buff, "generic")) { 
+                	char wd[NAME_LEN_MAX];
 
-		bnp = basename(buff);
-		strcpy(extra, bnp);
-		strcat(extra, ":gen/kdev");
-		if (get_value(buff, extra, value, NAME_LEN_MAX)) {
-			int kd, majj, minn;
-
-			if (1 == sscanf(value, "%x", &kd)) {
-				majj = kd / 256;
-				minn = kd % 256;
-				if (SCSI_GENERIC_MAJOR == majj)
-					printf("  /dev/sg%d", minn);
-				else
-					printf("  unexpected sg major");
-			}
-			else
-				printf("  unable to decode kdev");
+                	if (NULL == getcwd(wd, NAME_LEN_MAX))
+                        	printf("  generic_dev error");
+                	else
+                        	printf("  /dev/%s", basename(wd));
 		}
 		else
 			printf("  -");
 	}
 	printf("\n");
-	if (out_mask & MASK_NAME) {
-		if (get_value(buff, "name", value, NAME_LEN_MAX))
-			printf("  name: %s\n", value);
-		else
-			printf("  name: ??\n");
-	}
 	if (out_mask & MASK_LONG)
 		longer_entry(buff);
 	if (do_verbose) {
@@ -565,10 +509,15 @@ static void one_host_entry(const char * dir_name, const char * devname,
 	strcpy(buff, dir_name);
 	strcat(buff, "/");
 	strcat(buff, devname);
-	if (get_value(buff, "device/name", value, NAME_LEN_MAX))
-		printf("  %s\n", value);
-	else
-		printf("  ??\n");
+	if (if_directory_chdir(buff, "device")) {
+		char wd[NAME_LEN_MAX];
+
+		if (NULL == getcwd(wd, NAME_LEN_MAX))
+			printf("  [??]\n");
+		else
+			printf("  [%s]\n", wd);
+	} else
+		printf("  [???]\n");
 	if (out_mask & MASK_LONG) {
 		if (get_value(buff, "cmd_per_lun", value, NAME_LEN_MAX))
 			printf("  cmd_per_lun=%-4s ", value);
@@ -590,12 +539,6 @@ static void one_host_entry(const char * dir_name, const char * devname,
 		else
 			printf("unchecked_isa_dma=?? ");
 		printf("\n");
-	}
-	if (out_mask & MASK_NAME) {
-		if (get_value(buff, "adapter/name", value, NAME_LEN_MAX))
-			printf("  name: %s\n", value);
-		else
-			printf("  name: ??\n");
 	}
 	if (do_verbose) {
 		printf("  dir: %s  [", buff);
@@ -676,7 +619,7 @@ int main(int argc, char **argv)
 	while (1) {
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "cghHlnvV", long_options, 
+		c = getopt_long(argc, argv, "cghHlvV", long_options, 
 				&option_index);
 		if (c == -1)
 			break;
@@ -696,9 +639,6 @@ int main(int argc, char **argv)
 			break;
 		case 'l':
 			out_mask |= MASK_LONG;
-			break;
-		case 'n':
-			out_mask |= MASK_NAME;
 			break;
 		case 'v':
 			++do_verbose;
