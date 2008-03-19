@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <sys/types.h>
@@ -11,11 +12,12 @@
 
 #define NAME_LEN_MAX 260
 
-static const char * version_str = "0.07  2003/2/10";
+static const char * version_str = "0.08  2003/3/2";
 static char sysfsroot[NAME_LEN_MAX];
 static const char * sysfs_name = "sysfs";
 static const char * proc_mounts = "/proc/mounts";
 static const char * scsi_devs = "/bus/scsi/devices";
+static const char * scsi_hosts = "/class/scsi-host/devices";
 
 #define MASK_CLASSIC 1
 #define MASK_LONG 2
@@ -223,8 +225,9 @@ static void longer_entry(const char * path_name)
 	printf("\n");
 }
 
-static void one_classic_entry(const char * dir_name, const char * devname,
-			      int do_verbose, int out_mask)
+static void one_classic_sdev_entry(const char * dir_name, 
+				   const char * devname, int do_verbose, 
+				   int out_mask)
 {
 	int hcil_arr[4];
 	char buff[NAME_LEN_MAX];
@@ -305,15 +308,16 @@ static void one_classic_entry(const char * dir_name, const char * devname,
 		printf("  dir: %s\n", buff);
 }
 
-static void one_entry(const char * dir_name, const char * devname,
-		      int do_verbose, int out_mask)
+static void one_sdev_entry(const char * dir_name, const char * devname,
+			   int do_verbose, int out_mask)
 {
 	char buff[NAME_LEN_MAX];
 	char value[NAME_LEN_MAX];
 	int type;
 
 	if (out_mask & MASK_CLASSIC) {
-		one_classic_entry(dir_name, devname, do_verbose, out_mask);
+		one_classic_sdev_entry(dir_name, devname, do_verbose, 
+				       out_mask);
 		return;
 	}
 	strcpy(buff, dir_name);
@@ -423,11 +427,21 @@ static void one_entry(const char * dir_name, const char * devname,
 	}
 	if (out_mask & MASK_LONG)
 		longer_entry(buff);
-	if (do_verbose)
-		printf("  dir: %s\n", buff);
+	if (do_verbose) {
+		printf("  dir: %s  [", buff);
+		if (if_directory_chdir(buff, "")) {
+			char wd[NAME_LEN_MAX];
+
+			if (NULL == getcwd(wd, NAME_LEN_MAX))
+				printf("?");
+			else
+				printf("%s", wd);
+		}
+		printf("]\n");
+	}
 }
 
-static int scandir_select(const struct dirent * s)
+static int sdev_scandir_select(const struct dirent * s)
 {
 	if (strstr(s->d_name, "mt"))
 		return 0;	/* st auxiliary device names */
@@ -440,7 +454,7 @@ static int scandir_select(const struct dirent * s)
 	return 0;
 }
 
-static int scandir_sort(const void * a, const void * b)
+static int sdev_scandir_sort(const void * a, const void * b)
 {
 	const char * lnam = (*(struct dirent **)a)->d_name;
 	const char * rnam = (*(struct dirent **)b)->d_name;
@@ -471,7 +485,8 @@ static void list_sdevices(int do_verbose, int out_mask)
 	strcpy(buff, sysfsroot);
 	strcat(buff, scsi_devs);
 
-	num = scandir(buff, &namelist, scandir_select, scandir_sort);
+	num = scandir(buff, &namelist, sdev_scandir_select, 
+		      sdev_scandir_sort);
 	if (num < 0) {
 		snprintf(name, NAME_LEN_MAX, "scandir: %s", buff);
 		perror(name);
@@ -482,7 +497,123 @@ static void list_sdevices(int do_verbose, int out_mask)
 
 	for (k = 0; k < num; ++k) {
 		strncpy(name, namelist[k]->d_name, NAME_LEN_MAX);
-		one_entry(buff, name, do_verbose, out_mask);
+		one_sdev_entry(buff, name, do_verbose, out_mask);
+		free(namelist[k]);
+	}
+	free(namelist);
+}
+
+static void one_host_entry(const char * dir_name, const char * devname,
+			   int do_verbose, int out_mask)
+{
+	char buff[NAME_LEN_MAX];
+	char value[NAME_LEN_MAX];
+	unsigned int host_id;
+
+	if (out_mask & MASK_CLASSIC) {
+		// one_classic_host_entry(dir_name, devname, do_verbose, 
+				       // out_mask);
+		return;
+	}
+	strcpy(buff, dir_name);
+	strcat(buff, "/");
+	strcat(buff, devname);
+	if (get_value(buff, "class_name", value, NAME_LEN_MAX)) {
+		if (1 == sscanf(value, "scsi%u", &host_id))
+			printf("[%u]  ", host_id);
+		else
+			printf("[?]  ");
+	}
+	else
+		printf("[??] ");
+
+	if (get_value(buff, "cmd_per_lun", value, NAME_LEN_MAX))
+		printf("cmd_per_lun=%-4s ", value);
+	else
+		printf("cmd_per_lun=???? ");
+
+	if (get_value(buff, "host_busy", value, NAME_LEN_MAX))
+		printf("host_busy=%-4s ", value);
+	else
+		printf("host_busy=???? ");
+
+	if (get_value(buff, "sg_tablesize", value, NAME_LEN_MAX))
+		printf("sg_tablesize=%-4s ", value);
+	else
+		printf("sg_tablesize=???? ");
+
+	if (get_value(buff, "unchecked_isa_dma", value, NAME_LEN_MAX))
+		printf("unchecked_isa_dma=%-2s ", value);
+	else
+		printf("unchecked_isa_dma=?? ");
+	printf("\n");
+	if (out_mask & MASK_NAME) {
+		if (get_value(buff, "name", value, NAME_LEN_MAX))
+			printf("  name: %s\n", value);
+		else
+			printf("  name: ??\n");
+	}
+	if (do_verbose) {
+		printf("  dir: %s  [", buff);
+		if (if_directory_chdir(buff, "")) {
+			char wd[NAME_LEN_MAX];
+
+			if (NULL == getcwd(wd, NAME_LEN_MAX))
+				printf("?");
+			else
+				printf("%s", wd);
+		}
+		printf("]\n");
+	}
+}
+
+static int host_scandir_select(const struct dirent * s)
+{
+	if (isdigit(s->d_name[0]))
+		return 1;
+	return 0;
+}
+
+static int host_scandir_sort(const void * a, const void * b)
+{
+	const char * lnam = (*(struct dirent **)a)->d_name;
+	const char * rnam = (*(struct dirent **)b)->d_name;
+	unsigned int l, r;
+
+	if (1 != sscanf(lnam, "%u", &l))
+		return -1;
+	if (1 != sscanf(rnam, "%u", &r))
+		return 1;
+	if (l < r)
+		return -1;
+	else if (r < l)
+		return 1;
+	return 0;
+}
+
+static void list_hosts(int do_verbose, int out_mask)
+{
+	char buff[NAME_LEN_MAX];
+	char name[NAME_LEN_MAX];
+        struct dirent ** namelist;
+	int num, k;
+
+	strcpy(buff, sysfsroot);
+	strcat(buff, scsi_hosts);
+
+	num = scandir(buff, &namelist, host_scandir_select, 
+		      host_scandir_sort);
+	if (num < 0) {
+		snprintf(name, NAME_LEN_MAX, "scandir: %s", buff);
+		perror(name);
+		return;
+	}
+	if (out_mask & MASK_CLASSIC)
+		printf("Attached hosts: %s\n", (num ? "" : "none"));
+
+	for (k = 0; k < num; ++k) {
+		strncpy(name, namelist[k]->d_name, NAME_LEN_MAX);
+		one_host_entry(buff, name, do_verbose, out_mask);
 		free(namelist[k]);
 	}
 	free(namelist);
@@ -493,7 +624,7 @@ int main(int argc, char **argv)
 {
 	int c;
 	int do_sdevices = 1;
-	int do_shosts = 0;
+	int do_hosts = 0;
 	int out_mask = 0;
 	int do_verbose = 0;
 
@@ -517,9 +648,8 @@ int main(int argc, char **argv)
 			usage();
 			return 0;
 		case 'H':
-			do_shosts = 1;
-			fprintf(stderr, "listing hosts not yet supported\n");
-			return 0;
+			do_hosts = 1;
+			break;
 		case 'l':
 			out_mask |= MASK_LONG;
 			break;
@@ -563,7 +693,9 @@ int main(int argc, char **argv)
 	if (do_verbose) {
 		printf(" sysfsroot: %s\n", sysfsroot);
 	}
-	if (do_sdevices)
+	if (do_hosts)
+		list_hosts(do_verbose, out_mask);
+	else if (do_sdevices)
 		list_sdevices(do_verbose, out_mask);
 	return 0;
 }
