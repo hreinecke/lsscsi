@@ -1,3 +1,7 @@
+Version 0.14 2004/9/20
+  - port to depend on sysfutils-1.2.0 or later. Needs dlist_sort_custom().
+  - remove 'sysfsroot' command line option
+
 Version 0.13 2004/8/20
   - add 'timeout' to long device option output
   - quiet (unless verbose) if no mid level (hence no SCSI devices or hosts)

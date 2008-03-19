@@ -6,12 +6,12 @@
 
 Summary: List all SCSI devices (or hosts) and associated information
 Name: lsscsi
-Version: 0.13
+Version: 0.14
 Release: 1
 Packager: dgilbert at interlog dot com
 License: GPL
 Group: Utilities/System
-Source: ftp://www.torque.net/scsi/lsscsi-0.13.tgz
+Source: ftp://www.torque.net/scsi/lsscsi-0.14.tgz
 Url: http://www.torque.net/scsi/lsscsi.html
 Provides: lsscsi
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root/
@@ -20,7 +20,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root/
 Uses information provided by the sysfs pseudo file system in Linux kernel
 2.6 series to list all SCSI devices or all SCSI hosts. Includes a "classic"
 option to mimic the output of "cat /proc/scsi/scsi" that has been widely
-used prior to the lk 2.6 series.
+used prior to the lk 2.6 series. Requires sysfsutils-1.2.0 or later.
 
 Author:
 --------
@@ -50,7 +50,10 @@ rm -rf $RPM_BUILD_ROOT
  
 
 %changelog
-* Fri Aug 20 2004 - dgilbert at interlog dot com
+* Mon Sep 20 2004 - dgilbert at interlog dot com
+- port to depend on sysfsutils (1.2.0 or later)
+  * lsscsi-0.14
+* Thu Aug 12 2004 - dgilbert at interlog dot com
 - add 'timeout'
   * lsscsi-0.13
 * Sun May 9 2004 - dgilbert at interlog dot com

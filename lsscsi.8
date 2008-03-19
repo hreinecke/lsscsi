@@ -1,11 +1,11 @@
-.TH lsscsi "8" "August 2004" "lsscsi-0.13" LSSCSI
+.TH lsscsi "8" "August 2004" "lsscsi-0.14" LSSCSI
 .SH NAME
 lsscsi \- list all SCSI devices (or hosts) currently on system
 .SH SYNOPSIS
 .B lsscsi
 [\fI--classic|-c\fR] [\fI--device|-d\fR] [\fI--generic|-g\fR]
 [\fI--help|-h\fR] [\fI--hosts|-H\fR] [\fI--long|-l\fR] 
-[\fI--sysfsroot <dir>\fR] [\fI--verbose|-v\fR] [\fI--version|-V\fR]
+[\fI--verbose|-v\fR] [\fI--version|-V\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
@@ -34,11 +34,6 @@ not given then SCSI devices are listed
 .TP
 --long | -l
 Output additional information for each SCSI device (host)
-.TP
---sysfsroot <dir>
-This command usually find the sysfs root directory by examining the
-output of /proc/mounts. This option allows the sysfs root directory
-to be given explicitly
 .TP
 --verbose | -v
 outputs directory names where information is found. Use twice for

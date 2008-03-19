@@ -12,11 +12,9 @@ EXECS = lsscsi
 MAN_PGS = lsscsi.8
 MAN_PREF = man8
 
-LARGE_FILE_FLAGS = -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
-
-CFLAGS = -g -O2 -W -Wall -D_REENTRANT $(LARGE_FILE_FLAGS)
-# CFLAGS = -g -O2 -Wall -D_REENTRANT -DSG_KERNEL_INCLUDES $(LARGE_FILE_FLAGS)
-# CFLAGS = -g -O2 -Wall -pedantic -D_REENTRANT $(LARGE_FILE_FLAGS)
+CFLAGS = -g -O2 -W -Wall
+# CFLAGS = -g -O2 -W -Wall -DDEBUG
+# CFLAGS = -g -O2 -W -Wall -pedantic -std=c99 -DDEBUG
 
 LDFLAGS =
 
@@ -30,7 +28,7 @@ clean:
 	/bin/rm -f *.o $(EXECS) core .depend
 
 lsscsi: lsscsi.o
-	$(LD) -o $@ $(LDFLAGS) $^
+	$(LD) -o $@ $(LDFLAGS) $^ -lsysfs
 
 install: $(EXECS) $(COMMON)
 	install -d $(INSTDIR)

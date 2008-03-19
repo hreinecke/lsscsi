@@ -16,18 +16,20 @@
 #include <getopt.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <dirent.h>
 #include <libgen.h>
-#include <linux/major.h>
 
-#define NAME_LEN_MAX 260
+#include <sysfs/libsysfs.h>
 
-static const char * version_str = "0.13  2004/8/12";
-static char sysfsroot[NAME_LEN_MAX];
-static const char * sysfs_name = "sysfs";
-static const char * proc_mounts = "/proc/mounts";
-static const char * scsi_devs = "/bus/scsi/devices";
-static const char * scsi_hosts = "/class/scsi_host";
+// This utility has been ported to use the libsysfs library with help
+// from Ananth Narayan <ananth at in dot ibm dot com>.
+
+// Following define assumes dlist_sort_custom() which became available in
+// sysfsutils-1.2.0
+#define HAVE_DLIST_SORT_CUSTOM
+
+static const char * version_str = "0.14  2004/9/20";
+static const char * scsi_bus_name = "scsi";
+static const char * scsi_host_name = "scsi_host";
 
 #define MASK_CLASSIC 1
 #define MASK_LONG 2
@@ -82,8 +84,6 @@ static struct option long_options[] = {
 	{"help", 0, 0, 'h'},
 	{"hosts", 0, 0, 'H'},
 	{"long", 0, 0, 'l'},
-/*	{"name", 0, 0, 'n'},	*/
-	{"sysfsroot", 1, 0, 'y'},
 	{"verbose", 0, 0, 'v'},
 	{"version", 0, 0, 'V'},
 	{0, 0, 0, 0}
@@ -96,6 +96,7 @@ struct addr_hcil {
 	int l;
 };
 
+#ifdef HAVE_DLIST_SORT_CUSTOM
 static int cmp_hcil(const struct addr_hcil * le, const struct addr_hcil * ri)
 {
 	if (le->h == ri->h) {
@@ -110,6 +111,7 @@ static int cmp_hcil(const struct addr_hcil * le, const struct addr_hcil * ri)
 	} else
 		return (le->h < ri->h) ? -1 : 1;
 }
+#endif
 
 static void invalidate_hcil(struct addr_hcil * p)
 {
@@ -124,10 +126,8 @@ static void invalidate_hcil(struct addr_hcil * p)
 static void usage()
 {
 	fprintf(stderr, "Usage: lsscsi   [--classic|-c] [--device|-d]"
-			" [--generic|-g]"
-			" [--help|-h]\n\t\t[--hosts|-H]"
-			" [--long|-l] [--sysfsroot <dir>]"
-			"\n\t\t[--verbose|-v] [--version|-V]\n");
+			" [--generic|-g] [--help|-h]\n\t\t[--hosts|-H] "
+			"[--long|-l] [--verbose|-v] [--version|-V]\n");
 	fprintf(stderr, "\t--classic  alternate output that is similar "
 			"to 'cat /proc/scsi/scsi'\n");
 	fprintf(stderr, "\t--device   show device node's major + minor"
@@ -137,86 +137,59 @@ static void usage()
 	fprintf(stderr, "\t--hosts    lists scsi hosts rather than scsi "
 			"devices\n");
 	fprintf(stderr, "\t--long     additional information output\n");
-	fprintf(stderr, "\t--sysfsroot <dir>  use /proc/mounts or <dir> "
-			"for root of sysfs\n");
 	fprintf(stderr, "\t--verbose  output path names were data "
 			"is found\n");
 	fprintf(stderr, "\t--version  output version string and exit\n");
 }
 
-
-/* Return 1 if found (in /proc/mounts), else 0 if problems */
-static int find_sysfsroot()
+static struct sysfs_link * open_link(const char * dir_name,
+				     const char * base_name)
 {
-	char buff[NAME_LEN_MAX];
-	char dev[32];
-	char fs_type[32];
-	FILE * f;
-	int res = 0;
-	int n;
-
-	if (NULL == (f = fopen(proc_mounts, "r"))) {
-		snprintf(buff, sizeof(buff), "Unable to open %s for reading",
-			 proc_mounts);
-		perror(buff);
-		return 0;
-	}
-	while (fgets(buff, sizeof(buff), f)) {
-		n = sscanf(buff, "%32s %256s %32s", dev, sysfsroot, fs_type);
-		if (3 != n) {
-			fprintf(stderr, "unexpected short scan,n=%d\n", n);
-			break;
-		}
-		if (0 == strcmp(fs_type, sysfs_name)) {
-			res = 1;
-			break;
-		}
-	}
-	fclose(f);
-	return res;
-}
-
-/* Return 1 if directory, else 0 */
-static int if_directory_chdir(const char * dir_name, const char * base_name)
-{
-	char buff[NAME_LEN_MAX];
-	struct stat a_stat;
+	char buff[SYSFS_PATH_MAX];
 
 	strcpy(buff, dir_name);
 	strcat(buff, "/");
 	strcat(buff, base_name);
-	if (stat(buff, &a_stat) < 0)
-		return 0;
-	if (S_ISDIR(a_stat.st_mode)) {
-		if (chdir(buff) < 0)
-			return 0;
-		return 1;
-	}
-	return 0;
+	return sysfs_open_link(buff);
 }
 
 /* Return 1 if found, else 0 if problems */
-static int get_value(const char * dir_name, const char * base_name,
-		     char * value, int max_value_len)
+static int get_sdev_value(struct sysfs_device * sdevp, const char * search,
+		          char * value, int max_value_len)
 {
-	char buff[NAME_LEN_MAX];
-	FILE * f;
 	int len;
+	struct sysfs_attribute * sattrp;
 
-	strcpy(buff, dir_name);
-	strcat(buff, "/");
-	strcat(buff, base_name);
-	if (NULL == (f = fopen(buff, "r"))) {
+	sattrp = sysfs_get_device_attr(sdevp, search);
+	if (NULL == sattrp)
 		return 0;
-	}
-	if (NULL == fgets(value, max_value_len, f)) {
-		fclose(f);
-		return 0;
-	}
+	if (max_value_len <= 0)
+		return 1;
+	strncpy(value, sattrp->value, max_value_len);
+	value[max_value_len - 1] = '\0';
 	len = strlen(value);
 	if ((len > 0) && (value[len - 1] == '\n'))
 		value[len - 1] = '\0';
-	fclose(f);
+	return 1;
+}
+
+/* Return 1 if found, else 0 if problems */
+static int get_cdev_value(struct sysfs_class_device * cdevp, 
+		const char * search, char * value, int max_value_len)
+{
+	int len;
+	struct sysfs_attribute * sattrp;
+
+	sattrp = sysfs_get_classdev_attr(cdevp, (char *)search);
+	if (NULL == sattrp)
+		return 0;
+	if (max_value_len <= 0)
+		return 1;
+	strncpy(value, sattrp->value, max_value_len);
+	value[max_value_len - 1] = '\0';
+	len = strlen(value);
+	if ((len > 0) && (value[len - 1] == '\n'))
+		value[len - 1] = '\0';
 	return 1;
 }
 
@@ -248,68 +221,63 @@ static int parse_colon_list(const char * colon_list, struct addr_hcil * outp)
 	return 1;
 }
 
-static void longer_entry(const char * path_name)
+static void llonger_entry(struct sysfs_device * sdevp)
 {
-	char value[NAME_LEN_MAX];
+	char value[SYSFS_NAME_LEN];
 
-	if (get_value(path_name, "state", value, NAME_LEN_MAX))
+	if (get_sdev_value(sdevp, "state", value, SYSFS_NAME_LEN))
 		printf("  state=%s", value);
 	else
 		printf(" state=?");
-	if (get_value(path_name, "queue_depth", value, NAME_LEN_MAX))
+	if (get_sdev_value(sdevp, "queue_depth", value, SYSFS_NAME_LEN))
 		printf(" queue_depth=%s", value);
 	else
 		printf(" queue_depth=?");
-	if (get_value(path_name, "scsi_level", value, NAME_LEN_MAX))
+	if (get_sdev_value(sdevp, "scsi_level", value, SYSFS_NAME_LEN))
 		printf(" scsi_level=%s", value);
 	else
 		printf(" scsi_level=?");
-	if (get_value(path_name, "type", value, NAME_LEN_MAX))
+	if (get_sdev_value(sdevp, "type", value, SYSFS_NAME_LEN))
 		printf(" type=%s", value);
 	else
 		printf(" type=?");
-	if (get_value(path_name, "device_blocked", value, NAME_LEN_MAX))
+	if (get_sdev_value(sdevp, "device_blocked", value, SYSFS_NAME_LEN))
 		printf(" device_blocked=%s", value);
 	else
 		printf(" device_blocked=?");
-	if (get_value(path_name, "timeout", value, NAME_LEN_MAX))
+	if (get_sdev_value(sdevp, "timeout", value, SYSFS_NAME_LEN))
 		printf(" timeout=%s", value);
 	else
 		printf(" timeout=?");
 	printf("\n");
 }
 
-static void one_classic_sdev_entry(const char * dir_name, 
-				   const char * devname, int do_verbose, 
-				   int out_mask)
+static void one_classic_sdev_entry(struct sysfs_device * sdevp,
+				   int do_verbose, int out_mask)
 {
 	struct addr_hcil hcil;
-	char buff[NAME_LEN_MAX];
-	char value[NAME_LEN_MAX];
+	char value[SYSFS_NAME_LEN];
 	int type, scsi_level;
 
-	strcpy(buff, dir_name);
-	strcat(buff, "/");
-	strcat(buff, devname);
-	if (! parse_colon_list(devname, &hcil))
+	if (! parse_colon_list(sdevp->name, &hcil))
        		invalidate_hcil(&hcil);
 	printf("Host: scsi%d Channel: %02d Id: %02d Lun: %02d\n",
 	       hcil.h, hcil.c, hcil.i, hcil.l);
 
-	if (get_value(buff, "vendor", value, NAME_LEN_MAX))
+	if (get_sdev_value(sdevp, "vendor", value, SYSFS_NAME_LEN))
 		printf("  Vendor: %-8s", value);
 	else
 		printf("  Vendor: ?       ");
-	if (get_value(buff, "model", value, NAME_LEN_MAX))
+	if (get_sdev_value(sdevp, "model", value, SYSFS_NAME_LEN))
 		printf(" Model: %-16s", value);
 	else
 		printf(" Model: ?               ");
-	if (get_value(buff, "rev", value, NAME_LEN_MAX))
+	if (get_sdev_value(sdevp, "rev", value, SYSFS_NAME_LEN))
 		printf(" Rev: %-4s", value);
 	else
 		printf(" Rev: ?   ");
 	printf("\n");
-	if (! get_value(buff, "type", value, NAME_LEN_MAX)) {
+	if (! get_sdev_value(sdevp, "type", value, SYSFS_NAME_LEN)) {
 		printf("  Type:   %-33s", "?");
 	} else if (1 != sscanf(value, "%d", &type)) {
 		printf("  Type:   %-33s", "??");
@@ -317,7 +285,7 @@ static void one_classic_sdev_entry(const char * dir_name,
 		printf("  Type:   %-33s", "???");
 	} else
 		printf("  Type:   %-33s", scsi_device_types[type]);
-	if (! get_value(buff, "scsi_level", value, NAME_LEN_MAX)) {
+	if (! get_sdev_value(sdevp, "scsi_level", value, SYSFS_NAME_LEN)) {
 		printf("ANSI SCSI revision: ?\n");
 	} else if (1 != sscanf(value, "%d", &scsi_level)) {
 		printf("ANSI SCSI revision: ??\n");
@@ -325,210 +293,198 @@ static void one_classic_sdev_entry(const char * dir_name,
 		printf("ANSI SCSI revision: %02x\n", (scsi_level - 1) ?
 		                            scsi_level - 1 : 1);
 	if (out_mask & MASK_GENERIC) {
-		if (if_directory_chdir(buff, "generic")) { 
-                	char wd[NAME_LEN_MAX];
+		struct sysfs_link * slinkp;
 
-                	if (NULL == getcwd(wd, NAME_LEN_MAX))
-                        	printf("generic_dev error\n");
-                	else
-                        	printf("/dev/%s\n", basename(wd));
-		}
-		else
+		if ((slinkp = open_link(sdevp->path, "generic"))) {
+			char * tp = slinkp->target;
+
+			printf("  /dev/%s\n", basename(tp));
+			sysfs_close_link(slinkp);
+		} else
 			printf("-\n");
 	}
 	if (out_mask & MASK_LONG)
-		longer_entry(buff);
+		llonger_entry(sdevp);
 	if (do_verbose)
-		printf("  dir: %s\n", buff);
+		printf("  dir: %s\n", sdevp->path);
 }
 
-static void one_sdev_entry(const char * dir_name, const char * devname,
-			   int do_verbose, int out_mask)
+static void one_sdev_entry(struct sysfs_device * sdevp, int do_verbose,
+			   int out_mask)
 {
-	char buff[NAME_LEN_MAX];
-	char value[NAME_LEN_MAX];
+	char value[SYSFS_NAME_LEN];
 	int type;
+	struct sysfs_attribute * sattrp;
+	struct sysfs_link * slinkp;
 
 	if (out_mask & MASK_CLASSIC) {
-		one_classic_sdev_entry(dir_name, devname, do_verbose, 
-				       out_mask);
+		one_classic_sdev_entry(sdevp, do_verbose, out_mask);
 		return;
 	}
-	strcpy(buff, dir_name);
-	strcat(buff, "/");
-	strcat(buff, devname);
-	snprintf(value, NAME_LEN_MAX, "[%s]", devname);
+	snprintf(value, SYSFS_NAME_LEN, "[%s]", sdevp->name);
 	printf("%-13s", value);
-	if (! get_value(buff, "type", value, NAME_LEN_MAX)) {
+	sattrp = sysfs_get_device_attr(sdevp, "type");
+	if (NULL == sattrp) {
 		printf("type?   ");
-	} else if (1 != sscanf(value, "%d", &type)) {
+	} else if (1 != sscanf(sattrp->value, "%d", &type)) {
 		printf("type??  ");
 	} else if ((type < 0) || (type > 31)) {
 		printf("type??? ");
 	} else
 		printf("%s ", scsi_short_device_types[type]);
 
-	if (get_value(buff, "vendor", value, NAME_LEN_MAX))
+
+	if (get_sdev_value(sdevp, "vendor", value, SYSFS_NAME_LEN))
 		printf("%-8s ", value);
 	else
 		printf("vendor?  ");
 
-	if (get_value(buff, "model", value, NAME_LEN_MAX))
+	if (get_sdev_value(sdevp, "model", value, SYSFS_NAME_LEN))
 		printf("%-16s ", value);
 	else
 		printf("model?           ");
 
-	if (get_value(buff, "rev", value, NAME_LEN_MAX))
+	if (get_sdev_value(sdevp, "rev", value, SYSFS_NAME_LEN))
 		printf("%-4s  ", value);
 	else
 		printf("rev?  ");
 
-	if (if_directory_chdir(buff, "block")) { /* look for block device */
-		char wd[NAME_LEN_MAX];
+	if ((slinkp = open_link(sdevp->path, "block"))) { 
+		/* look for block device */
+		char * tp = slinkp->target;
 
-		if (NULL == getcwd(wd, NAME_LEN_MAX))
-			printf("block_dev error");
-		else {
-			printf("/dev/%s", basename(wd));
-			if (out_mask & MASK_DEVICE) {
-				if (get_value(wd, "dev", value, NAME_LEN_MAX))
+		printf("/dev/%s", basename(tp));
+		if (out_mask & MASK_DEVICE) {
+			struct sysfs_class_device * cdevp;
+
+			if ((cdevp = sysfs_open_class_device_path(tp))) {
+				if (get_cdev_value(cdevp, "dev", value,
+						   SYSFS_NAME_LEN))
 					printf("[%s]", value);
 				else
 					printf("[dev?]");
-			}
+				sysfs_close_class_device(cdevp);
+			} else
+				printf("[dev??]");
 		}
-	}
-	else { /* look for tape device */
-		if (if_directory_chdir(buff, "tape")) { 
-                	char wd[NAME_LEN_MAX];
-                        char s[NAME_LEN_MAX];
+		sysfs_close_link(slinkp);
+	} else { /* look for tape device */
+		if ((slinkp = open_link(sdevp->path, "tape"))) {
+			char * tp = slinkp->target;
+                        char s[SYSFS_NAME_LEN];
                         char * cp;
 
-                	if (NULL == getcwd(wd, NAME_LEN_MAX))
-                        	printf("tape_dev error");
-                	else {
-                                strcpy(s, basename(wd));
-                                if ((cp = strchr(s, 'm')))
-                                    s[cp - s] = '\0';
-                                printf("/dev/%s", s);
-				if (out_mask & MASK_DEVICE) {
-					if (get_value(wd, "dev", value, 
-						      NAME_LEN_MAX))
+			strcpy(s, basename(tp));
+			if ((cp = strchr(s, 'm')))
+				s[cp - s] = '\0';
+			printf("/dev/%s", s);
+			if (out_mask & MASK_DEVICE) {
+				struct sysfs_class_device * cdevp;
+
+				if ((cdevp = sysfs_open_class_device_path(tp))) {
+					if (get_cdev_value(cdevp, "dev",
+						 value, SYSFS_NAME_LEN))
 						printf("[%s]", value);
 					else
 						printf("[dev?]");
-				}
-                        }
+					sysfs_close_class_device(cdevp);
+				} else
+					printf("[dev??]");
+			}
+			sysfs_close_link(slinkp);
 		} else
 			printf("-       ");
 	}
-
 	if (out_mask & MASK_GENERIC) {
-		if (if_directory_chdir(buff, "generic")) { 
-                	char wd[NAME_LEN_MAX];
+		if ((slinkp = open_link(sdevp->path, "generic"))) {
+			char * tp = slinkp->target;
 
-                	if (NULL == getcwd(wd, NAME_LEN_MAX))
-                        	printf("  generic_dev error");
-                	else {
-                        	printf("  /dev/%s", basename(wd));
-				if (out_mask & MASK_DEVICE) {
-					if (get_value(wd, "dev", value, 
-						      NAME_LEN_MAX))
+			printf("  /dev/%s", basename(tp));
+			if (out_mask & MASK_DEVICE) {
+				struct sysfs_class_device * cdevp;
+
+				if ((cdevp = sysfs_open_class_device_path(tp))) {
+					if (get_cdev_value(cdevp, "dev", value,
+						   	SYSFS_NAME_LEN))
 						printf("[%s]", value);
 					else
 						printf("[dev?]");
-				}
+					sysfs_close_class_device(cdevp);
+				} else
+					printf("[dev??]");
 			}
-		}
-		else
+			sysfs_close_link(slinkp);
+		} else
 			printf("  -");
 	}
 	printf("\n");
 	if (out_mask & MASK_LONG)
-		longer_entry(buff);
-	if (do_verbose) {
-		printf("  dir: %s  [", buff);
-		if (if_directory_chdir(buff, "")) {
-			char wd[NAME_LEN_MAX];
-
-			if (NULL == getcwd(wd, NAME_LEN_MAX))
-				printf("?");
-			else
-				printf("%s", wd);
-		}
-		printf("]\n");
-	}
+		llonger_entry(sdevp);
+	if (do_verbose)
+		printf("  dir: %s\n", sdevp->path);
 }
 
-static int sdev_scandir_select(const struct dirent * s)
+#ifdef HAVE_DLIST_SORT_CUSTOM
+static int sdev_dlist_comp(void * a, void * b)
 {
-	if (strstr(s->d_name, "mt"))
-		return 0;	/* st auxiliary device names */
-	if (strstr(s->d_name, "ot"))
-		return 0;	/* osst auxiliary device names */
-	if (strstr(s->d_name, "gen"))
-		return 0;
-	if (strchr(s->d_name, ':'))
-		return 1;
-	return 0;
-}
-
-static int sdev_scandir_sort(const void * a, const void * b)
-{
-	const char * lnam = (*(struct dirent **)a)->d_name;
-	const char * rnam = (*(struct dirent **)b)->d_name;
+	const char * lnam = ((struct sysfs_device *)a)->name;
+	const char * rnam = ((struct sysfs_device *)b)->name;
 	struct addr_hcil left_hcil;
 	struct addr_hcil right_hcil;
 
 	if (! parse_colon_list(lnam, &left_hcil)) {
-		fprintf(stderr, "sdev_scandir_sort: left parse failed \n");
+		fprintf(stderr, "sdev_dlist_comp: left parse failed \n");
 		return -1;
 	}
 	if (! parse_colon_list(rnam, &right_hcil)) {
-		fprintf(stderr, "sdev_scandir_sort: right parse failed \n");
+		fprintf(stderr, "sdev_dlist_comp: right parse failed \n");
 		return 1;
 	}
 	return cmp_hcil(&left_hcil, &right_hcil);
 }
+#endif
 
 static void list_sdevices(int do_verbose, int out_mask)
 {
-	char buff[NAME_LEN_MAX];
-	char name[NAME_LEN_MAX];
-        struct dirent ** namelist;
-	int num, k;
+	struct sysfs_bus * sbusp;
+	struct sysfs_device * sdevp;
+	struct dlist * lp = NULL;
+	int num = 0;
 
-	strcpy(buff, sysfsroot);
-	strcat(buff, scsi_devs);
-
-	num = scandir(buff, &namelist, sdev_scandir_select, 
-		      sdev_scandir_sort);
-	if (num < 0) {	/* scsi mid level may not be loaded */
+	sbusp = sysfs_open_bus(scsi_bus_name);
+	if (NULL == sbusp) {
 		if (do_verbose) {
-			snprintf(name, NAME_LEN_MAX, "scandir: %s", buff);
-			perror(name);
 			printf("SCSI mid level module may not be loaded\n");
 		}
 		if (out_mask & MASK_CLASSIC)
 			printf("Attached devices: none\n");
 		return;
 	}
-	if (out_mask & MASK_CLASSIC)
-		printf("Attached devices: %s\n", (num ? "" : "none"));
-
-	for (k = 0; k < num; ++k) {
-		strncpy(name, namelist[k]->d_name, NAME_LEN_MAX);
-		one_sdev_entry(buff, name, do_verbose, out_mask);
-		free(namelist[k]);
+	lp = sysfs_get_bus_devices(sbusp);
+	if (NULL == lp) {
+		if (out_mask & MASK_CLASSIC)
+			printf("Attached devices: none\n");
+		return;
 	}
-	free(namelist);
+#ifdef HAVE_DLIST_SORT_CUSTOM
+	dlist_sort_custom(lp, sdev_dlist_comp);
+#endif
+	if (out_mask & MASK_CLASSIC) {
+		dlist_for_each_data(lp, sdevp, struct sysfs_device) {
+			++num;
+		}
+		printf("Attached devices: %s\n", (num ? "" : "none"));
+	}
+	dlist_for_each_data(lp, sdevp, struct sysfs_device) {
+		one_sdev_entry(sdevp, do_verbose, out_mask);
+	}
+	sysfs_close_bus(sbusp);
 }
 
-static void one_host_entry(const char * dir_name, const char * devname,
-			   int do_verbose, int out_mask)
+static void one_host_entry(struct sysfs_class_device * cdevp,
+			    int do_verbose, int out_mask)
 {
-	char buff[NAME_LEN_MAX];
-	char value[NAME_LEN_MAX];
+	char value[SYSFS_NAME_LEN];
 	unsigned int host_id;
 
 	if (out_mask & MASK_CLASSIC) {
@@ -537,65 +493,53 @@ static void one_host_entry(const char * dir_name, const char * devname,
 		printf("  <'--classic' not supported for hosts>\n");
 		return;
 	}
-	if (1 == sscanf(devname, "host%u", &host_id))
+	if (1 == sscanf(cdevp->name, "host%u", &host_id))
 		printf("[%u]  ", host_id);
 	else
 		printf("[?]  ");
-	strcpy(buff, dir_name);
-	strcat(buff, "/");
-	strcat(buff, devname);
-	if (get_value(buff, "proc_name", value, NAME_LEN_MAX))
+	if (get_cdev_value(cdevp, "proc_name", value, SYSFS_NAME_LEN))
 		printf("  %-12s\n", value);
 	else
 		printf("  proc_name=????\n");
 
 	if (out_mask & MASK_LONG) {
-		if (get_value(buff, "cmd_per_lun", value, NAME_LEN_MAX))
+		if (get_cdev_value(cdevp, "cmd_per_lun", value, SYSFS_NAME_LEN))
 			printf("  cmd_per_lun=%-4s ", value);
 		else
 			printf("  cmd_per_lun=???? ");
 
-		if (get_value(buff, "host_busy", value, NAME_LEN_MAX))
+		if (get_cdev_value(cdevp, "host_busy", value, SYSFS_NAME_LEN))
 			printf("host_busy=%-4s ", value);
 		else
 			printf("host_busy=???? ");
 
-		if (get_value(buff, "sg_tablesize", value, NAME_LEN_MAX))
+		if (get_cdev_value(cdevp, "sg_tablesize", value, SYSFS_NAME_LEN))
 			printf("sg_tablesize=%-4s ", value);
 		else
 			printf("sg_tablesize=???? ");
 
-		if (get_value(buff, "unchecked_isa_dma", value, NAME_LEN_MAX))
+		if (get_cdev_value(cdevp, "unchecked_isa_dma", value,
+				   SYSFS_NAME_LEN))
 			printf("unchecked_isa_dma=%-2s ", value);
 		else
 			printf("unchecked_isa_dma=?? ");
 		printf("\n");
 	}
 	if (do_verbose) {
-		printf("  dir: %s\n  device dir: ", buff);
-		if (if_directory_chdir(buff, "device")) {
-			char wd[NAME_LEN_MAX];
+		struct sysfs_device * sdevp;
 
-			if (NULL == getcwd(wd, NAME_LEN_MAX))
-				printf("?");
-			else
-				printf("%s", wd);
+		sdevp = sysfs_get_classdev_device(cdevp);
+		if (sdevp) {
+			printf("  device dir: %s\n", sdevp->path);
 		}
-		printf("\n");
 	}
 }
 
-static int host_scandir_select(const struct dirent * s)
+#ifdef HAVE_DLIST_SORT_CUSTOM
+static int scdev_dlist_comp(void * a, void * b)
 {
-	if (0 == strncmp("host", s->d_name, 4))
-		return 1;
-	return 0;
-}
-
-static int host_scandir_sort(const void * a, const void * b)
-{
-	const char * lnam = (*(struct dirent **)a)->d_name;
-	const char * rnam = (*(struct dirent **)b)->d_name;
+	const char * lnam = ((struct sysfs_class_device *)a)->name;
+	const char * rnam = ((struct sysfs_class_device *)b)->name;
 	unsigned int l, r;
 
 	if (1 != sscanf(lnam, "host%u", &l))
@@ -608,33 +552,37 @@ static int host_scandir_sort(const void * a, const void * b)
 		return 1;
 	return 0;
 }
+#endif
 
 static void list_hosts(int do_verbose, int out_mask)
 {
-	char buff[NAME_LEN_MAX];
-	char name[NAME_LEN_MAX];
-        struct dirent ** namelist;
-	int num, k;
+	struct sysfs_class * sclassp;
+	struct sysfs_class_device * scdevp;
+	struct dlist * lcdevp;
 
-	strcpy(buff, sysfsroot);
-	strcat(buff, scsi_hosts);
-
-	num = scandir(buff, &namelist, host_scandir_select, 
-		      host_scandir_sort);
-	if (num < 0) {
-		snprintf(name, NAME_LEN_MAX, "scandir: %s", buff);
-		perror(name);
+	sclassp = sysfs_open_class(scsi_host_name);
+	if (NULL == sclassp) {
+		if (out_mask & MASK_CLASSIC)
+			printf("Attached hosts: none\n");
+		else if (do_verbose)
+			printf("No SCSI hosts found\n");
+		return;
+        }
+	lcdevp = sysfs_get_class_devices(sclassp);
+	if (NULL == lcdevp) {
+		if (do_verbose)
+			printf("Unexpected sysfs_get_class_devices failure\n");
 		return;
 	}
-	if (out_mask & MASK_CLASSIC)
-		printf("Attached hosts: %s\n", (num ? "" : "none"));
+#ifdef HAVE_DLIST_SORT_CUSTOM
+	dlist_sort_custom(lcdevp, scdev_dlist_comp);
+#endif
 
-	for (k = 0; k < num; ++k) {
-		strncpy(name, namelist[k]->d_name, NAME_LEN_MAX);
-		one_host_entry(buff, name, do_verbose, out_mask);
-		free(namelist[k]);
+	dlist_for_each_data(lcdevp, scdevp, struct sysfs_class_device) {
+		one_host_entry(scdevp, do_verbose, out_mask);
 	}
-	free(namelist);
+
+	sysfs_close_class(sclassp);
 }
 
 
@@ -645,12 +593,12 @@ int main(int argc, char **argv)
 	int do_hosts = 0;
 	int out_mask = 0;
 	int do_verbose = 0;
+	char sysfsroot[SYSFS_PATH_MAX];
 
-	sysfsroot[0] = '\0';
 	while (1) {
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "cdghHlvVy:", long_options, 
+		c = getopt_long(argc, argv, "cdghHlvV", long_options, 
 				&option_index);
 		if (c == -1)
 			break;
@@ -680,9 +628,6 @@ int main(int argc, char **argv)
 		case 'V':
 			fprintf(stderr, "version: %s\n", version_str);
 			return 0;
-		case 'y':	/* sysfsroot <dir> */
-			strncpy(sysfsroot, optarg, sizeof(sysfsroot));
-			break;
 		case '?':
 			usage();
 			return 1;
@@ -701,20 +646,16 @@ int main(int argc, char **argv)
 		fprintf(stderr, "\n");
 		return 1;
 	}
-	if ('\0' == sysfsroot[0]) {
-		if (! find_sysfsroot()) {
-			fprintf(stderr, "Unable to locate sysfsroot. If "
-				"kernel >= 2.6.0\n    Try something like"
-				" 'mount -t sysfs none /sys'\n");
-			return 1;
-		}
+	if (sysfs_get_mnt_path(sysfsroot, SYSFS_PATH_MAX)) {
+		fprintf(stderr, "Unable to locate sysfsroot. If "
+			"kernel >= 2.6.0\n    Try something like"
+			" 'mount -t sysfs none /sys'\n");
+		return 1;
 	}
-	if (do_verbose > 1) {
-		printf(" sysfsroot: %s\n", sysfsroot);
-	}
-	if (do_hosts)
+	if (do_hosts) {
 		list_hosts(do_verbose, out_mask);
-	else if (do_sdevices)
+	} else if (do_sdevices) {
 		list_sdevices(do_verbose, out_mask);
+	}
 	return 0;
 }

@@ -1,12 +1,20 @@
+This version depends on sysfsutils-1.2.0 or later. See:
+http://linux-diag.sourceforge.net for that package.
+
 To build call make with no arguments:
  $ make
 
 To install call:
  $ make install
-This will most likely need superuser privelege. The executable is placed
+This will most likely need superuser privilege. The executable is placed
 in the /usr/local/bin directory while the man page is placed in the
 /usr/local/man/man8 directory. The install directory are controlled by
 the PREFIX variable in the Makefile.
+
+This package now depends on the sysfsutils package (version 1.1.0 or
+later). Further it requires a proposed third party sorting facility in
+sysfsutils via the dlist_sort_custom() function. If that function is
+not available then comment out the line "#define HAVE_DLIST_SORT_CUSTOM".
 
 To uninstall the executable and man page call:
  $ make uninstall

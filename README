@@ -3,4 +3,11 @@ Installation instructions are in the INSTALL file.
 For a description of this utility see:
 http://www.torque.net/scsi/lsscsi.html
 
+This package now depends on sysfsutils version 1.1.0 . Further, lsscsi wants
+to sort some directories which needs dlist_sort_custom() which hopefully
+will be added soon in the sysfsutils package.
+
 The "man" page may also be useful.
+
+Doug Gilbert
+15th August 2004
