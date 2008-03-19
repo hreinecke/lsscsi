@@ -22,7 +22,7 @@
 
 #define NAME_LEN_MAX 260
 
-static const char * version_str = "0.11  2004/1/9";
+static const char * version_str = "0.12  2004/5/9";
 static char sysfsroot[NAME_LEN_MAX];
 static const char * sysfs_name = "sysfs";
 static const char * proc_mounts = "/proc/mounts";
@@ -33,6 +33,7 @@ static const char * scsi_hosts = "/class/scsi_host";
 #define MASK_LONG 2
 /* #define MASK_NAME 4 */
 #define MASK_GENERIC 8
+#define MASK_DEVICE 0x10
 
 
 static const char * scsi_device_types[] =
@@ -76,6 +77,7 @@ static const char * scsi_short_device_types[] =
 
 static struct option long_options[] = {
 	{"classic", 0, 0, 'c'},
+	{"device", 0, 0, 'd'},
 	{"generic", 0, 0, 'g'},
 	{"help", 0, 0, 'h'},
 	{"hosts", 0, 0, 'H'},
@@ -83,7 +85,7 @@ static struct option long_options[] = {
 /*	{"name", 0, 0, 'n'},	*/
 	{"sysfsroot", 1, 0, 'y'},
 	{"verbose", 0, 0, 'v'},
-	{"version", 0, 0, 'z'},
+	{"version", 0, 0, 'V'},
 	{0, 0, 0, 0}
 };
 
@@ -121,19 +123,21 @@ static void invalidate_hcil(struct addr_hcil * p)
 
 static void usage()
 {
-	fprintf(stderr, "Usage: lsscsi   [--classic|-c] [--generic|-g]"
-			" [--help|-h] [--hosts|-H]"
-			"\n\t\t\[--long|-l] [--sysfsroot=<dir>]"
-			" [--verbose|-v]"
-			"\n\t\t[--version|-V]\n");
+	fprintf(stderr, "Usage: lsscsi   [--classic|-c] [--device|-d]"
+			" [--generic|-g]"
+			" [--help|-h]\n\t\t[--hosts|-H]"
+			" [--long|-l] [--sysfsroot <dir>]"
+			"\n\t\t[--verbose|-v] [--version|-V]\n");
 	fprintf(stderr, "\t--classic  alternate output that is similar "
 			"to 'cat /proc/scsi/scsi'\n");
+	fprintf(stderr, "\t--device   show device node's major + minor"
+			" numbers\n");
 	fprintf(stderr, "\t--generic  show scsi generic device name\n");
-	fprintf(stderr, "\t--help  this usage information\n");
-	fprintf(stderr, "\t--hosts  lists scsi hosts rather than scsi "
+	fprintf(stderr, "\t--help     this usage information\n");
+	fprintf(stderr, "\t--hosts    lists scsi hosts rather than scsi "
 			"devices\n");
-	fprintf(stderr, "\t--long  additional information output\n");
-	fprintf(stderr, "\t--sysfsroot=<dir>  use /proc/mounts or <dir> "
+	fprintf(stderr, "\t--long     additional information output\n");
+	fprintf(stderr, "\t--sysfsroot <dir>  use /proc/mounts or <dir> "
 			"for root of sysfs\n");
 	fprintf(stderr, "\t--verbose  output path names were data "
 			"is found\n");
@@ -248,10 +252,10 @@ static void longer_entry(const char * path_name)
 {
 	char value[NAME_LEN_MAX];
 
-	if (get_value(path_name, "online", value, NAME_LEN_MAX))
-		printf("  online=%s", value);
+	if (get_value(path_name, "state", value, NAME_LEN_MAX))
+		printf("  state=%s", value);
 	else
-		printf(" online=?");
+		printf(" state=?");
 	if (get_value(path_name, "queue_depth", value, NAME_LEN_MAX))
 		printf(" queue_depth=%s", value);
 	else
@@ -380,8 +384,15 @@ static void one_sdev_entry(const char * dir_name, const char * devname,
 
 		if (NULL == getcwd(wd, NAME_LEN_MAX))
 			printf("block_dev error");
-		else
+		else {
 			printf("/dev/%s", basename(wd));
+			if (out_mask & MASK_DEVICE) {
+				if (get_value(wd, "dev", value, NAME_LEN_MAX))
+					printf("[%s]", value);
+				else
+					printf("[dev?]");
+			}
+		}
 	}
 	else { /* look for tape device */
 		if (if_directory_chdir(buff, "tape")) { 
@@ -396,6 +407,13 @@ static void one_sdev_entry(const char * dir_name, const char * devname,
                                 if ((cp = strchr(s, 'm')))
                                     s[cp - s] = '\0';
                                 printf("/dev/%s", s);
+				if (out_mask & MASK_DEVICE) {
+					if (get_value(wd, "dev", value, 
+						      NAME_LEN_MAX))
+						printf("[%s]", value);
+					else
+						printf("[dev?]");
+				}
                         }
 		} else
 			printf("-       ");
@@ -407,8 +425,16 @@ static void one_sdev_entry(const char * dir_name, const char * devname,
 
                 	if (NULL == getcwd(wd, NAME_LEN_MAX))
                         	printf("  generic_dev error");
-                	else
+                	else {
                         	printf("  /dev/%s", basename(wd));
+				if (out_mask & MASK_DEVICE) {
+					if (get_value(wd, "dev", value, 
+						      NAME_LEN_MAX))
+						printf("[%s]", value);
+					else
+						printf("[dev?]");
+				}
+			}
 		}
 		else
 			printf("  -");
@@ -509,15 +535,11 @@ static void one_host_entry(const char * dir_name, const char * devname,
 	strcpy(buff, dir_name);
 	strcat(buff, "/");
 	strcat(buff, devname);
-	if (if_directory_chdir(buff, "device")) {
-		char wd[NAME_LEN_MAX];
+	if (get_value(buff, "proc_name", value, NAME_LEN_MAX))
+		printf("  %-12s\n", value);
+	else
+		printf("  proc_name=????\n");
 
-		if (NULL == getcwd(wd, NAME_LEN_MAX))
-			printf("  [??]\n");
-		else
-			printf("  [%s]\n", wd);
-	} else
-		printf("  [???]\n");
 	if (out_mask & MASK_LONG) {
 		if (get_value(buff, "cmd_per_lun", value, NAME_LEN_MAX))
 			printf("  cmd_per_lun=%-4s ", value);
@@ -541,8 +563,8 @@ static void one_host_entry(const char * dir_name, const char * devname,
 		printf("\n");
 	}
 	if (do_verbose) {
-		printf("  dir: %s  [", buff);
-		if (if_directory_chdir(buff, "")) {
+		printf("  dir: %s\n  device dir: ", buff);
+		if (if_directory_chdir(buff, "device")) {
 			char wd[NAME_LEN_MAX];
 
 			if (NULL == getcwd(wd, NAME_LEN_MAX))
@@ -550,7 +572,7 @@ static void one_host_entry(const char * dir_name, const char * devname,
 			else
 				printf("%s", wd);
 		}
-		printf("]\n");
+		printf("\n");
 	}
 }
 
@@ -619,7 +641,7 @@ int main(int argc, char **argv)
 	while (1) {
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "cghHlvV", long_options, 
+		c = getopt_long(argc, argv, "cdghHlvVy:", long_options, 
 				&option_index);
 		if (c == -1)
 			break;
@@ -627,6 +649,9 @@ int main(int argc, char **argv)
 		switch (c) {
 		case 'c':
 			out_mask |= MASK_CLASSIC;
+			break;
+		case 'd':
+			out_mask |= MASK_DEVICE;
 			break;
 		case 'g':
 			out_mask |= MASK_GENERIC;
@@ -646,7 +671,7 @@ int main(int argc, char **argv)
 		case 'V':
 			fprintf(stderr, "version: %s\n", version_str);
 			return 0;
-		case 'y':	/* sysfsroot=<dir> */
+		case 'y':	/* sysfsroot <dir> */
 			strncpy(sysfsroot, optarg, sizeof(sysfsroot));
 			break;
 		case '?':
@@ -661,7 +686,7 @@ int main(int argc, char **argv)
 	}
 
 	if (optind < argc) {
-		fprintf(stderr, "unexpected non‐option arguments: ");
+		fprintf(stderr, "unexpected non-option arguments: ");
 		while (optind < argc)
 			fprintf(stderr, "%s ", argv[optind++]);
 		fprintf(stderr, "\n");
@@ -669,12 +694,12 @@ int main(int argc, char **argv)
 	if ('\0' == sysfsroot[0]) {
 		if (! find_sysfsroot()) {
 			fprintf(stderr, "Unable to locate sysfsroot. If "
-				"kernel >= 2.5.48\n    Try something like"
+				"kernel >= 2.6.0\n    Try something like"
 				" 'mount -t sysfs none /sys'\n");
 			return 1;
 		}
 	}
-	if (do_verbose) {
+	if (do_verbose > 1) {
 		printf(" sysfsroot: %s\n", sysfsroot);
 	}
 	if (do_hosts)

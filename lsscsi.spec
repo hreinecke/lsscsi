@@ -6,12 +6,12 @@
 
 Summary: List all SCSI devices (or hosts) and associated information
 Name: lsscsi
-Version: 0.11
+Version: 0.12
 Release: 1
 Packager: dgilbert@interlog.com
 License: GPL
 Group: Utilities/System
-Source: ftp://www.torque.net/scsi/lsscsi-0.11.tgz
+Source: ftp://www.torque.net/scsi/lsscsi-0.12.tgz
 Url: http://www.torque.net/scsi/lsscsi.html
 Provides: lsscsi
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root/
@@ -24,7 +24,7 @@ used prior to the lk 2.6 series.
 
 Author:
 --------
-    Doug Gilbert <dgilbert@interlog.com>
+    Doug Gilbert <dgilbert at interlog dot com>
 
 %prep
 %setup
@@ -50,8 +50,11 @@ rm -rf $RPM_BUILD_ROOT
  
 
 %changelog
+* Sun May 9 2004 - dgilbert@interlog.com
+- rework for lk 2.6.6, device state, host name, '-d' for major+minor
+  * lsscsi-0.11
 * Fri Jan 09 2004 - dgilbert@interlog.com
-- rework fro lk 2.6.1
+- rework for lk 2.6.1
   * lsscsi-0.11
 * Tue May 06 2003 - dgilbert@interlog.com
 - adjust HBA listing for lk > 2.5.69

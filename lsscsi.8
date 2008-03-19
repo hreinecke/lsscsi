@@ -1,21 +1,25 @@
-.TH lsscsi "8" "January 2004" "lsscsi-0.11" LSSCSI
+.TH lsscsi "8" "May 2004" "lsscsi-0.12" LSSCSI
 .SH NAME
 lsscsi \- list all SCSI devices (or hosts) currently on system
 .SH SYNOPSIS
 .B lsscsi
-[\fI--classic|-c\fR] [\fI--generic|-g\fR] [\fI--help|-h\fR] [\fI--hosts|-H\fR]
-[\fI--long|-l\fR] [\fI--sysfsroot=<dir>\fR] 
-[\fI--verbose|-v\fR] [\fI--version|-V\fR]
+[\fI--classic|-c\fR] [\fI--classic|-c\fR] [\fI--generic|-g\fR]
+[\fI--help|-h\fR] [\fI--hosts|-H\fR] [\fI--long|-l\fR] 
+[\fI--sysfsroot <dir>\fR] [\fI--verbose|-v\fR] [\fI--version|-V\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
-Uses information in sysfs (linux kernels 2.5.50 and later) to list all 
+Uses information in sysfs (linux kernels 2.6.0 and later) to list all 
 scsi devices (or hosts) currently attached to the system. Options can
 be used to control the amount and form of information provided for
 each device.
 .TP
 --classic | -c
 The output is similar to that obtained from 'cat /proc/scsi/scsi'
+.TP
+--device | -d
+After outputting the (probable) scsi device name the the device node
+major and minor numbers are shown in brackets (e.g. "/dev/sda[8:0]").
 .TP
 --generic | -g
 Output the scsi generic device file name. Note that if the sg driver
@@ -31,13 +35,14 @@ not given then SCSI devices are listed
 --long | -l
 Output additional information for each SCSI device (host)
 .TP
---sysfsroot=<dir>
+--sysfsroot <dir>
 This command usually find the sysfs root directory by examining the
 output of /proc/mounts. This option allows the sysfs root directory
 to be given explicitly
 .TP
 --verbose | -v
-outputs directory names where information is found
+outputs directory names where information is found. Use twice for
+more output.
 .TP
 --version | -V
 outputs version number information and exits

@@ -1,3 +1,9 @@
+Version 0.12 2004/5/9
+  - rework for lk 2.6.6
+  - add proc_name for hosts
+  - replace 'online' with 'state' for scsi devices
+  - add '-d' option to output device node's major and minor numbers
+
 Version 0.11 2004/1/9
   - rework for lk 2.6.1
   - drop "--name" argument
