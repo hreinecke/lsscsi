@@ -6,12 +6,12 @@
 
 Summary: List all SCSI devices (or hosts) and associated information
 Name: lsscsi
-Version: 0.06
+Version: 0.07
 Release: 1
 Packager: dgilbert@interlog.com
 License: GPL
 Group: Utilities/System
-Source: ftp://www.torque.net/scsi/lsscsi-0.06.tgz
+Source: ftp://www.torque.net/scsi/lsscsi-0.07.tgz
 Url: http://www.torque.net/scsi/lsscsi.html
 Provides: lsscsi
 
@@ -43,6 +43,9 @@ rm -rf $RPM_BUILD_ROOT
  
 
 %changelog
+* Fri Feb 14 2003 - dgilbert@interlog.com
+- queue_depth name change in sysfs (lk 2.5.60)
+  * lsscsi-0.07
 * Mon Jan 20 2003 - dgilbert@interlog.com
 - osst device file names fix
   * lsscsi-0.06

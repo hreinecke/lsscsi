@@ -1,3 +1,6 @@
+Version 0.07 2003/2/10
+  - sysfs changes name of current_queue_depth in lk 2.5.60
+
 Version 0.06 2003/1/20
   - fixes of osst devices
   - use "cd" rather than "CDROM" for short peripheral type name

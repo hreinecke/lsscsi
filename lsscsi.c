@@ -11,7 +11,7 @@
 
 #define NAME_LEN_MAX 260
 
-static const char * version_str = "0.06  2003/1/20";
+static const char * version_str = "0.07  2003/2/10";
 static char sysfsroot[NAME_LEN_MAX];
 static const char * sysfs_name = "sysfs";
 static const char * proc_mounts = "/proc/mounts";
@@ -208,7 +208,7 @@ static void longer_entry(const char * path_name)
 		printf(" access_count=%s", value);
 	else
 		printf(" access_count=?");
-	if (get_value(path_name, "current_queue_depth", value, NAME_LEN_MAX))
+	if (get_value(path_name, "queue_depth", value, NAME_LEN_MAX))
 		printf(" queue_depth=%s", value);
 	else
 		printf(" queue_depth=?");
