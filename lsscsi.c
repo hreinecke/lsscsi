@@ -11,7 +11,7 @@
 
 #define NAME_LEN_MAX 260
 
-static const char * version_str = "0.03  2003/1/8";
+static const char * version_str = "0.04  2003/1/14";
 static char sysfsroot[NAME_LEN_MAX];
 static const char * sysfs_name = "sysfs";
 static const char * proc_mounts = "/proc/mounts";
@@ -366,6 +366,8 @@ static void one_entry(const char * dir_name, const char * devname,
 
 static int scandir_select(const struct dirent * s)
 {
+	if (strstr(s->d_name, "mt"))
+		return 0;
 	if (strstr(s->d_name, "gen"))
 		return 0;
 	if (strchr(s->d_name, ':'))

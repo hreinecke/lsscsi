@@ -1,3 +1,6 @@
+Version 0.03 2003/1/14
+  - make sure a st device list only once (needed for lk 2.5.57)
+
 Version 0.03 2003/1/9
   - fix Makefile to create man page directory on install
   - add logic for scsi_level output
