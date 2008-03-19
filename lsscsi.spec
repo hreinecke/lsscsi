@@ -6,12 +6,12 @@
 
 Summary: List all SCSI devices (or hosts) and associated information
 Name: lsscsi
-Version: 0.02
+Version: 0.03
 Release: 1
 Packager: dgilbert@interlog.com
 License: GPL
 Group: Utilities/System
-Source: ftp://www.torque.net/scsi/lsscsi-0.02.tgz
+Source: ftp://www.torque.net/scsi/lsscsi-0.03.tgz
 Url: http://www.torque.net/scsi/lsscsi.html
 Provides: lsscsi
 
@@ -43,6 +43,9 @@ rm -rf $RPM_BUILD_ROOT
  
 
 %changelog
+* Thu Jan 09 2003 - dgilbert@interlog.com
+- add --generic option (list sg devices), scsi_level output
+  * lsscsi-0.03
 * Wed Dec 18 2002 - dgilbert@interlog.com
 - add more options including classic mode
   * lsscsi-0.02

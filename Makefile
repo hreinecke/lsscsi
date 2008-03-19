@@ -37,6 +37,7 @@ install: $(EXECS) $(COMMON)
 	for name in $^; \
 	 do install -s -o root -g root -m 755 $$name $(INSTDIR); \
 	done
+	install -d $(MANDIR)/$(MAN_PREF)
 	for mp in $(MAN_PGS); \
 	 do install -o root -g root -m 644 $$mp $(MANDIR)/$(MAN_PREF); \
 	 gzip -9f $(MANDIR)/$(MAN_PREF)/$$mp; \

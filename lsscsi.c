@@ -7,10 +7,11 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <libgen.h>
+#include <linux/major.h>
 
 #define NAME_LEN_MAX 260
 
-static const char * version_str = "0.02  2002/12/18";
+static const char * version_str = "0.03  2003/1/8";
 static char sysfsroot[NAME_LEN_MAX];
 static const char * sysfs_name = "sysfs";
 static const char * proc_mounts = "/proc/mounts";
@@ -19,6 +20,7 @@ static const char * scsi_devs = "/bus/scsi/devices";
 #define MASK_CLASSIC 1
 #define MASK_LONG 2
 #define MASK_NAME 4
+#define MASK_GENERIC 8
 
 
 static const char * scsi_device_types[] =
@@ -61,6 +63,7 @@ static const char * scsi_short_device_types[] =
 
 static struct option long_options[] = {
 	{"classic", 0, 0, 'c'},
+	{"generic", 0, 0, 'g'},
 	{"help", 0, 0, 'h'},
 	{"hosts", 0, 0, 'H'},
 	{"long", 0, 0, 'l'},
@@ -73,11 +76,14 @@ static struct option long_options[] = {
 
 static void usage()
 {
-	    fprintf(stderr, "Usage: lsscsi   [--classic|-c] [--help|-h]"
-		    " [--hosts|-H] [--long|-l] [--name|-n]\n"
-		    "\t\t[--sysfsroot=<dir>] [--verbose|-v] [--version|-V]\n");
+	    fprintf(stderr, "Usage: lsscsi   [--classic|-c] [--generic|-g]"
+		    " [--help|-h] [--hosts|-H]"
+		    "\n\t\t\[--long|-l] [--name|-n] [--sysfsroot=<dir>]"
+		    " [--verbose|-v]"
+		    "\n\t\t[--version|-V]\n");
 	    fprintf(stderr, "\t--classic  alternate output that is similar "
 			    "to 'cat /proc/scsi/scsi'\n");
+	    fprintf(stderr, "\t--generic  show scsi generic device name\n");
 	    fprintf(stderr, "\t--help  this usage information\n");
 	    fprintf(stderr, "\t--hosts  lists scsi hosts rather than scsi "
 			    "devices\n");
@@ -197,15 +203,19 @@ static void longer_entry(const char * path_name)
 	if (get_value(path_name, "online", value, NAME_LEN_MAX))
 		printf("  online=%s", value);
 	else
-		printf("  online=?");
+		printf(" online=?");
 	if (get_value(path_name, "access_count", value, NAME_LEN_MAX))
 		printf(" access_count=%s", value);
 	else
-		printf("  access_count=?");
+		printf(" access_count=?");
 	if (get_value(path_name, "current_queue_depth", value, NAME_LEN_MAX))
 		printf(" queue_depth=%s", value);
 	else
-		printf("  queue_depth=?");
+		printf(" queue_depth=?");
+	if (get_value(path_name, "scsi_level", value, NAME_LEN_MAX))
+		printf(" scsi_level=%s", value);
+	else
+		printf(" scsi_level=?");
 	printf("\n");
 }
 
@@ -215,7 +225,7 @@ static void one_classic_entry(const char * dir_name, const char * devname,
 	int hcil_arr[4];
 	char buff[NAME_LEN_MAX];
 	char value[NAME_LEN_MAX];
-	int type, k;
+	int type, scsi_level, k;
 
 	strcpy(buff, dir_name);
 	strcat(buff, "/");
@@ -248,7 +258,13 @@ static void one_classic_entry(const char * dir_name, const char * devname,
 		printf("  Type:   %-33s", "???");
 	} else
 		printf("  Type:   %-33s", scsi_device_types[type]);
-	printf("ANSI SCSI revision: ??\n");
+	if (! get_value(buff, "scsi_level", value, NAME_LEN_MAX)) {
+		printf("ANSI SCSI revision: ?\n");
+	} else if (1 != sscanf(value, "%d", &scsi_level)) {
+		printf("ANSI SCSI revision: ??\n");
+	} else
+		printf("ANSI SCSI revision: %02x\n", (scsi_level - 1) ?
+		                            scsi_level - 1 : 1);
 	if (out_mask & MASK_NAME) {
 		if (get_value(buff, "name", value, NAME_LEN_MAX))
 			printf("  name: %s\n", value);
@@ -308,6 +324,32 @@ static void one_entry(const char * dir_name, const char * devname,
 			printf("block_dev error");
 		else
 			printf("/dev/%s", basename(wd));
+	}
+	else
+		printf("-");
+	if (out_mask & MASK_GENERIC) {
+		char extra[NAME_LEN_MAX];
+		const char * bnp;
+
+		bnp = basename(buff);
+		strcpy(extra, bnp);
+		strcat(extra, ":gen/kdev");
+		if (get_value(buff, extra, value, NAME_LEN_MAX)) {
+			int kd, majj, minn;
+
+			if (1 == sscanf(value, "%x", &kd)) {
+				majj = kd / 256;
+				minn = kd % 256;
+				if (SCSI_GENERIC_MAJOR == majj)
+					printf("  /dev/sg%d", minn);
+				else
+					printf("  unexpected sg major");
+			}
+			else
+				printf("  unable to decode kdev");
+		}
+		else
+			printf("  -");
 	}
 	printf("\n");
 	if (out_mask & MASK_NAME) {
@@ -392,7 +434,7 @@ int main(int argc, char **argv)
 	while (1) {
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "chHlnvV", long_options, 
+		c = getopt_long(argc, argv, "cghHlnvV", long_options, 
 				&option_index);
 		if (c == -1)
 			break;
@@ -400,6 +442,9 @@ int main(int argc, char **argv)
 		switch (c) {
 		case 'c':
 			out_mask |= MASK_CLASSIC;
+			break;
+		case 'g':
+			out_mask |= MASK_GENERIC;
 			break;
 		case 'h':
 			usage();
