@@ -1,4 +1,7 @@
 
+Version 0.17 2006/2/6
+  - fix disappearance of block device names in lk 2.6.16-rc1
+
 Version 0.16 2005/12/30
   - clean up peripheral device type naming
   - properly identify osst and changer devices

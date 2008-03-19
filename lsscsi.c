@@ -26,7 +26,7 @@
 
 #define NAME_LEN_MAX 260
 
-static const char * version_str = "0.16  2005/12/30";
+static const char * version_str = "0.17  2006/2/6";
 static char sysfsroot[NAME_LEN_MAX];
 static const char * sysfs_name = "sysfs";
 static const char * sysfs_test_dir = "/sys/class";
@@ -649,8 +649,8 @@ static int non_sg_scandir_select(const struct dirent * s)
                 strncpy(non_sg.name, s->d_name, NAME_LEN_MAX);
                 non_sg.ft = FT_CHAR;
                 return 1;
-        } else if (0 == strcmp("block", s->d_name)) {
-                strcpy(non_sg.name, s->d_name);
+        } else if (0 == strncmp("block", s->d_name, 5)) {
+                strncpy(non_sg.name, s->d_name, NAME_LEN_MAX);
                 non_sg.ft = FT_BLOCK;
                 return 1;
         } else if (0 == strcmp("tape", s->d_name)) {

@@ -1,3 +1,9 @@
+lsscsi (0.17-0.1) unstable; urgency=low
+
+  * new upstream version
+
+ -- Douglas Gilbert <dgilbert@interlog.org>  Mon, 06 Feb 2006 16:00:00 +1000
+
 lsscsi (0.16-0.1) unstable; urgency=low
 
   * add debian build directory
