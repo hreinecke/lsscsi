@@ -1,0 +1,18 @@
+To build call make with no arguments:
+ $ make
+
+To install call:
+ $ make install
+This will most likely need superuser privelege. The executable is placed
+in the /usr/local/bin directory while the man page is placed in the
+/usr/local/man/man8 directory. The install directory are controlled by
+the PREFIX variable in the Makefile.
+
+To uninstall the executable and man page call:
+ $ make uninstall
+
+To clean out object and executable files from the working directory call:
+ $ make clean
+
+A dependency file (named .depend) can be built using:
+ $ make dep

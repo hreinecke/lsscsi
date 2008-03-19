@@ -1,0 +1,55 @@
+.TH lsscsi "17" "December 2002" "lsscsi-0.02" LSSCSI
+.SH NAME
+lsscsi \- list all SCSI devices (or hosts) currently on system
+.SH SYNOPSIS
+.B lsscsi
+[\fI--classic|-c\fR] [\fI--help|-h\fR] [\fI--hosts|-H\fR] [\fI--long|-l\fR]
+[\fI--name|-n\fR] [\fI--sysfsroot=<dir>\fR] [\fI--verbose|-v\fR] 
+[\fI--version|-V\fR]
+.SH DESCRIPTION
+.\" Add any additional description here
+.PP
+Uses information in sysfs (linux kernels 2.5.50 and later) to list all 
+scsi devices (or hosts) currently attached to the system. Options can
+be used to control the amount and form of information provided for
+each device.
+.TP
+--classic | -c
+The output is similar to that obtained from 'cat /proc/scsi/scsi'
+.TP
+--help | -h
+Output the usage message and exit
+.TP
+--hosts | -H
+List the SCSI hosts currently attached to the system. If this option is
+not given then SCSI devices are listed
+.TP
+--long | -l
+Output additional information for each SCSI device (host)
+.TP
+--name | -n
+Output the name derived from the INQUIRY VPD page 0x83 or the name that
+the SCSI subsystem manufacturers when VPD page 0x83 is not available
+.TP
+--sysfsroot=<dir>
+This command usually find the sysfs root directory by examining the
+output of /proc/mounts. This option allows the sysfs root directory
+to be given explicitly
+.TP
+--verbose | -v
+outputs directory names where information is found
+.TP
+--version | -V
+outputs version number information and exits
+.SH AUTHOR
+Written by Doug Gilbert
+.SH "REPORTING BUGS"
+Report bugs to <dgilbert@interlog.com>.
+.SH COPYRIGHT
+Copyright \(co 2002 Douglas Gilbert
+.br
+This software is distributed under the GPL version 2. There is NO
+warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+.SH "SEE ALSO"
+.B lspci
+.B lsusb
