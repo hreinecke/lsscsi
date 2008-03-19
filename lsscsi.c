@@ -26,7 +26,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.20  2007/01/25";
+static const char * version_str = "0.20  2008/03/19";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -1650,6 +1650,10 @@ static int sdev_scandir_select(const struct dirent * s)
         if (strstr(s->d_name, "gen"))
                 return 0;
 /* Above no longer needed but leave for early lk 2.6 series */
+        if (!strncmp(s->d_name, "host", 4)) /* SCSI host */
+                return 0;
+        if (!strncmp(s->d_name, "target", 6)) /* SCSI target */
+                return 0;
         if (strchr(s->d_name, ':')) {
                 if (filter_active) {
                         struct addr_hctl s_hctl;

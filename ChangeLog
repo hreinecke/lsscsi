@@ -1,6 +1,7 @@
 
-Version 0.20 2007/1/25
-  - xxxxxxxxxx
+Version 0.20 2008/3/19
+  - Handle SCSI midlayer rework circa lk 2.6.25/26
+    [H. Reinecke 20080318]
 
 Version 0.19 2007/1/25
   - add transport information (target + initiator)

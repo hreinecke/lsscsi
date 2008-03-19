@@ -55,8 +55,8 @@ make install \
 
 
 %changelog
-* Thu Jan 25 2007 - dgilbert at interlog dot com
-- xxxxxxxxx
+* Wed Mar 19 2008 - dgilbert at interlog dot com
+- changes for lk 2.6.25/26 SCSI midlayer rework
   * lsscsi-0.20
 * Thu Jan 25 2007 - dgilbert at interlog dot com
 - add transport information (target+initiator)
