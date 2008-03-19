@@ -1,100 +1,179 @@
-.TH lsscsi "8" "March 2006" "lsscsi-0.18" LSSCSI
+.TH lsscsi "8" "January 2007" "lsscsi\-0.19" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
 .B lsscsi
-[\fI--classic|-c\fR] [\fI--device|-d\fR] [\fI--generic|-g\fR]
-[\fI--help|-h\fR] [\fI--hosts|-H\fR] [\fI--kname|-k\fR] [\fI--long|-l\fR]
-[\fI--verbose\fR] [\fI--version\fR] [\fI<h:c:t:l>\fR]
+[\fI\-\-classic\fR] [\fI\-\-device\fR] [\fI\-\-generic\fR] [\fI\-\-help\fR]
+[\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-long\fR]
+[\fI\-\-transport\fR] [\fI\-\-verbose\fR] [\fI\-\-version\fR]
+[\fIH:C:T:L\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
-Uses information in sysfs (linux kernel series 2.6 and later) to list
-scsi devices (or hosts) currently attached to the system. Options can
-be used to control the amount and form of information provided for
-each device.
+Uses information in sysfs (linux kernel series 2.6 and later) to list scsi
+devices (or hosts) currently attached to the system. Options can be used to
+control the amount and form of information provided for each device.
 .PP
-If a <h:c:t:l> argument is given then it acts as a filter and only
-devices that match it are listed. The colons don't have to be
-present, and '-', '*', '?' or missing arguments at the end are
-wildcards. '-' needs to stand alone or else it is taken as the
-beginning of an option (e.g. '-:-:-:-' is illegal). '*' needs
-to be escaped from the shell. A leading '[' and trailing ']'
-are permitted (e.g. '[1:0:0]' matches all luns on 1:0:0). 
+If a \fIH:C:T:L\fR argument is given then it acts as a filter and only
+devices that match it are listed. The colons don't have to be present,
+and '\-', '*', '?' or missing arguments at the end are interpreted as
+wildcards. '\-' needs to stand alone or else it is taken as the beginning of
+an option (e.g. '\-:\-:\-:\-' is illegal). '*' needs to be escaped from the
+shell. A leading '[' and trailing ']' are permitted (e.g. '[1:0:0]'
+matches all luns on 1:0:0). May also be used to filter \fI\-\-hosts\fR
+in which case only the \fIH\fR is active and may be either a number
+or in the form "host<n>" where <n> is a host number.
 .PP
 By default in this utility device node names (e.g. "/dev/sda"
-or "/dev/root_disk") are obtained by noting the major and minor
-numbers for the listed device obtained from sysfs (e.g. the
-contents of /sys/block/sda/dev) and then looking for a match
-in the "/dev" directory. This "match by major and minor" will allow
-devices that have been given a different name by udev (for example)
-to be correctly reported by this utility.
+or "/dev/root_disk") are obtained by noting the major and minor numbers for
+the listed device obtained from sysfs (e.g. the contents
+of "/sys/block/sda/dev") and then looking for a match in the "/dev"
+directory. This "match by major and minor" will allow devices that have been
+given a different name by udev (for example) to be correctly reported by
+this utility.
 .PP
 In some situations it may be useful to see the device node name that
-linux would produce by default, so the '--kname' option is provided.
-An example of where this may be useful is kernel error logs which
-tend to report disk error messages using the disk's default kernel
-name.
+linux would produce by default, so the \fI\-\-kname\fR option is provided.
+An example of where this may be useful is kernel error logs which tend to
+report disk error messages using the disk's default kernel name.
+.PP
+Information about this utility including examples can also be found at:
+http://www.torque.net/scsi/lsscsi.html .
+.SH OPTIONS
 .TP
---classic | -c
+\fB\-c\fR, \fB\-\-classic\fR
 The output is similar to that obtained from 'cat /proc/scsi/scsi'
 .TP
---device | -d
-After outputting the (probable) scsi device name the the device node
+\fB\-d\fR, \fB\-\-device\fR
+After outputting the (probable) scsi device name the device node
 major and minor numbers are shown in brackets (e.g. "/dev/sda[8:0]").
 .TP
---generic | -g
+\fB\-g\fR, \fB\-\-generic\fR
 Output the scsi generic device file name. Note that if the sg driver
-is a module it needs to be loaded otherwise '-' will appear.
+is a module it may need to be loaded otherwise '\-' may appear.
 .TP
---help | -h
+\fB\-h\fR, \fB\-\-help\fR
 Output the usage message and exit.
 .TP
---hosts | -H
+\fB\-H\fR, \fB\-\-hosts\fR
 List the SCSI hosts currently attached to the system. If this option is
 not given then SCSI devices are listed.
 .TP
---kname | -k
+\fB\-k\fR, \fB\-\-kname\fR
 Use linux default algorithm for naming devices (e.g. block major 8,
 minor 0 is "/dev/sda") rather than the "match by major and minor"
 in the "/dev" directory as discussed above.
 .TP
---long | -l
+\fB\-L\fR, \fB\-\-list\fR
+Output additional information in <attribute_name>=<value> pairs, one pair
+per line preceded by two spaces. This option has the same effect as '\-lll'
+.TP
+\fB\-l\fR, \fB\-\-long\fR
 Output additional information for each SCSI device (host). Can be
-used multiple times for more output in which case the shorter
-form is more convenient (e.g. '-lll'). When used three times (i.e. '-lll')
+used multiple times for more output in which case the shorter option
+form is more convenient (e.g. '\-lll'). When used three times (i.e. '\-lll')
 outputs SCSI device (host) attributes one per line; preceded by
 two spaces; in the form "<attribute_name>=<value>".
 .TP
---verbose | -v
-outputs directory names where information is found. Use twice for
+\fB\-t\fR, \fB\-\-transport\fR
+Output transport information. This will be a target related information or,
+if \fI\-\-hosts\fR is given, initiator related information. When used without
+\fI\-\-list\fR, a name or identifier (or both) are output on a single line,
+usually prefixed by the type of transport. For devices this information
+replaces the normal vendor, product and revision strings. When the
+\fI\-\-list\fR option is also given then additionally multiple lines
+of attribute_name=value pairs are ouput, each indented by two spaces. See
+the section on transports below.
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+outputs directory names where information is found. Use multiple times for
 more output.
 .TP
---version | -V
-outputs version number information and exits.
-.PP
-Information for this command is derived from the the sysfs file system
+\fB\-V\fR, \fB\-\-version\fR
+outputs version information then exits.
+.SH NOTES
+Information for this command is derived from the sysfs file system
 whose mount point is found by examining the contents of /proc/mounts .
 SCSI (pseudo) devices that have been detected by the SCSI mid level
 will be listed even if the required upper level drivers (i.e. sd, sr,
 st, osst or ch) have not been loaded. If the appropriate upper level
 driver has not been loaded then the device file name will appear
-as '-' rather than something like '/dev/st0'. Note that some
+as '\-' rather than something like '/dev/st0'. Note that some
 devices (e.g. scanners and medium changers) do not have a primary upper
 level driver and can only be accessed via a scsi generic (sg) device
 name.
+.SH TRANSPORTS
+This utility lists SCSI devices which are known as logical units (lu) in
+the SCSI Architecture Model (ref: SAM\-4 at http://www.t10.org) or hosts
+when the \fI\-\-hosts\fR option is given. A host is called an initiator in
+SAM\-4. A SCSI command travels out via an initiator, across some transport
+to a target and then onwards to a logical unit. A target device may contain
+several logical units. A target device has one or more ports that can be
+viewed as transport end points. Each FC and SAS disk is a single target
+that has two ports and contains one logical unit. If both target ports
+on a FC or SAS disk are connected and visible to a machine, then lsscsi
+will show two entries. Initiators (i.e. hosts) also have one or more ports
+and some HBAs in Linux have a host entry per initiator port while others
+have a host entry per initiator device.
+.PP
+When the \fI\-\-transport\fR option is given for devices (i.e.
+\fI\-\-hosts\fR not given) then most of the information produced by lsscsi
+is associated with the target, or more precisely: the target port, through
+which SCSI commands pass that access a logical unit.
+.PP
+Typically this utility provides one line of output per "device" or host.
+Significantly more information can be obtained by adding the \fI\-\-list\fR
+option. When used together with the \fI\-\-transport\fR option, after
+the summary line, multiple lines of transport specific information in the
+form "<attribute_name>=<value>" are output, each indented by two spaces.
+Using a filter argument will reduce the volume of output if a lot of
+devices or hosts are present.
+.PP 
+The transports that are currently recognized are: IEEE 1394, FC, iSCSI, SAS
+and SPI.
+.PP
+For IEEE 1394 (a.k.a. Firewire and "SBP" when storage is involved), the
+EUI-64 based target port name is output when \fI\-\-transport\fR is given,
+in the absence of the \fI\-\-hosts\fR option. When the \fI\-\-hosts\fR
+option is given then the EUI-64 initiator port name is output. Output on
+the summary line specific to the IEEE 1394 transport is prefixed by "sbp:".
+.PP
+For Fibre Channel (FC) the port name and port identifier are output
+when \fI\-\-transport\fR is given. In the absence of the \fI\-\-hosts\fR
+option these ids will be for the target port associated with the
+device (logical unit) being listed. When the \fI\-\-hosts\fR option is
+given then the ids are for the initiator port used by the host. Output
+on the summary line specific to the FC transport is prefixed by "fc:".
+.PP
+For iSCSI the target port name is output when \fI\-\-transport\fR is given,
+in the absence of the \fI\-\-hosts\fR option. This is made up of the
+iSCSI name and the target portal group tag. Since the iSCSI name starts
+with "iqn" no further prefix is used. When the \fI\-\-hosts\fR option
+is given then only "iscsi:" is output on the summary line.
+.PP
+For Serial Attached SCSI the SAS address of the target port (or initiator
+port if \fI\-\-hosts\fR option is also given) is output. This will be a naa\-5
+address. For SAS HBAs and SAS targets (such as SAS disks and tape drives)
+the SAS address will be world wide unique. For SATA disks attached to a
+SAS expander, the expander provides the SAS address by adding a non zero
+value to its (i.e. the expander's) SAS address (e.g. expander_sas_address +
+phy_id + 1). SATA disks directly attached to SAS HBAs seem to have an
+indeterminate SAS address. Output on the summary line specific to the SAS
+transport is prefixed by "sas:".
+.PP
+For the SCSI Parallel Interface (SPI) the target port identifier (usually
+a number between 0 and 15 inclusive) is output when \fI\-\-transport\fR is
+given, in the absence of the \fI\-\-hosts\fR option. When the \fI\-\-hosts\fR
+option is given then only "spi:" is output on the summary line.
 .SH AUTHOR
 Written by Doug Gilbert
 .SH "REPORTING BUGS"
 Report bugs to <dgilbert at interlog dot com>.
 .SH COPYRIGHT
-Copyright \(co 2003-2006 Douglas Gilbert
+Copyright \(co 2003\-2007 Douglas Gilbert
 .br
 This software is distributed under the GPL version 2. There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 .SH "SEE ALSO"
 .B lspci
 .B lsusb
-and
-.B systool
-The latter utility can be found in the sysfsutils package.

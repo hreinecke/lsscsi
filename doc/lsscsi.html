@@ -4,15 +4,39 @@
   <title>lsscsi utility for Linux</title>
   <meta http-equiv="Content-Type"
  content="text/html; charset=iso-8859-1">
-  <meta name="keywords" content="Linux, SCSI, device scan, sysfs">
+  <meta name="keywords"
+ content="lsscsi, linux, SCSI, device scan, sysfs">
   <meta name="GENERATOR"
  content="Mozilla/4.79 [en] (X11; U; Linux 2.5.31 i686) [Netscape]">
 </head>
 <body background="paper.jpg">
 <center>
-<h1>lsscsi</h1>
+<h1><a class="mozTocH1" name="mozTocId944699"></a>lsscsi</h1>
 </center>
-<h2> <b>Introduction</b></h2>
+<ol id="mozToc">
+<!--mozToc h1 1 h2 2 h3 3 h4 4 h5 5 h6 6-->
+  <li><a href="#mozTocId944699">lsscsi</a>
+    <ol>
+      <li><a href="#mozTocId557900">Introduction</a></li>
+      <li><a href="#mozTocId305911"> Overview</a></li>
+      <li><a href="#mozTocId473619">Command line interface</a></li>
+      <li><a href="#mozTocId782775">Transports</a>
+        <ol>
+          <li><a href="#mozTocId339163">FC</a></li>
+          <li><a href="#mozTocId419863">1394</a></li>
+          <li><a href="#mozTocId194875">iSCSI</a></li>
+          <li><a href="#mozTocId798449">SPI</a></li>
+          <li><a href="#mozTocId80471">SAS</a></li>
+        </ol>
+      </li>
+      <li><a href="#mozTocId908089">lsscsi version 0.15
+to 0.19 notes</a></li>
+      <li><a href="#mozTocId856130"> Download and Build
+information</a></li>
+    </ol>
+  </li>
+</ol>
+<h2><a class="mozTocH2" name="mozTocId557900"></a><b>Introduction</b></h2>
 In the 2.6 linux kernel series a new pseudo file system call <b>sysfs</b>
 reflects the way that various devices and their drivers are configured
 in the system. Sysfs support has been added to the SCSI subsystem (as
@@ -20,7 +44,7 @@ well as most other driver subsystems) so that a reasonable amount of
 information can be deduced by scanning the sysfs tree. The <b>lsscsi</b>
 command scans the sysfs tree and outputs information about SCSI
 devices (or SCSI hosts) that are attached.&nbsp;
-<h2> Details</h2>
+<h2><a class="mozTocH2" name="mozTocId305911"></a> Overview</h2>
 The <span style="font-weight: bold;">lsscsi</span> command accesses
 the sysfs file system (usually mounted under <span
  style="font-family: monospace;">/sys</span> ) to obtain information
@@ -51,7 +75,7 @@ CD5233E&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 Linux&nbsp;&nbsp;&nbsp; scsi_debug&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 0004&nbsp; /dev/sdb</tt><br>
 <br>
-The first entry on each line is the scsi_host,channel,target_id,lun
+The first entry on each line is the scsi_host,channel,target_number,lun
 tuple. It is placed in brackets and each element is colon separated.
 When there are multiple SCSI devices their entries are sorted in
 ascending tuple order.
@@ -67,6 +91,11 @@ the "/dev/scd0" over the older "/dev/sr0" form for CD/DVD devices. Also
 note that the tape medium
 exchanger does not have a primary device name and thus can only be
 accessed via its corresponding scsi generic (sg) device name.<br>
+<br>
+The target_number (the third element of the tuple) is the target
+identifier for the SCSI Parallel Interface (SPI). For all other
+transports the target_number is simply a kernel generated enumeration
+(as is the scsi_host value).<br>
 <br>
 Here is a "long" variant of this command:<br>
 $ lscssi -l<br>
@@ -165,11 +194,595 @@ sg_tablesize=255&nbsp; unchecked_isa_dma=0</span><br
 <span style="font-family: monospace;">&nbsp; device dir:
 /sys/devices/platform/host1</span><br>
 <br>
-See "man lsscsi" for more information. The command also contains
+For transport information see the section of that name below. Online
+there is a "man"&nbsp; page (invoked by 'man lsscsi') which contains
+information specific to the version of lsscsi installed on a machine.
+The command also contains
 usage information that can be output by using "lsscsi -h" or "lsscsi
 --help".<br>
+<h2><a class="mozTocH2" name="mozTocId473619"></a>Command line interface</h2>
+The lsscsi command has this command line interface:<br>
+&nbsp; <span style="font-family: monospace;">lsscsi [options] [filter]</span><br>
+The command line options are shown in table 1.<br>
 <br>
-<h2>lsscsi version 0.15 and 0.16 notes</h2>
+The filter argument is designed to select a subset of available devices
+(or hosts when the '--hosts' option is given [added version in 0.19]).
+The filter can comprise of up to four numbers, separated by ":" or
+spaces; alternatively it can be of the form "host&lt;n&gt;" where
+&lt;n&gt; is a host number. The four numbers represent host number,
+channel (or bus) number, target number and logical unit number (i.e.
+lun) respectively. The "-" symbol is used to represent a wildcard. For
+device listings, no filter argument is equivalent to "-:-:-:-". Numbers
+missing from the filter are treated as wildcards: hence "5:0:1" and
+"5:0:1:-" are the same.<br>
+<br>
+<table style="width: 100%; text-align: left;" border="1" cellpadding="2"
+ cellspacing="2">
+  <caption><span style="font-weight: bold;">Table 1. lsscsi command
+line options</span><br>
+  </caption> <tbody>
+    <tr>
+      <td style="vertical-align: top;"><span style="font-weight: bold;">long
+option format</span><br>
+      </td>
+      <td style="vertical-align: top;"><span style="font-weight: bold;">short
+option format</span><br>
+      </td>
+      <td style="vertical-align: top;"><span style="font-weight: bold;">version</span><br>
+      <span style="font-weight: bold;">added</span><br>
+      </td>
+      <td style="vertical-align: top;"><span style="font-weight: bold;">description</span><br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;">--classic<br>
+      </td>
+      <td style="vertical-align: top;">-c<br>
+      </td>
+      <td style="vertical-align: top;"><br>
+      </td>
+      <td style="vertical-align: top;">generate output similar to 'cat
+/proc/scsi/scsi'<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;">--device<br>
+      </td>
+      <td style="vertical-align: top;">-d<br>
+      </td>
+      <td style="vertical-align: top;"><br>
+      </td>
+      <td style="vertical-align: top;">show device node's major and
+minor numbers<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;">--generic<br>
+      </td>
+      <td style="vertical-align: top;">-g<br>
+      </td>
+      <td style="vertical-align: top;"><br>
+      </td>
+      <td style="vertical-align: top;">show scsi generic device node
+name<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;">--help<br>
+      </td>
+      <td style="vertical-align: top;">-h<br>
+      </td>
+      <td style="vertical-align: top;"><br>
+      </td>
+      <td style="vertical-align: top;">print usage message then exit<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;">--hosts<br>
+      </td>
+      <td style="vertical-align: top;">-H<br>
+      </td>
+      <td style="vertical-align: top;"><br>
+      </td>
+      <td style="vertical-align: top;">rather than list SCSI devices
+(logical units), list SCSI hosts instead<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;">--kname<br>
+      </td>
+      <td style="vertical-align: top;">-k<br>
+      </td>
+      <td style="vertical-align: top;">0.15<br>
+      </td>
+      <td style="vertical-align: top;">show kernel name (as found in
+sysfs) instead of device node name (as found in the /dev directory)<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;">--list<br>
+      </td>
+      <td style="vertical-align: top;">-L<br>
+      </td>
+      <td style="vertical-align: top;">0.19<br>
+      </td>
+      <td style="vertical-align: top;">show
+&lt;attribute&gt;=&lt;value&gt; pairs, one per line, indented by two
+or more spaces<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;">--long<br>
+      </td>
+      <td style="vertical-align: top;">-l<br>
+      </td>
+      <td style="vertical-align: top;"><br>
+      </td>
+      <td style="vertical-align: top;">show
+&lt;attribute&gt;=&lt;value&gt; pairs, several to a line. can be used
+multiple times for more output and different format.<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;">--transport<br>
+      </td>
+      <td style="vertical-align: top;">-t<br>
+      </td>
+      <td style="vertical-align: top;">0.19<br>
+      </td>
+      <td style="vertical-align: top;">show transport information. If
+'--hosts' not given then this will be for targets. If '--hosts' is
+given then this will be for initiators (i.e. hosts). More information
+shown when used with '--list'.<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;">--verbose<br>
+      </td>
+      <td style="vertical-align: top;">-v<br>
+      </td>
+      <td style="vertical-align: top;"><br>
+      </td>
+      <td style="vertical-align: top;">increase verbosity of output.
+May be used multiple times to further increase verbosity.<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;">--version<br>
+      </td>
+      <td style="vertical-align: top;">-V<br>
+      </td>
+      <td style="vertical-align: top;"><br>
+      </td>
+      <td style="vertical-align: top;">print out the version and the
+date of last code change then exits<br>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<br>
+The <span style="font-weight: bold;">lsscsi</span>&nbsp; man page and
+the usage message in the executable also show the command line syntax.<br>
+<h2><a class="mozTocH2" name="mozTocId782775"></a>Transports</h2>
+When the '--transport' (or '-t') option is given <span
+ style="font-weight: bold;">lsscsi</span> attempts to determine the
+transport being used and outputs information specific to that
+transport. In the case of modern transports that may include a world
+wide unique name or identifier. The transports for which extra
+information is provided are:<br>
+<ul>
+  <li>Fibre channel (FC): substantial amount both for target and host<br>
+  </li>
+  <li>IEEE 1394 (SBP): target and host<br>
+  </li>
+  <li>iSCSI: target only<br>
+  </li>
+  <li>SCSI Parallel Interface (SPI): trivial<br>
+  </li>
+  <li>Serial Attached SCSI (SAS): substantial amount for both target
+and host<br>
+  </li>
+</ul>
+Even though <span style="font-weight: bold;">lsscsi</span>, in the
+absence of the '--hosts' option, shows logical unit information, once
+the '--transport' option is specified the output relates to the&nbsp; <span
+ style="text-decoration: underline;">target</span> which contains the
+logical unit. This occurs since the computer (and thus sysfs) see a
+"transport" (or interconnect) whose near end is a host (i.e. a SCSI
+initiator) and whose far end is a <span
+ style="text-decoration: underline;">target</span>. A target may
+contain one or more logical units (and in special cases a target may
+contain no logical units). SCSI initiators and targets can also have
+one or more ports. Linux tends to show each port of a target (that
+contains one logical unit) as two devices; to be more precise, linux
+shows a different device for each distinct path to a logical unit.<br>
+<br>
+When the '--transport' option is given the SCSI INQUIRY strings
+(vendor, product and revison) usually output by <span
+ style="font-weight: bold;">lsscsi</span> are replaced by a target name
+or identifier. Annex A in the <a
+ href="http://www.t10.org/ftp/t10/drafts/sam4/sam4r08.pdf">SAM-4</a>
+document has been used as a guide for the appropriate initiator (i.e.
+host) and target names and identifiers to display.<br>
+<h3><a class="mozTocH3" name="mozTocId339163"></a>FC</h3>
+For FC devices (logical units), the '--transport' option will show the
+port name and the port identifier instead of the SCSI INQUIRY
+"strings". For example:<br>
+<span style="font-family: monospace;">$ lsscsi -g</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[3:0:0:0]&nbsp;&nbsp;&nbsp;
+enclosu HP&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+A6255A&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+HP04&nbsp; -&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; /dev/sg3</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[3:0:1:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp; HP 36.4G
+ST336753FC&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; HP00&nbsp;
+/dev/sdd&nbsp; /dev/sg4</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">[3:0:2:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp; HP 36.4G
+ST336753FC&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; HP00&nbsp;
+/dev/sde&nbsp; /dev/sg5</span><br style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -g --transport</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[3:0:0:0]&nbsp;&nbsp;&nbsp;
+enclosu fc:0x50060b00002e48a3,0x0b109b&nbsp;
+-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; /dev/sg3</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[3:0:1:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp; fc:0x21000004cf97de68,0x0b109f&nbsp;
+/dev/sdd&nbsp; /dev/sg4</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">[3:0:2:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp; fc:0x21000004cf97e385,0x0b10a3&nbsp;
+/dev/sde&nbsp; /dev/sg5</span><br>
+<br>
+Notice that the port name for the enclosure is naa-5 while the port
+names for the disks are naa-2. Since SAS also uses naa-5 the leading
+"fc:" indicates that the transport has been identified as FC. When
+'--list' is added, more transport information is provided in
+"name=value" pairs, indented by two or more spaces. The output is
+restricted to one disk by added the 3:0:2:0 filter:<br>
+<span style="font-family: monospace;">$ lsscsi -t --list [3:0:2:0]</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[3:0:2:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp; fc:0x21000004cf97e385,0x0b10a3&nbsp;
+/dev/sde</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; transport=fc</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;
+node_name=0x20000004cf97e385</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;
+port_name=0x21000004cf97e385</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; port_id=0x0b10a3</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; port_state=Online</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; roles=FCP Target</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; scsi_target_id=2</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; supported_classes=Class 3</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; dev_loss_tmo=35</span><br>
+<br>
+When the '--hosts' option is used with '--transport' then transport
+information for the initiator (port) is output:<br>
+<span style="font-family: monospace;">$ lsscsi --hosts --transport 3</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[3]&nbsp;&nbsp;&nbsp;
+qla2xxx&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+fc:0x50060b00741cc28e,0x0b1900</span><br>
+<br>
+This shows for host 3 the driver is called qla2xxx, the transport is
+FC, the initiator's port name is in naa-5 format with the final (hex)
+number being the initiator's port identifier. Adding '--list' will
+again add "name=value" pairs:<br>
+<span style="font-family: monospace;">$ lsscsi -H -t --list 3</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[3]&nbsp;&nbsp;&nbsp;
+qla2xxx&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+fc:0x50060b00741cc28e,0x0b1900</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; transport=fc</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;
+node_name=0x50060b00741cc28f</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;
+port_name=0x50060b00741cc28e</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; port_id=0x0b1900</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; port_type=NPort (fabric
+via point-to-point)</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; speed=2 Gbit</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; supported_classes=Class 3</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; tgtid_bind_type=wwpn
+(World Wide Port Name)</span><br>
+<br>
+&nbsp;The "name=value" pairs are fetched from a sysfs directory (apart
+from "transport=fc") so the meaning should be what is defined by the
+transport. Too see which directory (or directories) provide this
+information add '-vvv'.<br>
+<h3><a class="mozTocH3" name="mozTocId419863"></a>1394</h3>
+There are two versions of the SBP SCSI standard known as SBP-2 and
+SBP-3 for conveying
+SCSI command sets over a IEEE 1394 transport. The SCSI commands sets
+are typically for accessing storage devices. Hence the acronym "SBP"
+is often associated with the IEEE 1394 transport in the storage context.<br>
+<br>
+SBP defines world wide unique names for a target and initiator (host)
+using EUI-64 format. These names are what the lsscsi command fetches
+when the '-t' option is given:<br>
+<span style="font-family: monospace;">$ lsscsi</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[6:0:1:0]&nbsp;&nbsp;&nbsp; sim
+dsk QUANTUM&nbsp; FIREBALL
+SE3.2A&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; /dev/sdk</span><br
+ style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -t</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[6:0:1:0]&nbsp;&nbsp;&nbsp; sim
+dsk sbp:00043b000000071d:1:0&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/dev/sdk</span><br style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -t -L</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[6:0:1:0]&nbsp;&nbsp;&nbsp; sim
+dsk sbp:00043b000000071d:1:0&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/dev/sdk</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; transport=sbp</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;
+ieee1394_id=00043b000000071d:1:0</span><br
+ style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -t -H</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[6]&nbsp;&nbsp;&nbsp;
+sbp2&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+sbp:005042b500004a48</span><br style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -t -H -L</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[6]&nbsp;&nbsp;&nbsp;
+sbp2&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+sbp:005042b500004a48</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; transport=sbp</span><br>
+<br>
+The SBP standard requires that disks (typically ATA disks in an
+external enclosure) use the SCSI peripheral device type: "simplified
+direct access device". The is abbreviated by the lsscsi command to "sim
+dsk".<br>
+<h3><a class="mozTocH3" name="mozTocId194875"></a>iSCSI</h3>
+The <span style="font-weight: bold;">lsscsi</span> command won't show
+anything iSCSI related on a machine with a iSCSI target running (either
+as a kernel driver or as a user space daemon). The following output is
+from a machine running a iSCSI initiator with a session established:<br>
+<span style="font-family: monospace;">$ lsscsi</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[2:0:0:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp; IET&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+VIRTUAL-DISK&nbsp;&nbsp;&nbsp;&nbsp; 0&nbsp;&nbsp;&nbsp;&nbsp; /dev/sda</span><br
+ style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -t</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[2:0:0:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp; iqn.2001-04.com.example:sda.sdb.sdc,t,0x1&nbsp;
+/dev/sda</span><br style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -t -L</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[2:0:0:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp; iqn.2001-04.com.example:sda.sdb.sdc,t,0x1&nbsp;
+/dev/sda</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; transport=iSCSI</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;
+targetname=iqn.2001-04.com.example:sda.sdb.sdc</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; tpgt=1</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; data_pdu_in_order=1</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; data_seq_in_order=1</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; erl=0</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; first_burst_len=65536</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; initial_r2t=1</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; max_burst_len=262144</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; max_outstanding_r2t=1</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; recovery_tmo=120</span><br
+ style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -t -H</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[2]&nbsp;&nbsp;&nbsp;
+iscsi_tcp&nbsp;&nbsp;&nbsp;&nbsp; iscsi:</span><br
+ style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -t -H -L</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[2]&nbsp;&nbsp;&nbsp;
+iscsi_tcp&nbsp;&nbsp;&nbsp;&nbsp; iscsi:</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; transport=iSCSI</span><br>
+<br>
+As can be seen, there is no useful host information (e.g. the iSCSI
+initiator name) when the '-H' option (or the '--hosts' option) is
+given. The information given for the target is session related. An
+iSCSI session is made up of 1 or more connections which have available
+information in sysfs but the <span style="font-weight: bold;">lsscsi</span>
+command doesn't output them currently.<br>
+<h3><a class="mozTocH3" name="mozTocId80471"></a>SAS</h3>
+For SAS devices (logical units), the '--transport' option will show the
+target's SAS address instead of the SCSI INQUIRY
+"strings". For example:<br>
+<span style="font-family: monospace;">$ lsscsi -t</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[4:0:3:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp;
+sas:0x5000d50001b02139&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/dev/sdd</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">[4:0:4:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp;
+sas:0x5000d500005208ed&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/dev/sde</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">[5:0:0:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp;
+sas:5000d50001b02139&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/dev/sdf</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">[5:0:1:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp;
+sas:5000d500005208ed&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/dev/sdg</span><br>
+<br>
+The SAS address is prefixed by "sas:" to identify the transport. The
+are currently two different representations and lsscsi prints out
+whatever is in the relevant sysfs attribute. When a '--list' (or '-L)
+option is added more information is output:<br>
+<span style="font-family: monospace;">$ lsscsi -t -L [4:0:4:0]</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[4:0:4:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp;
+sas:0x5000d500005208ed&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/dev/sde</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; transport=sas</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;
+initiator_port_protocols=none</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;
+initiator_response_timeout=10000</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; I_T_nexus_loss_timeout=1744</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; phy_identifier=11</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; ready_led_meaning=1</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;
+sas_address=0x5000d500005208ed</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; target_port_protocols=ssp<br>
+<br>
+# lsscsi -t -L [5:0:1:0]<br>
+[5:0:1:0]&nbsp;&nbsp;&nbsp; disk&nbsp;&nbsp;&nbsp;
+sas:5000d500005208ed&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/dev/sdg<br>
+&nbsp; transport=sas<br>
+&nbsp; sub_transport=sas_class<br>
+&nbsp; device_name=0000000000000000<br>
+&nbsp; dev_type=end device<br>
+&nbsp; iproto=<br>
+&nbsp; iresp_timeout=0x2710<br>
+&nbsp; itnl_timeout=0x07d0<br>
+&nbsp; linkrate=3,0 Gbps<br>
+&nbsp; max_linkrate=3,0 Gbps<br>
+&nbsp; max_pathways=1<br>
+&nbsp; min_linkrate=3,0 Gbps<br>
+&nbsp; pathways=1<br>
+&nbsp; ready_led_meaning=1<br>
+&nbsp; rl_wlun=0<br>
+&nbsp; sas_addr=5000d500005208ed<br>
+&nbsp; tproto=SSP<br>
+&nbsp; transport_layer_retries=0<br>
+<br>
+</span>Both 4:0:4:0 and 5:0:1:0 are the same logical unit accessed via
+the same target port but from different hosts. The two drivers (one for
+each host) choose to represent the same (target port) information in
+different ways.<br>
+<br>
+When the '--hosts' option is added, then the SAS address of the
+initiator is output. In the case of SAS a Linux host corresponds to a
+initiator device (not one of its ports):<br>
+<span style="font-family: monospace;">$ ./lsscsi -t -H</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[0]&nbsp;&nbsp;&nbsp; sata_nv</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[1]&nbsp;&nbsp;&nbsp; sata_nv</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[2]&nbsp;&nbsp;&nbsp; sata_nv</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[3]&nbsp;&nbsp;&nbsp; sata_nv</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[4]&nbsp;&nbsp;&nbsp;
+mptsas&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; sas:0x500605b000f6f260</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[5]&nbsp;&nbsp;&nbsp;
+aic94xx&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; sas:50000d100f2dc000</span><br>
+<br>
+Adding a '--list' option will print multiple 'name=value' pair lines,
+each indented with two or more spaces.<br>
+<br>
+<h3><a class="mozTocH3" name="mozTocId798449"></a>SPI</h3>
+The SCSI parallel interface (SPI) can be detected (as indicated by the
+"spi:" prefix) but sysfs provides no world wide unique names (there may
+be some in the device identification VPD page). The only thing that is
+available in sysfs is the target identifier which is usually a number
+between 0 and 15 inclusive. The initiator (host) identifier is not
+provided by by convention it is usually 7. Following are some examples
+of target and host transport information for SPI:<br>
+<span style="font-family: monospace;">$ lsscsi [0:0:1:0]</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[0:0:1:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp; HP 36.4G
+ST336753LC&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; HPC7&nbsp; /dev/sdb</span><br
+ style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -t [0:0:1:0]</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[0:0:1:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp;
+spi:1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/dev/sdb</span><br style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -t -L [0:0:1:0]</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[0:0:1:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp;
+spi:1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/dev/sdb</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; transport=spi</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; target_id=1</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; dt=1</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; max_offset=127</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; max_width=1</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; min_period=6.25</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; offset=63</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; period=6.25</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; width=1</span><br
+ style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -t -H [0:0:1:0]</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[0]&nbsp;&nbsp;&nbsp;
+mptspi&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; spi:</span><br
+ style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -t -H -L [0:0:1:0]</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[0]&nbsp;&nbsp;&nbsp;
+mptspi&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; spi:</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; transport=spi</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; signalling=unknown</span><br>
+<h2><a class="mozTocH2" name="mozTocId908089"></a>lsscsi version 0.15
+to 0.19 notes</h2>
 These versions attempt to find the device name
 used in the <span style="font-family: monospace;">/dev</span>
 directory rather than the kernel generated name. The kernel generated
@@ -208,11 +821,12 @@ select+sort facility).<br>
 Extra SCSI device and host attributes (as found in lk 2.6.12) can be
 seen by using the '--long' option twice (or more conveniently using
 '-ll'). Attributes are listed as "&lt;name&gt;=&lt;value&gt;" pairs,
-one per line (indented two spaces) when the '-lll' option is given.<br>
+one per line (indented two spaces) when the '--list' option is given.<br>
 <br>
 <p> </p>
 <p> </p>
-<h2> Download and Build information</h2>
+<h2><a class="mozTocH2" name="mozTocId856130"></a> Download and Build
+information</h2>
 <p> </p>
 <p>Here is a table of the versions of lsscsi available for the lk 2.6
 series. <br>
@@ -222,9 +836,9 @@ series. <br>
     <tr>
       <td valign="top"><b>tarball</b><br>
       </td>
-      <td valign="top"><b>binary rpm</b><br>
+      <td valign="top"><b>binary rpm **+ deb</b><br>
       </td>
-      <td valign="top"><b>source rpm</b><br>
+      <td valign="top"><b>source rpm **</b><br>
       </td>
       <td valign="top"><b>notes</b><br>
       </td>
@@ -288,22 +902,49 @@ arguments and /dev scanning. Does not use libsysfs.<br>
       <td style="vertical-align: top;">lk 2.6.14, fixes for osst and ch
 devices, debian build. Does not use libsysfs. </td>
     </tr>
+    <tr>
+      <td style="vertical-align: top;"><a href="lsscsi-0.17.tgz">lsscsi-0.17.tgz</a></td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.17-1.i386.rpm">lsscsi-0.17-1.i386.rpm</a></td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.17-1.src.rpm">lsscsi-0.17-1.src.rpm</a></td>
+      <td style="vertical-align: top;">lk 2.6.16, kernel (sysfs) change
+that first appeared in lk 2.6.16-rc1 requires this version to see block
+devices<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;"><a href="lsscsi-0.18.tgz">lsscsi-0.18.tgz</a></td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.18-1.i386.rpm">lsscsi-0.18-1.i386.rpm</a>
+      </td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.18-1.src.rpm">lsscsi-0.18-1.src.rpm</a>
+      </td>
+      <td style="vertical-align: top;"><span style="font-weight: bold;"></span>allow
+for "generic" and "tape" symlinks to be dropped in sysfs.<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;"><a href="lsscsi-0.19.tgz">lsscsi-0.19.tgz</a></td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.19-1.i386.rpm">lsscsi-0.19-1.i386.rpm</a><br>
+      <a href="lsscsi_0.19-0.1_i386.deb">lsscsi_0.19-0.1_i386.deb</a><br>
+      </td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.19-1.src.rpm">lsscsi-0.19-1.src.rpm</a>
+      </td>
+      <td style="vertical-align: top;">add transport information,
+'--list' option, fixes for lk 2.6.20<br>
+      </td>
+    </tr>
   </tbody>
 </table>
-<p><br>
+<p>Here is the most recent <a href="lsscsi.ChangeLog">ChangeLog</a> .<br>
 </p>
-<h2>Related utilities
-</h2>
-<p>In lk 2.6 various sysfs utilities are (becoming) available. See the <a
- href="http://linux-diag.sourceforge.net/Sysfsutils.html">sysfsutils</a>
-package for the <span style="font-weight: bold;"></span><span
- style="font-weight: bold;">systool</span> utility that is more
-generic than <span style="font-weight: bold;">lsscsi</span>.<br>
-<br>
+<p>** Some browsers (e.g. firefox) may interpret a file with an
+extension
+of "rpm" as an audio file. In which case press the right button over
+the link and select "Save link as ..." to download the file.
 </p>
 <p> </p>
-<p>Doug Gilbert (dgilbert@interlog.com) <br>
-Last updated: 30th December 2005<br>
-&nbsp; </p>
+<div style="text-align: center;">Doug Gilbert (dgilbert@interlog.com) <br>
+Last updated: 25th January 2007<br>
+</div>
+<p>&nbsp; </p>
 </body>
 </html>

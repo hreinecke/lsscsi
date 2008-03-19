@@ -1,4 +1,16 @@
 
+Version 0.19 2007/1/25
+  - add transport information (target + initiator)
+    - start with FC, SAS, SPI, iSCSI and SBP
+    - alter ISCSI for 2.6.20 changes
+  - SAS fix for lk 2.6.20 (SYSFS_DEPRECATED=n)
+  - enhance host name search when proc_name is "<NULL>"
+  - implement filter option for '--hosts'
+    - accept 'host<n>' as first item in filter to mean host <n>
+  - output more host attributes when '-Hll' given
+  - add '--list' (or '-L') option output attribute=value
+    entries, one per line
+
 Version 0.18 2006/3/24
   - cope with dropping of 'generic' symlink post lk 2.6.16
   - anticipate the future removal of 'tape' symlink
