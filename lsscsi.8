@@ -1,4 +1,4 @@
-.TH lsscsi "5" "January 2003" "lsscsi-0.03" LSSCSI
+.TH lsscsi "19" "January 2003" "lsscsi-0.05" LSSCSI
 .SH NAME
 lsscsi \- list all SCSI devices (or hosts) currently on system
 .SH SYNOPSIS
@@ -18,7 +18,8 @@ each device.
 The output is similar to that obtained from 'cat /proc/scsi/scsi'
 .TP
 --generic | -g
-Output the scsi generic device file name
+Output the scsi generic device file name. Note that if the sg driver
+is a module it needs to be loaded otherwise '-' will appear
 .TP
 --help | -h
 Output the usage message and exit

@@ -1,4 +1,9 @@
-Version 0.03 2003/1/14
+Version 0.05 2003/1/19
+  - output st and osst device names (rather than "-")
+  - support --generic and --classic together
+  - output type (SCSI peripheral type) with --long
+
+Version 0.04 2003/1/14
   - make sure a st device list only once (needed for lk 2.5.57)
 
 Version 0.03 2003/1/9

@@ -11,7 +11,7 @@
 
 #define NAME_LEN_MAX 260
 
-static const char * version_str = "0.04  2003/1/14";
+static const char * version_str = "0.05  2003/1/18";
 static char sysfsroot[NAME_LEN_MAX];
 static const char * sysfs_name = "sysfs";
 static const char * proc_mounts = "/proc/mounts";
@@ -216,6 +216,10 @@ static void longer_entry(const char * path_name)
 		printf(" scsi_level=%s", value);
 	else
 		printf(" scsi_level=?");
+	if (get_value(path_name, "type", value, NAME_LEN_MAX))
+		printf(" type=%s", value);
+	else
+		printf(" type=?");
 	printf("\n");
 }
 
@@ -265,6 +269,30 @@ static void one_classic_entry(const char * dir_name, const char * devname,
 	} else
 		printf("ANSI SCSI revision: %02x\n", (scsi_level - 1) ?
 		                            scsi_level - 1 : 1);
+	if (out_mask & MASK_GENERIC) {
+		char extra[NAME_LEN_MAX];
+		const char * bnp;
+
+		bnp = basename(buff);
+		strcpy(extra, bnp);
+		strcat(extra, ":gen/kdev");
+		if (get_value(buff, extra, value, NAME_LEN_MAX)) {
+			int kd, majj, minn;
+
+			if (1 == sscanf(value, "%x", &kd)) {
+				majj = kd / 256;
+				minn = kd % 256;
+				if (SCSI_GENERIC_MAJOR == majj)
+					printf("/dev/sg%d\n", minn);
+				else
+					printf("unexpected sg major\n");
+			}
+			else
+				printf("unable to decode kdev\n");
+		}
+		else
+			printf("-\n");
+	}
 	if (out_mask & MASK_NAME) {
 		if (get_value(buff, "name", value, NAME_LEN_MAX))
 			printf("  name: %s\n", value);
@@ -317,7 +345,7 @@ static void one_entry(const char * dir_name, const char * devname,
 	else
 		printf("rev?");
 
-	if (if_directory_chdir(buff, "block")) {
+	if (if_directory_chdir(buff, "block")) { /* look for block device */
 		char wd[NAME_LEN_MAX];
 
 		if (NULL == getcwd(wd, NAME_LEN_MAX))
@@ -325,8 +353,34 @@ static void one_entry(const char * dir_name, const char * devname,
 		else
 			printf("/dev/%s", basename(wd));
 	}
-	else
-		printf("-");
+	else { /* look for tape device */
+		char extra[NAME_LEN_MAX];
+		const char * bnp;
+
+		bnp = basename(buff);
+		strcpy(extra, bnp);
+		strcat(extra, ":mt/kdev");
+		if (get_value(buff, extra, value, NAME_LEN_MAX)) {
+			int kd, majj, minn;
+
+			if (1 == sscanf(value, "%x", &kd)) {
+				majj = kd / 256;
+				minn = kd % 256;
+				/* for "mt" tape devs, 0 <= minn <= 31 */
+				if (SCSI_TAPE_MAJOR == majj)
+					printf("/dev/st%d", minn);
+				else if (OSST_MAJOR == majj)
+					printf("/dev/osst%d", minn);
+				else
+					printf("unexpected tape major");
+			}
+			else
+				printf("unable to decode kdev");
+		}
+		else
+			printf("-       ");
+	}
+
 	if (out_mask & MASK_GENERIC) {
 		char extra[NAME_LEN_MAX];
 		const char * bnp;
