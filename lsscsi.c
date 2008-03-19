@@ -1,3 +1,13 @@
+/* This is a utility program for listing SCSI devices and hosts (HBAs)
+ * in the Linux operating system. It is applicable to kernel versions
+ * greater than lk 2.5.50 .
+ *  Copyright (C) 2002, 2003 D. Gilbert
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2, or (at your option)
+ *  any later version.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,7 +22,7 @@
 
 #define NAME_LEN_MAX 260
 
-static const char * version_str = "0.08  2003/3/2";
+static const char * version_str = "0.09  2003/4/4";
 static char sysfsroot[NAME_LEN_MAX];
 static const char * sysfs_name = "sysfs";
 static const char * proc_mounts = "/proc/mounts";
@@ -76,27 +86,59 @@ static struct option long_options[] = {
 	{0, 0, 0, 0}
 };
 
+struct addr_hcil {
+	int h;
+	int c;
+	int i;
+	int l;
+};
+
+static int cmp_hcil(const struct addr_hcil * le, const struct addr_hcil * ri)
+{
+	if (le->h == ri->h) {
+		if (le->c == ri->c) {
+			if (le->i == ri->i)
+				return ((le->l == ri->l) ? 0 :
+					((le->l < ri->l) ? -1 : 1));
+			else
+				return (le->i < ri->i) ? -1 : 1;
+		} else
+			return (le->c < ri->c) ? -1 : 1;
+	} else
+		return (le->h < ri->h) ? -1 : 1;
+}
+
+static void invalidate_hcil(struct addr_hcil * p)
+{
+	if (p) {
+		p->h = -1;
+		p->c = -1;
+		p->i = -1;
+		p->l = -1;
+	}
+}
+
 static void usage()
 {
-	    fprintf(stderr, "Usage: lsscsi   [--classic|-c] [--generic|-g]"
-		    " [--help|-h] [--hosts|-H]"
-		    "\n\t\t\[--long|-l] [--name|-n] [--sysfsroot=<dir>]"
-		    " [--verbose|-v]"
-		    "\n\t\t[--version|-V]\n");
-	    fprintf(stderr, "\t--classic  alternate output that is similar "
-			    "to 'cat /proc/scsi/scsi'\n");
-	    fprintf(stderr, "\t--generic  show scsi generic device name\n");
-	    fprintf(stderr, "\t--help  this usage information\n");
-	    fprintf(stderr, "\t--hosts  lists scsi hosts rather than scsi "
-			    "devices\n");
-	    fprintf(stderr, "\t--long  additional information output\n");
-	    fprintf(stderr, "\t--name  from INQUIRY VPD page 0x83 or "
-			    "manufactured name\n");
-	    fprintf(stderr, "\t--sysfsroot=<dir>  use /proc/mounts or <dir> "
-			    "for root of sysfs\n");
-	    fprintf(stderr, "\t--verbose  output path names were data "
-			    "is found\n");
-	    fprintf(stderr, "\t--version  output version string and exit\n");
+	fprintf(stderr, "Usage: lsscsi   [--classic|-c] [--generic|-g]"
+			" [--help|-h] [--hosts|-H]"
+			"\n\t\t\[--long|-l] [--name|-n] [--sysfsroot=<dir>]"
+			" [--verbose|-v]"
+			"\n\t\t[--version|-V]\n");
+	fprintf(stderr, "\t--classic  alternate output that is similar "
+			"to 'cat /proc/scsi/scsi'\n");
+	fprintf(stderr, "\t--generic  show scsi generic device name\n");
+	fprintf(stderr, "\t--help  this usage information\n");
+	fprintf(stderr, "\t--hosts  lists scsi hosts rather than scsi "
+			"devices\n");
+	fprintf(stderr, "\t--long  additional information output\n");
+	fprintf(stderr, "\t--name  from INQUIRY VPD page 0x83 or "
+			"manufactured name\n");
+	fprintf(stderr, "\t--sysfsroot=<dir>  use /proc/mounts or <dir> "
+			"for root of sysfs\n");
+	fprintf(stderr, "\t--verbose  output path names were data "
+			"is found\n");
+	fprintf(stderr, "\t--version  output version string and exit\n");
 }
 
 
@@ -177,24 +219,29 @@ static int get_value(const char * dir_name, const char * base_name,
 
 /*  Parse colon_list into host/channel/id/lun ("hcil") array, 
  *  return 1 if successful, else 0 */
-static int parse_colon_list(const char * colon_list, int hcil_arr[4])
+static int parse_colon_list(const char * colon_list, struct addr_hcil * outp)
 {
-	char b[16];
 	const char * elem_end;
-	int colon_num = 3;
-	int k;
 
-	if (! colon_list)
+	if ((! colon_list) || (! outp))
 		return 0;
-	for (k = 0; k < colon_num; ++k) {
-		if (NULL == (elem_end = strchr(colon_list, ':')))
-			return 0;
-		strncpy(b, colon_list, elem_end - colon_list);
-		sscanf(b, "%d", &hcil_arr[k]);
-		colon_list = elem_end + 1;
-	}
-	strcpy(b, colon_list);
-	sscanf(b, "%d", &hcil_arr[3]);
+	if (1 != sscanf(colon_list, "%d", &outp->h))
+		return 0;
+	if (NULL == (elem_end = strchr(colon_list, ':')))
+		return 0;
+	colon_list = elem_end + 1;
+	if (1 != sscanf(colon_list, "%d", &outp->c))
+		return 0;
+	if (NULL == (elem_end = strchr(colon_list, ':')))
+		return 0;
+	colon_list = elem_end + 1;
+	if (1 != sscanf(colon_list, "%d", &outp->i))
+		return 0;
+	if (NULL == (elem_end = strchr(colon_list, ':')))
+		return 0;
+	colon_list = elem_end + 1;
+	if (1 != sscanf(colon_list, "%d", &outp->l))
+		return 0;
 	return 1;
 }
 
@@ -229,20 +276,18 @@ static void one_classic_sdev_entry(const char * dir_name,
 				   const char * devname, int do_verbose, 
 				   int out_mask)
 {
-	int hcil_arr[4];
+	struct addr_hcil hcil;
 	char buff[NAME_LEN_MAX];
 	char value[NAME_LEN_MAX];
-	int type, scsi_level, k;
+	int type, scsi_level;
 
 	strcpy(buff, dir_name);
 	strcat(buff, "/");
 	strcat(buff, devname);
-	if (! parse_colon_list(devname, hcil_arr)) {
-		for (k = 0; k < 4; ++k)
-			hcil_arr[k] = -1;
-	}
+	if (! parse_colon_list(devname, &hcil))
+       		invalidate_hcil(&hcil);
 	printf("Host: scsi%d Channel: %02d Id: %02d Lun: %02d\n",
-	       hcil_arr[0], hcil_arr[1], hcil_arr[2], hcil_arr[3]);
+	       hcil.h, hcil.c, hcil.i, hcil.l);
 
 	if (get_value(buff, "vendor", value, NAME_LEN_MAX))
 		printf("  Vendor: %-8s", value);
@@ -337,17 +382,17 @@ static void one_sdev_entry(const char * dir_name, const char * devname,
 	if (get_value(buff, "vendor", value, NAME_LEN_MAX))
 		printf("%-8s ", value);
 	else
-		printf("vendor? ");
+		printf("vendor?  ");
 
 	if (get_value(buff, "model", value, NAME_LEN_MAX))
 		printf("%-16s ", value);
 	else
-		printf("model?          ");
+		printf("model?           ");
 
 	if (get_value(buff, "rev", value, NAME_LEN_MAX))
 		printf("%-4s  ", value);
 	else
-		printf("rev?");
+		printf("rev?  ");
 
 	if (if_directory_chdir(buff, "block")) { /* look for block device */
 		char wd[NAME_LEN_MAX];
@@ -458,21 +503,18 @@ static int sdev_scandir_sort(const void * a, const void * b)
 {
 	const char * lnam = (*(struct dirent **)a)->d_name;
 	const char * rnam = (*(struct dirent **)b)->d_name;
-	int left_arr[4];
-	int right_arr[4];
-	int k;
+	struct addr_hcil left_hcil;
+	struct addr_hcil right_hcil;
 
-	if (! parse_colon_list(lnam, left_arr))
+	if (! parse_colon_list(lnam, &left_hcil)) {
+		fprintf(stderr, "sdev_scandir_sort: left parse failed \n");
 		return -1;
-	if (! parse_colon_list(rnam, right_arr))
-		return 1;
-	for (k = 0; k < 4; ++k) {
-		if (left_arr[k] < right_arr[k])
-			return -1;
-		if (right_arr[k] < left_arr[k])
-			return 1;
 	}
-	return 0;
+	if (! parse_colon_list(rnam, &right_hcil)) {
+		fprintf(stderr, "sdev_scandir_sort: right parse failed \n");
+		return 1;
+	}
+	return cmp_hcil(&left_hcil, &right_hcil);
 }
 
 static void list_sdevices(int do_verbose, int out_mask)

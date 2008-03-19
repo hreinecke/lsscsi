@@ -16,3 +16,6 @@ To clean out object and executable files from the working directory call:
 
 A dependency file (named .depend) can be built using:
  $ make dep
+
+Rpms are also available. A lsscsi.spec file is included in the tarball
+to facilitate building rpms.
