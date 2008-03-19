@@ -2,6 +2,10 @@ man_MANS = lsscsi.8
 SUBDIRS =
 EXTRA_DIST=autogen.sh
 
+# added for Debian
+prefix=/usr
+mandir=${prefix}/share/man
+
 
 bin_PROGRAMS = lsscsi
 

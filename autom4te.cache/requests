@@ -28,7 +28,7 @@
                         '/usr/share/aclocal-1.9/sanity.m4',
                         '/usr/share/aclocal-1.9/strip.m4',
                         '/usr/share/aclocal-1.9/tar.m4',
-                        'configure.in'
+                        'configure.ac'
                       ],
                       {
                         'm4_pattern_forbid' => 1,
@@ -110,6 +110,7 @@
                         'AM_OUTPUT_DEPENDENCY_COMMANDS' => 1,
                         'AC_CHECK_MEMBERS' => 1,
                         'AM_MAINTAINER_MODE' => 1,
+                        'AC_DEFUN_ONCE' => 1,
                         'AC_FUNC_UTIME_NULL' => 1,
                         'AC_FUNC_SELECT_ARGTYPES' => 1,
                         'AC_HEADER_STAT' => 1,
@@ -162,7 +163,7 @@
                       [
                         '/usr/share/autoconf/autoconf/autoconf.m4f',
                         'aclocal.m4',
-                        'configure.in'
+                        'configure.ac'
                       ],
                       {
                         '_LT_AC_TAGCONFIG' => 1,

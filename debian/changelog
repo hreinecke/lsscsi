@@ -1,0 +1,23 @@
+lsscsi (0.16-0.1) unstable; urgency=low
+
+  * add debian build directory
+
+ -- Douglas Gilbert <dgilbert@interlog.org>  Fri, 30 Dec 2005 16:00:00 +1000
+
+lsscsi (0.15-1) unstable; urgency=low
+
+  * New upstream version
+  * Upstream removed dependency on libsysfs, remove build-dep
+  * Upstream automade/autoconficated, adjust for that
+  * Add new AUTHORS and CREDITS to docs, change CHANGELOG to ChangeLog
+
+ -- Matt Taggart <taggart@debian.org>  Wed, 21 Sep 2005 17:34:55 -0700
+
+lsscsi (0.14-1) unstable; urgency=low
+
+  * Initial Release.
+  * Standard dh_make single package, minor Makefile variable changes,
+    no other changes needed. (upstream knows how to use DESTDIR)
+
+ -- Matt Taggart <taggart@debian.org>  Wed,  2 Feb 2005 00:27:11 -0800
+

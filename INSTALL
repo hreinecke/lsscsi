@@ -28,3 +28,14 @@ will deposit the binary rpm in the /usr/src/redhat/RPMS/i386 directory
 and the source rpm in the /usr/src/redhat/SRPMS directory. Building an
 rpm on Suse and Mandrake is similar (although they use their names
 rather than "redhat" in the above paths).
+
+
+To build a linux debian "deb" (binary) package, first untar the tarball,
+then change directory to the top level within the lsscsi source. Then:
+ # chmod +x debian/rules
+ # dpkg-buildpackage -b -rfakeroot
+The binary deb packages will be placed in the parent directory (of
+the lsscsi source directory) if all goes well.
+
+Douglas Gilbert
+30th December 2005

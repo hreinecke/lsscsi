@@ -1,0 +1,15 @@
+Source: lsscsi
+Section: admin
+Priority: optional
+Maintainer: Matt Taggart <taggart@debian.org>
+Build-Depends: debhelper (>= 4.0.0), autoconf
+Standards-Version: 3.6.2.1
+
+Package: lsscsi
+Architecture: any
+Depends: ${shlibs:Depends}
+Description: list all SCSI devices (or hosts) currently on system
+ Uses information in sysfs (linux kernels 2.6.0 and later) to list all
+ scsi devices (or hosts) currently attached to the system. Options can
+ be used to control the amount and form of information provided for each
+ device.

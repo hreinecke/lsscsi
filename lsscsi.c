@@ -26,7 +26,7 @@
 
 #define NAME_LEN_MAX 260
 
-static const char * version_str = "0.15  2005/6/29";
+static const char * version_str = "0.16  2005/12/30";
 static char sysfsroot[NAME_LEN_MAX];
 static const char * sysfs_name = "sysfs";
 static const char * sysfs_test_dir = "/sys/class";
@@ -90,10 +90,10 @@ static const char * scsi_short_device_types[] =
 {
         "disk   ", "tape   ", "printer", "process", "worm   ", "cd/dvd ",
         "scanner", "optical", "mediumx", "comms  ", "(0xa)  ", "(0xb)  ",
-        "storage", "enclosu", "s. disk", "opti rd", "bridge ", "osd    ",
+        "storage", "enclosu", "sim dsk", "opti rd", "bridge ", "osd    ",
         "adi    ", "(0x13) ", "(0x14) ", "(0x15) ", "(0x16) ", "(0x17) ", 
         "(0x18) ", "(0x19) ", "(0x1a) ", "(0x1b) ", "(0x1c) ", "(0x1e) ", 
-        "know LU", "no dev ", 
+        "wlun   ", "no dev ", 
 };
 
 static struct option long_options[] = {
@@ -112,18 +112,18 @@ static struct option long_options[] = {
         {0, 0, 0, 0}
 };
 
+
 /* Device node list: contains the information needed to match a node with a
    sysfs class device. */
 #define DEV_NODE_LIST_ENTRIES 16
+enum dev_type { BLK_DEV, CHR_DEV};
+
 struct dev_node_list {
        struct dev_node_list *next;
        unsigned int count;
        struct dev_node_entry {
                unsigned int maj, min;
-               enum dev_type {
-                       BLK_DEV,
-                       CHR_DEV
-               } type;
+               enum dev_type type;
                time_t mtime;
                char name [ NAME_MAX + 1];
        } nodes[DEV_NODE_LIST_ENTRIES];
@@ -628,6 +628,65 @@ static void one_classic_sdev_entry(const char * dir_name,
                 printf("  dir: %s\n", buff);
 }
 
+#define FT_OTHER 0
+#define FT_BLOCK 1
+#define FT_CHAR 2
+
+struct non_sg_item {
+        char name[NAME_LEN_MAX];
+        int ft;
+};
+
+static struct non_sg_item non_sg;
+
+static int non_sg_scandir_select(const struct dirent * s)
+{
+        if (FT_OTHER != non_sg.ft)
+                return 0;
+        if (DT_LNK != s->d_type)
+                return 0;
+        if (0 == strncmp("scsi_changer", s->d_name, 12)) {
+                strncpy(non_sg.name, s->d_name, NAME_LEN_MAX);
+                non_sg.ft = FT_CHAR;
+                return 1;
+        } else if (0 == strcmp("block", s->d_name)) {
+                strcpy(non_sg.name, s->d_name);
+                non_sg.ft = FT_BLOCK;
+                return 1;
+        } else if (0 == strcmp("tape", s->d_name)) {
+                strcpy(non_sg.name, s->d_name);
+                non_sg.ft = FT_CHAR;
+                return 1;
+        } else if (0 == strncmp("onstream_tape:os", s->d_name, 16)) {
+                strcpy(non_sg.name, s->d_name);
+                non_sg.ft = FT_CHAR;
+                return 1;
+        } else
+                return 0;
+}
+
+static int non_sg_scan(const char * dir_name,
+                       const struct lsscsi_opt_coll * opts)
+{
+        char name[NAME_LEN_MAX];
+        struct dirent ** namelist;
+        int num, k;
+
+        non_sg.ft = FT_OTHER;
+        num = scandir(dir_name, &namelist, non_sg_scandir_select, NULL);
+        if (num < 0) {
+                if (opts->verbose > 0) {
+                        snprintf(name, NAME_LEN_MAX, "scandir: %s", dir_name);
+                        perror(name);
+                }
+                return -1;
+        }
+        for (k = 0; k < num; ++k)
+                free(namelist[k]);
+        free(namelist);
+        return num;
+}
+
 static void one_sdev_entry(const char * dir_name, const char * devname,
                            const struct lsscsi_opt_coll * opts)
 {
@@ -668,18 +727,21 @@ static void one_sdev_entry(const char * dir_name, const char * devname,
         else
                 printf("rev?  ");
 
-        if (if_directory_chdir(buff, "block")) { /* look for block device */
+        if ((1 == non_sg_scan(buff, opts)) &&
+            (if_directory_chdir(buff, non_sg.name))) {
                 char wd[NAME_LEN_MAX];
 
                 if (NULL == getcwd(wd, NAME_LEN_MAX))
-                        printf("block_dev error");
+                        printf("getcwd error");
                 else {
                         char dev_node[NAME_MAX + 1] = "";
+                        enum dev_type typ;
 
+                        typ = (FT_BLOCK == non_sg.ft) ? BLK_DEV : CHR_DEV;
                         if (opts->kname)
                                 snprintf(dev_node, NAME_MAX, "%s/%s",
-                                         dev_dir, basename(wd));
-                        else if (!get_dev_node(wd, dev_node, BLK_DEV))
+                                        dev_dir, basename(wd));
+                        else if (!get_dev_node(wd, dev_node, typ))
                                 snprintf(dev_node, NAME_MAX, "-       ");
 
                         printf("%s", dev_node);
@@ -690,43 +752,8 @@ static void one_sdev_entry(const char * dir_name, const char * devname,
                                         printf("[dev?]");
                         }
                 }
-        }
-        else { /* look for tape device */
-                if (if_directory_chdir(buff, "tape")) { 
-                        char wd[NAME_LEN_MAX];
-
-                        if (NULL == getcwd(wd, NAME_LEN_MAX))
-                                printf("tape_dev error");
-                        else {
-                                char dev_node[NAME_MAX + 1];
-
-                                if (opts->kname) {
-                                        char s[NAME_LEN_MAX];
-                                        char * cp;
-
-                                        strcpy(s, basename(wd));
-                                        if ((cp = strchr(s, 'm')))
-                                                s[cp - s] = '\0';
-
-                                        snprintf(dev_node, NAME_MAX, "%s/%s",
-                                                 dev_dir, s);
-                                }
-                                else if (!get_dev_node(wd, dev_node, CHR_DEV))
-                                        snprintf(dev_node, NAME_MAX,
-                                                 "-       ");
-
-                                printf("%s", dev_node);
-                                if (opts->dev_maj_min) {
-                                        if (get_value(wd, "dev", value, 
-                                                      NAME_LEN_MAX))
-                                                printf("[%s]", value);
-                                        else
-                                                printf("[dev?]");
-                                }
-                        }
-                } else
-                        printf("-       ");
-        }
+        } else
+                printf("-       ");
 
         if (opts->generic) {
                 if (if_directory_chdir(buff, "generic")) { 
@@ -989,6 +1016,7 @@ static void list_hosts(const struct lsscsi_opt_coll * opts)
         }
         free(namelist);
 }
+
 
 static int one_filter_arg(const char * arg, struct addr_hctl * filtp)
 {

@@ -1,4 +1,4 @@
-.TH lsscsi "8" "June 2005" "lsscsi-0.15" LSSCSI
+.TH lsscsi "8" "December 2005" "lsscsi-0.16" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
@@ -57,7 +57,7 @@ not given then SCSI devices are listed
 --kname | -k
 Use linux default algorithm for naming devices (e.g. block major 8,
 minor 0 is "/dev/sda") rather than the "match by major and minor"
-in the "/dev" diretory as discussed above.
+in the "/dev" directory as discussed above.
 .TP
 --long | -l
 Output additional information for each SCSI device (host). Can be
@@ -77,7 +77,7 @@ Information for this command is derived from the the sysfs file system
 whose mount point is found by examining the contents of /proc/mounts .
 SCSI (pseudo) devices that have been detected by the SCSI mid level
 will be listed even if the required upper level drivers (i.e. sd, sr,
-st or osst) have not been loaded. If the appropriate upper level
+st, osst or ch) have not been loaded. If the appropriate upper level
 driver has not been loaded then the device file name will appear
 as '-' rather than something like '/dev/st0'. Note that some
 devices (e.g. scanners and medium changers) do not have a primary upper

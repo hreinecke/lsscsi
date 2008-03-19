@@ -1,0 +1,309 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <title>lsscsi utility for Linux</title>
+  <meta http-equiv="Content-Type"
+ content="text/html; charset=iso-8859-1">
+  <meta name="keywords" content="Linux, SCSI, device scan, sysfs">
+  <meta name="GENERATOR"
+ content="Mozilla/4.79 [en] (X11; U; Linux 2.5.31 i686) [Netscape]">
+</head>
+<body background="paper.jpg">
+<center>
+<h1>lsscsi</h1>
+</center>
+<h2> <b>Introduction</b></h2>
+In the 2.6 linux kernel series a new pseudo file system call <b>sysfs</b>
+reflects the way that various devices and their drivers are configured
+in the system. Sysfs support has been added to the SCSI subsystem (as
+well as most other driver subsystems) so that a reasonable amount of
+information can be deduced by scanning the sysfs tree. The <b>lsscsi</b>
+command scans the sysfs tree and outputs information about SCSI
+devices (or SCSI hosts) that are attached.&nbsp;
+<h2> Details</h2>
+The <span style="font-weight: bold;">lsscsi</span> command accesses
+the sysfs file system (usually mounted under <span
+ style="font-family: monospace;">/sys</span> ) to obtain information
+rather than opening the SCSI device nodes (e.g. <span
+ style="font-family: monospace;">/dev/sda</span> ) in the system.
+Reading information within the sysfs file system is usually available
+to all users (as is the information in procfs). However the permissions
+on SCSI device nodes are necessarily tight which precludes normal users
+from directly interrogating these devices. The <span
+ style="font-weight: bold;">lsscsi</span> command will typically be
+available to all users.<br>
+<br>
+When executed without any options <b>lsscsi</b> outputs one line for
+each SCSI device attached to the system:<br>
+<tt>$&nbsp;lsscsi<br>
+[0:0:8:0]&nbsp;&nbsp;&nbsp; disk&nbsp;&nbsp;&nbsp; FUJITSU&nbsp;
+MAM3184MP&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 0105&nbsp; /dev/sda<br>
+[2:0:0:0]&nbsp;&nbsp;&nbsp; cd &nbsp;&nbsp; &nbsp; CREATIVE
+CD5233E&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+1.00&nbsp;
+/dev/sr0</tt><tt><br>
+[3:0:5:0] &nbsp; &nbsp;tape &nbsp; &nbsp;HP &nbsp; &nbsp;
+&nbsp; C5713A &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; H910
+&nbsp;/dev/st0<br>
+[3:0:5:1] &nbsp; &nbsp;mediumx HP &nbsp; &nbsp; &nbsp; C5713A &nbsp;
+&nbsp; &nbsp; &nbsp; &nbsp; H910 &nbsp;-<br>
+</tt><tt> [4:0:0:0]&nbsp;&nbsp;&nbsp; disk&nbsp;&nbsp;&nbsp;
+Linux&nbsp;&nbsp;&nbsp; scsi_debug&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+0004&nbsp; /dev/sdb</tt><br>
+<br>
+The first entry on each line is the scsi_host,channel,target_id,lun
+tuple. It is placed in brackets and each element is colon separated.
+When there are multiple SCSI devices their entries are sorted in
+ascending tuple order.
+The next column is the SCSI peripheral type; rather than the formal
+name (e.g.
+"direct access device") a shorter name is used. Then follows the
+vendor name, the model name and the revision string. The last
+entry is the device file node name. This assumes that the naming of
+files in the /dev directory follows Linux conventions (if in doubt use
+the '-d' option to see the device node's major and minor numbers). Note
+that some distributions favour
+the "/dev/scd0" over the older "/dev/sr0" form for CD/DVD devices. Also
+note that the tape medium
+exchanger does not have a primary device name and thus can only be
+accessed via its corresponding scsi generic (sg) device name.<br>
+<br>
+Here is a "long" variant of this command:<br>
+$ lscssi -l<br>
+<tt>[0:0:1:0]&nbsp;&nbsp;&nbsp; disk&nbsp;&nbsp;&nbsp; FUJITSU&nbsp;
+MAM3184MP&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 0105&nbsp; /dev/sda<br>
+&nbsp; state=running queue_depth=16 scsi_level=4 type=0
+device_blocked=0 timeout=30</tt><br>
+<br>
+The device node major and minor numbers can also be output with the
+'-d' option:<br>
+<tt>$ lsscsi -d<br>
+[0:0:1:0]&nbsp;&nbsp;&nbsp; disk&nbsp;&nbsp;&nbsp; FUJITSU&nbsp;
+MAM3184MP&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 0105&nbsp;
+/dev/sda[8:0]</tt><br>
+<br>
+The '-g' option can be used to show the corresponding scsi generic
+device name:<br>
+<tt>$ lsscsi -g<br>
+[0:0:1:0]&nbsp;&nbsp;&nbsp; disk&nbsp;&nbsp;&nbsp; FUJITSU&nbsp;
+MAM3184MP&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 0105&nbsp;
+/dev/sda&nbsp; /dev/sg0</tt><br>
+<br>
+In "classic" mode <b>lsscsi</b> outputs a listing very similar to 'cat
+/proc/scsi/scsi'. This form of output should be familiar:<br>
+<tt>$ lsscsi -c<br>
+Attached devices:</tt><br>
+<tt>Host: scsi0 Channel: 00 Id: 08 Lun: 00<br>
+&nbsp; Vendor: FUJITSU&nbsp; Model:
+MAM3184MP&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Rev: 0105<br>
+&nbsp; Type:&nbsp;&nbsp;
+Direct-Access&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ANSI SCSI revision: 03<br>
+Host: scsi2 Channel: 00 Id: 00 Lun: 00<br>
+&nbsp; Vendor: CREATIVE Model:
+CD5233E&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Rev: 1.00<br>
+&nbsp; Type:&nbsp;&nbsp;
+CD-ROM&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ANSI SCSI revision: 02<br>
+Host: scsi3 Channel: 00 Id: 06 Lun: 00<br>
+&nbsp; Vendor: SONY&nbsp;&nbsp;&nbsp;&nbsp; Model:
+SDT-7000&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Rev: 0192<br>
+&nbsp; Type:&nbsp;&nbsp;
+Sequential-Access&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ANSI SCSI revision: 02<br>
+Host: scsi4 Channel: 00 Id: 00 Lun: 00<br>
+&nbsp; Vendor: Linux&nbsp;&nbsp;&nbsp; Model:
+scsi_debug&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Rev: 0004<br>
+&nbsp; Type:&nbsp;&nbsp;
+Direct-Access&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ANSI SCSI revision: 03</tt><br>
+<br>
+SCSI host information can be listed with the '-H' option:<br>
+<span style="font-family: monospace;">$ lsscsi -H</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[0]&nbsp;&nbsp;&nbsp; scsi_debug</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[1]&nbsp;&nbsp;&nbsp; aha152x</span><br
+ style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -Hl</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[0]&nbsp;&nbsp;&nbsp; scsi_debug</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;
+cmd_per_lun=3&nbsp;&nbsp;&nbsp; host_busy=0&nbsp;&nbsp;&nbsp;
+sg_tablesize=64&nbsp;&nbsp; unchecked_isa_dma=0</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[1]&nbsp;&nbsp;&nbsp; aha152x</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;
+cmd_per_lun=1&nbsp;&nbsp;&nbsp; host_busy=0&nbsp;&nbsp;&nbsp;
+sg_tablesize=255&nbsp; unchecked_isa_dma=0</span><br
+ style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -Hlv</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[0]&nbsp;&nbsp;&nbsp; scsi_debug</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;
+cmd_per_lun=3&nbsp;&nbsp;&nbsp; host_busy=0&nbsp;&nbsp;&nbsp;
+sg_tablesize=64&nbsp;&nbsp; unchecked_isa_dma=0</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; dir:
+/sys/class/scsi_host/host0</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; device dir:
+/sys/devices/pseudo_0/adapter0/host0</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[1]&nbsp;&nbsp;&nbsp; aha152x</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;
+cmd_per_lun=1&nbsp;&nbsp;&nbsp; host_busy=0&nbsp;&nbsp;&nbsp;
+sg_tablesize=255&nbsp; unchecked_isa_dma=0</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; dir:
+/sys/class/scsi_host/host1</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; device dir:
+/sys/devices/platform/host1</span><br>
+<br>
+See "man lsscsi" for more information. The command also contains
+usage information that can be output by using "lsscsi -h" or "lsscsi
+--help".<br>
+<br>
+<h2>lsscsi version 0.15 and 0.16 notes</h2>
+These versions attempt to find the device name
+used in the <span style="font-family: monospace;">/dev</span>
+directory rather than the kernel generated name. The kernel generated
+name of the first SCSI disk discovered is <span
+ style="font-family: monospace;">/dev/sda</span> . However in the lk
+2.6 series kernels udev may be used to give this device some other name
+in the <span style="font-family: monospace;">/dev</span> directory,
+for example <span style="font-family: monospace;">/dev/root_disk</span>
+. By default this version will search for the device node name in the
+/dev directory whose type (i.e. block or char), major and minor numbers
+match the kernel device information found in sysfs. This change makes a
+SCSI (or USB, Firewire, etc) CD/DVD drive appear with a name like <span
+ style="font-family: monospace;">/dev/scd0</span> (as most
+distributions now use) rather than its kernel device node name of <span
+ style="font-family: monospace;">sr0</span> used by sysfs. There are
+other ways this could be done which would be more efficient in CPU
+usage, for example by lsscsi using the udevinfo facilities internally.
+This version of lsscsi can be given a '--kname' option to show the
+kernel (i.e. sysfs) device node name instead. Note that sysfs and SCSI
+errors and warning sent to the system log continue to use the kernel
+device node name.<br>
+<br>
+By default lsscsi lists all SCSI devices (or hosts). This version
+allows select arguments to reduce the number of devices listed. For
+example "lsscsi 1" will list all channels, targets and luns within
+host1. A single SCSI device can be listed with 'lsscsi 1 0 0 0' (or
+'lsscsi 1:0:0:0' or 'lsscsi [1:0:0:0]'). See man page for more
+information. This version of lsscsi uses the facilities of the
+scandir() library call to both select (filter) and sort the SCSI
+devices (or hosts) it finds in sysfs. Since libsysfs (version 1.2)
+doesn't have the ability to filter then this version of lsscsi uses
+scandir() [and not libsysfs]. Evidently a new version 2.0 API for
+libsysfs is under development (and I have requested a scandir() like
+select+sort facility).<br>
+<br>
+Extra SCSI device and host attributes (as found in lk 2.6.12) can be
+seen by using the '--long' option twice (or more conveniently using
+'-ll'). Attributes are listed as "&lt;name&gt;=&lt;value&gt;" pairs,
+one per line (indented two spaces) when the '-lll' option is given.<br>
+<br>
+<p> </p>
+<p> </p>
+<h2> Download and Build information</h2>
+<p> </p>
+<p>Here is a table of the versions of lsscsi available for the lk 2.6
+series. <br>
+&nbsp; </p>
+<table border="1" cellpadding="2" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td valign="top"><b>tarball</b><br>
+      </td>
+      <td valign="top"><b>binary rpm</b><br>
+      </td>
+      <td valign="top"><b>source rpm</b><br>
+      </td>
+      <td valign="top"><b>notes</b><br>
+      </td>
+    </tr>
+    <tr>
+      <td valign="top"><a href="lsscsi-0.11.tgz">lsscsi-0.11.tgz</a><br>
+      </td>
+      <td valign="top"><a href="lsscsi-0.11-1.i386.rpm">lsscsi-0.11-1.i386.rpm</a><br>
+      </td>
+      <td valign="top"><a href="lsscsi-0.11-1.src.rpm">lsscsi-0.11-1.src.rpm</a><br>
+      </td>
+      <td valign="top">suitable for lk 2.6.1<br>
+      </td>
+    </tr>
+    <tr>
+      <td valign="top"><a href="lsscsi-0.12.tgz">lsscsi-0.12.tgz</a><br>
+      </td>
+      <td valign="top"><a href="lsscsi-0.12-1.i386.rpm">lsscsi-0.12-1.i386.rpm</a><br>
+      </td>
+      <td valign="top"><a href="lsscsi-0.12-1.src.rpm">lsscsi-0.12-1.src.rpm</a><br>
+      </td>
+      <td valign="top">lk 2.6.6, add '-d' for device major+minor<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;"><a href="lsscsi-0.13.tgz">lsscsi-0.13.tgz</a></td>
+      <td style="vertical-align: top;"><br>
+      </td>
+      <td style="vertical-align: top;"><br>
+      </td>
+      <td style="vertical-align: top;">lk 2.6.7 add timeout value to
+--long option<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;"><a href="lsscsi-0.14.tgz">lsscsi-0.14.tgz</a></td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.14-1.i386.rpm">lsscsi-0.14-1.i386.rpm</a>
+      </td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.14-1.src.rpm">lsscsi-0.14-1.src.rpm</a>
+      </td>
+      <td style="vertical-align: top;">port to use
+sysfsutils-1.2.0&nbsp; or later<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;"><a href="lsscsi-0.15.tgz">lsscsi-0.15.tgz</a></td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.15-1.i386.rpm">lsscsi-0.15-1.i386.rpm</a>
+      </td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.15-1.src.rpm">lsscsi-0.15-1.src.rpm</a>
+      </td>
+      <td style="vertical-align: top;">lk 2.6.12 with optional select
+arguments and /dev scanning. Does not use libsysfs.<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;"><a href="lsscsi-0.16.tgz">lsscsi-0.16.tgz</a></td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.16-1.i386.rpm">lsscsi-0.16-1.i386.rpm</a>
+      </td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.16-1.src.rpm">lsscsi-0.16-1.src.rpm</a>
+      </td>
+      <td style="vertical-align: top;">lk 2.6.14, fixes for osst and ch
+devices, debian build. Does not use libsysfs. </td>
+    </tr>
+  </tbody>
+</table>
+<p><br>
+</p>
+<h2>Related utilities
+</h2>
+<p>In lk 2.6 various sysfs utilities are (becoming) available. See the <a
+ href="http://linux-diag.sourceforge.net/Sysfsutils.html">sysfsutils</a>
+package for the <span style="font-weight: bold;"></span><span
+ style="font-weight: bold;">systool</span> utility that is more
+generic than <span style="font-weight: bold;">lsscsi</span>.<br>
+<br>
+</p>
+<p> </p>
+<p>Doug Gilbert (dgilbert@interlog.com) <br>
+Last updated: 30th December 2005<br>
+&nbsp; </p>
+</body>
+</html>
