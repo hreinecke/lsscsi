@@ -11,7 +11,7 @@
 
 #define NAME_LEN_MAX 260
 
-static const char * version_str = "0.05  2003/1/18";
+static const char * version_str = "0.06  2003/1/20";
 static char sysfsroot[NAME_LEN_MAX];
 static const char * sysfs_name = "sysfs";
 static const char * proc_mounts = "/proc/mounts";
@@ -53,7 +53,7 @@ static const char * scsi_device_types[] =
 
 static const char * scsi_short_device_types[] =
 {
-        "disk   ", "tape   ", "printer", "process", "WORM   ", "CDROM  ",
+        "disk   ", "tape   ", "printer", "process", "worm   ", "cd     ",
         "scanner", "optical", "mediumx", "comms  ", "(0xa)  ", "(0xb)  ",
         "storage", "enclosu", "s. disk", "opti rd", "expande", "obs    ",
 	"(0x12) ", "(0x13) ", "(0x14) ", "(0x15) ", "(0x16) ", "(0x17) ", 
@@ -356,17 +356,26 @@ static void one_entry(const char * dir_name, const char * devname,
 	else { /* look for tape device */
 		char extra[NAME_LEN_MAX];
 		const char * bnp;
+		int found = 0;
 
 		bnp = basename(buff);
 		strcpy(extra, bnp);
 		strcat(extra, ":mt/kdev");
-		if (get_value(buff, extra, value, NAME_LEN_MAX)) {
+		if (get_value(buff, extra, value, NAME_LEN_MAX))
+	       		found = 1; /* st device */
+		else {
+			strcpy(extra, bnp);
+			strcat(extra, ":ot/kdev");
+			if (get_value(buff, extra, value, NAME_LEN_MAX))
+				found = 1;	/* osst device */
+		}
+		if (found) {
 			int kd, majj, minn;
 
 			if (1 == sscanf(value, "%x", &kd)) {
 				majj = kd / 256;
 				minn = kd % 256;
-				/* for "mt" tape devs, 0 <= minn <= 31 */
+				/* for tape devices, 0 <= minn <= 31 */
 				if (SCSI_TAPE_MAJOR == majj)
 					printf("/dev/st%d", minn);
 				else if (OSST_MAJOR == majj)
@@ -421,7 +430,9 @@ static void one_entry(const char * dir_name, const char * devname,
 static int scandir_select(const struct dirent * s)
 {
 	if (strstr(s->d_name, "mt"))
-		return 0;
+		return 0;	/* st auxiliary device names */
+	if (strstr(s->d_name, "ot"))
+		return 0;	/* osst auxiliary device names */
 	if (strstr(s->d_name, "gen"))
 		return 0;
 	if (strchr(s->d_name, ':'))

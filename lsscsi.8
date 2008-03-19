@@ -45,6 +45,17 @@ outputs directory names where information is found
 .TP
 --version | -V
 outputs version number information and exits
+.PP
+Information for this command is derived from the the sysfs file system
+whose mount point is found by examining the contents of /proc/mounts .
+SCSI (pseudo) devices that have been detected by the SCSI mid level
+will be listed even if the required upper level drivers (i.e. sd, sr,
+st or osst) have not been loaded. If the appropriate upper level
+driver has not been loaded then the device file name will appear
+as '-' rather than something like '/dev/st0'. Note that some
+devices (e.g. scanners and medium changers) do not have a primary upper
+level driver and can only be accessed via a scsi generic (sg) device
+name.
 .SH AUTHOR
 Written by Doug Gilbert
 .SH "REPORTING BUGS"

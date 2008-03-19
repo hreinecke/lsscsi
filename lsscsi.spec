@@ -6,12 +6,12 @@
 
 Summary: List all SCSI devices (or hosts) and associated information
 Name: lsscsi
-Version: 0.05
+Version: 0.06
 Release: 1
 Packager: dgilbert@interlog.com
 License: GPL
 Group: Utilities/System
-Source: ftp://www.torque.net/scsi/lsscsi-0.05.tgz
+Source: ftp://www.torque.net/scsi/lsscsi-0.06.tgz
 Url: http://www.torque.net/scsi/lsscsi.html
 Provides: lsscsi
 
@@ -43,6 +43,9 @@ rm -rf $RPM_BUILD_ROOT
  
 
 %changelog
+* Mon Jan 20 2003 - dgilbert@interlog.com
+- osst device file names fix
+  * lsscsi-0.06
 * Sat Jan 18 2003 - dgilbert@interlog.com
 - output st and osst device file names (rather than "-")
   * lsscsi-0.05
