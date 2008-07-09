@@ -16,3 +16,5 @@ AM_CFLAGS = -Wall -W
 
 lsscsi_SOURCES = lsscsi.c
 
+distclean-local:
+	rm -rf autom4te.cache
