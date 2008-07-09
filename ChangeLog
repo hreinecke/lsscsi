@@ -1,4 +1,7 @@
 
+Version 0.21 2008/7/9 [svn: r63]
+  - more sysfs scanning work needed for lk 2.6.26
+
 Version 0.20 2008/7/9 [svn: r43]
   - Handle SCSI midlayer rework circa lk 2.6.25/26
     - this fix needed if CONFIG_SYSFS_DEPRECATED_V2 is not

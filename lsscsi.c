@@ -26,7 +26,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.20  2008/03/19";
+static const char * version_str = "0.21  2008/07/9";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -163,10 +163,12 @@ static struct dev_node_list* dev_node_listhead = NULL;
 struct sg_item_t {
         char name[NAME_LEN_MAX];
         int ft;
+        int d_type;
 };
 
 static struct sg_item_t non_sg;
 static struct sg_item_t aa_sg;
+static struct sg_item_t aa_first;
 
 static char sas_low_phy[NAME_LEN_MAX];
 static char sas_hold_end_device[NAME_LEN_MAX];
@@ -177,7 +179,8 @@ static int iscsi_tsession_num;
 
 
 
-static int cmp_hctl(const struct addr_hctl * le, const struct addr_hctl * ri)
+static int
+cmp_hctl(const struct addr_hctl * le, const struct addr_hctl * ri)
 {
         if (le->h == ri->h) {
                 if (le->c == ri->c) {
@@ -192,7 +195,8 @@ static int cmp_hctl(const struct addr_hctl * le, const struct addr_hctl * ri)
                 return (le->h < ri->h) ? -1 : 1;
 }
 
-static void invalidate_hctl(struct addr_hctl * p)
+static void
+invalidate_hctl(struct addr_hctl * p)
 {
         if (p) {
                 p->h = -1;
@@ -202,7 +206,8 @@ static void invalidate_hctl(struct addr_hctl * p)
         }
 }
 
-static void usage()
+static void
+usage()
 {
         fprintf(stderr, "Usage: lsscsi   [--classic] [--device] [--generic]"
                         " [--help] [--hosts]\n"
@@ -238,25 +243,67 @@ static void usage()
         fprintf(stderr, "List SCSI devices or hosts\n");
 }
 
-static int non_sg_scandir_select(const struct dirent * s)
+static int
+first_scandir_select(const struct dirent * s)
+{
+        if (FT_OTHER != aa_first.ft)
+                return 0;
+        if ((DT_LNK != s->d_type) &&
+            ((DT_DIR != s->d_type) || ('.' == s->d_name[0])))
+                return 0;
+        strncpy(aa_first.name, s->d_name, NAME_LEN_MAX);
+        aa_first.ft = FT_CHAR;  /* dummy */
+        aa_first.d_type =  s->d_type;
+        return 1;
+}
+
+/* scan for directory entry that is either a symlink or a directory */
+static int
+scan_for_first(const char * dir_name, const struct lsscsi_opt_coll * opts)
+{
+        char name[NAME_LEN_MAX];
+        struct dirent ** namelist;
+        int num, k;
+
+        aa_first.ft = FT_OTHER;
+        num = scandir(dir_name, &namelist, first_scandir_select, NULL);
+        if (num < 0) {
+                if (opts->verbose > 0) {
+                        snprintf(name, NAME_LEN_MAX, "scandir: %s", dir_name);
+                        perror(name);
+                }
+                return -1;
+        }
+        for (k = 0; k < num; ++k)
+                free(namelist[k]);
+        free(namelist);
+        return num;
+}
+
+static int
+non_sg_scandir_select(const struct dirent * s)
 {
         int len;
 
         if (FT_OTHER != non_sg.ft)
                 return 0;
-        if (DT_LNK != s->d_type)
+        if ((DT_LNK != s->d_type) &&
+            ((DT_DIR != s->d_type) || ('.' == s->d_name[0])))
                 return 0;
         if (0 == strncmp("scsi_changer", s->d_name, 12)) {
                 strncpy(non_sg.name, s->d_name, NAME_LEN_MAX);
                 non_sg.ft = FT_CHAR;
+                non_sg.d_type =  s->d_type;
                 return 1;
         } else if (0 == strncmp("block", s->d_name, 5)) {
                 strncpy(non_sg.name, s->d_name, NAME_LEN_MAX);
                 non_sg.ft = FT_BLOCK;
+                non_sg.d_type =  s->d_type;
                 return 1;
         } else if (0 == strcmp("tape", s->d_name)) {
                 strcpy(non_sg.name, s->d_name);
                 non_sg.ft = FT_CHAR;
+                non_sg.d_type =  s->d_type;
                 return 1;
         } else if (0 == strncmp("scsi_tape:st", s->d_name, 12)) {
                 len = strlen(s->d_name);
@@ -264,19 +311,21 @@ static int non_sg_scandir_select(const struct dirent * s)
                         /* want 'st<num>' symlink only */
                         strcpy(non_sg.name, s->d_name);
                         non_sg.ft = FT_CHAR;
+                        non_sg.d_type =  s->d_type;
                         return 1;
                 } else
                         return 0;
         } else if (0 == strncmp("onstream_tape:os", s->d_name, 16)) {
                 strcpy(non_sg.name, s->d_name);
                 non_sg.ft = FT_CHAR;
+                non_sg.d_type =  s->d_type;
                 return 1;
         } else
                 return 0;
 }
 
-static int non_sg_scan(const char * dir_name,
-                       const struct lsscsi_opt_coll * opts)
+static int
+non_sg_scan(const char * dir_name, const struct lsscsi_opt_coll * opts)
 {
         char name[NAME_LEN_MAX];
         struct dirent ** namelist;
@@ -298,21 +347,25 @@ static int non_sg_scan(const char * dir_name,
 }
 
 
-static int sg_scandir_select(const struct dirent * s)
+static int
+sg_scandir_select(const struct dirent * s)
 {
         if (FT_OTHER != aa_sg.ft)
                 return 0;
-        if (DT_LNK != s->d_type)
+        if ((DT_LNK != s->d_type) &&
+            ((DT_DIR != s->d_type) || ('.' == s->d_name[0])))
                 return 0;
         if (0 == strncmp("scsi_generic", s->d_name, 12)) {
                 strncpy(aa_sg.name, s->d_name, NAME_LEN_MAX);
                 aa_sg.ft = FT_CHAR;
+                aa_sg.d_type =  s->d_type;
                 return 1;
         } else
                 return 0;
 }
 
-static int sg_scan(const char * dir_name)
+static int
+sg_scan(const char * dir_name)
 {
         struct dirent ** namelist;
         int num, k;
@@ -328,7 +381,8 @@ static int sg_scan(const char * dir_name)
 }
 
 
-static int sas_low_phy_scandir_select(const struct dirent * s)
+static int
+sas_low_phy_scandir_select(const struct dirent * s)
 {
         char * cp;
         int n, m;
@@ -356,7 +410,8 @@ static int sas_low_phy_scandir_select(const struct dirent * s)
                 return 0;
 }
 
-static int sas_low_phy_scan(const char * dir_name)
+static int
+sas_low_phy_scan(const char * dir_name)
 {
         struct dirent ** namelist;
         int num, k;
@@ -372,7 +427,8 @@ static int sas_low_phy_scan(const char * dir_name)
 }
 
 
-static int iscsi_target_scandir_select(const struct dirent * s)
+static int
+iscsi_target_scandir_select(const struct dirent * s)
 {
         char buff[NAME_LEN_MAX];
         int off;
@@ -395,8 +451,8 @@ static int iscsi_target_scandir_select(const struct dirent * s)
                 return 0;
 }
 
-static int iscsi_target_scan(const char * dir_name,
-                             const struct addr_hctl * hctl)
+static int
+iscsi_target_scan(const char * dir_name, const struct addr_hctl * hctl)
 {
         struct dirent ** namelist;
         int num, k;
@@ -416,7 +472,8 @@ static int iscsi_target_scan(const char * dir_name,
 
 /* Return 1 if found (in /proc/mounts or /sys/class directory exists),
    else 0 if problems */
-static int find_sysfsroot()
+static int
+find_sysfsroot()
 {
         char buff[NAME_LEN_MAX];
         char dev[34];
@@ -457,7 +514,8 @@ static int find_sysfsroot()
 }
 
 /* Return 1 if directory, else 0 */
-static int if_directory_chdir(const char * dir_name, const char * base_name)
+static int
+if_directory_chdir(const char * dir_name, const char * base_name)
 {
         char buff[NAME_LEN_MAX];
         struct stat a_stat;
@@ -476,7 +534,8 @@ static int if_directory_chdir(const char * dir_name, const char * base_name)
 }
 
 /* Return 1 if directory, else 0 */
-static int if_directory_ch2generic(const char * dir_name)
+static int
+if_directory_ch2generic(const char * dir_name)
 {
         char buff[NAME_LEN_MAX];
         struct stat a_stat;
@@ -507,8 +566,9 @@ static int if_directory_ch2generic(const char * dir_name)
 }
 
 /* Return 1 if found, else 0 if problems */
-static int get_value(const char * dir_name, const char * base_name,
-                     char * value, int max_value_len)
+static int
+get_value(const char * dir_name, const char * base_name, char * value,
+          int max_value_len)
 {
         char buff[NAME_LEN_MAX];
         FILE * f;
@@ -534,7 +594,8 @@ static int get_value(const char * dir_name, const char * base_name,
 }
 
 /* Allocate dev_node_list & collect info on every node in /dev. */
-static void collect_dev_nodes ()
+static void
+collect_dev_nodes ()
 {
         DIR *dirp;
         struct dirent *dep;
@@ -599,7 +660,8 @@ static void collect_dev_nodes ()
 }
 
 /* Free dev_node_list. */
-static void free_dev_node_list ()
+static void
+free_dev_node_list ()
 {
         if (dev_node_listhead)
         {
@@ -619,7 +681,8 @@ static void free_dev_node_list ()
 
 /* Given a path to a class device, find the most recent device node with
    matching major/minor. */
-static int get_dev_node (char *wd, char *node, enum dev_type type)
+static int
+get_dev_node (char *wd, char *node, enum dev_type type)
 {
         struct dev_node_list *cur_list;
         struct dev_node_entry *cur_ent;
@@ -677,7 +740,8 @@ exit:
 
 /*  Parse colon_list into host/channel/target/lun ("hctl") array, 
  *  return 1 if successful, else 0 */
-static int parse_colon_list(const char * colon_list, struct addr_hctl * outp)
+static int
+parse_colon_list(const char * colon_list, struct addr_hctl * outp)
 {
         const char * elem_end;
 
@@ -705,9 +769,9 @@ static int parse_colon_list(const char * colon_list, struct addr_hctl * outp)
 
 /* Fetch initiator (port) wwn(s) or identifier if available. Return 1 if
    successful, 0 otherwise */
-static int transport_init(const char * devname,
-                          /* const struct lsscsi_opt_coll * opts, */
-                          int b_len, char * b)
+static int
+transport_init(const char * devname, /* const struct lsscsi_opt_coll * opts, */
+               int b_len, char * b)
 {
         char buff[NAME_LEN_MAX];
         int off;
@@ -834,8 +898,9 @@ static int transport_init(const char * devname,
         return 0;
 }
 
-static void transport_init_longer(const char * path_name,
-                                  const struct lsscsi_opt_coll * opts)
+static void
+transport_init_longer(const char * path_name,
+                      const struct lsscsi_opt_coll * opts)
 {
         char buff[NAME_LEN_MAX];
         char wd[NAME_LEN_MAX];
@@ -975,9 +1040,9 @@ static void transport_init_longer(const char * path_name,
 
 /* Fetch target port wwn(s) or identifier if available. Return 1 if
    successful, 0 otherwise */
-static int transport_tport(const char * devname,
-                           /* const struct lsscsi_opt_coll * opts, */
-                           int b_len, char * b)
+static int
+transport_tport(const char * devname,
+                /* const struct lsscsi_opt_coll * opts, */ int b_len, char * b)
 {
         char buff[NAME_LEN_MAX];
         char wd[NAME_LEN_MAX];
@@ -1111,8 +1176,9 @@ static int transport_tport(const char * devname,
         return 0;
 }
 
-static void transport_tport_longer(const char * devname,
-                                   const struct lsscsi_opt_coll * opts)
+static void
+transport_tport_longer(const char * devname,
+                       const struct lsscsi_opt_coll * opts)
 {
         char path_name[NAME_LEN_MAX];
         char buff[NAME_LEN_MAX];
@@ -1325,8 +1391,9 @@ static void transport_tport_longer(const char * devname,
         }
 }
 
-static void longer_d_entry(const char * path_name, const char * devname,
-                           const struct lsscsi_opt_coll * opts)
+static void
+longer_d_entry(const char * path_name, const char * devname,
+               const struct lsscsi_opt_coll * opts)
 {
         char value[NAME_LEN_MAX];
 
@@ -1447,9 +1514,9 @@ static void longer_d_entry(const char * path_name, const char * devname,
         }
 }
 
-static void one_classic_sdev_entry(const char * dir_name, 
-                                   const char * devname,
-                                   const struct lsscsi_opt_coll * opts)
+static void
+one_classic_sdev_entry(const char * dir_name, const char * devname,
+                       const struct lsscsi_opt_coll * opts)
 {
         struct addr_hctl hctl;
         char buff[NAME_LEN_MAX];
@@ -1519,8 +1586,9 @@ static void one_classic_sdev_entry(const char * dir_name,
                 printf("  dir: %s\n", buff);
 }
 
-static void one_sdev_entry(const char * dir_name, const char * devname,
-                           const struct lsscsi_opt_coll * opts)
+static void
+one_sdev_entry(const char * dir_name, const char * devname,
+               const struct lsscsi_opt_coll * opts)
 {
         char buff[NAME_LEN_MAX];
         char value[NAME_LEN_MAX];
@@ -1567,13 +1635,31 @@ static void one_sdev_entry(const char * dir_name, const char * devname,
                         printf("                                ");
         }
 
-        if ((1 == non_sg_scan(buff, opts)) &&
-            (if_directory_chdir(buff, non_sg.name))) {
+        if (1 == non_sg_scan(buff, opts)) {
                 char wd[NAME_LEN_MAX];
+                char extra[NAME_LEN_MAX];
 
-                if (NULL == getcwd(wd, NAME_LEN_MAX))
-                        printf("getcwd error");
-                else {
+                if (DT_DIR == non_sg.d_type) {
+                        strcpy(wd, buff);
+                        strcat(wd, "/");
+                        strcat(wd, non_sg.name);
+                        if (1 == scan_for_first(wd, opts))
+                                strcpy(extra, aa_first.name);
+                        else {
+                                printf("unexpected scan_for_first error");
+                                wd[0] = '\0';
+                        }
+                } else {
+                        strcpy(wd, buff);
+                        strcpy(extra, non_sg.name);
+                }
+                if (wd[0] && (if_directory_chdir(wd, extra))) {
+                        if (NULL == getcwd(wd, NAME_LEN_MAX)) {
+                                printf("getcwd error");
+                                wd[0] = '\0';
+                        }
+                }
+                if (wd[0]) {
                         char dev_node[NAME_MAX + 1] = "";
                         enum dev_type typ;
 
@@ -1640,7 +1726,8 @@ static void one_sdev_entry(const char * dir_name, const char * devname,
         }
 }
 
-static int sdev_scandir_select(const struct dirent * s)
+static int
+sdev_scandir_select(const struct dirent * s)
 {
 /* Following no longer needed but leave for early lk 2.6 series */
         if (strstr(s->d_name, "mt"))
@@ -1677,7 +1764,8 @@ static int sdev_scandir_select(const struct dirent * s)
         return 0;
 }
 
-static int sdev_scandir_sort(const void * a, const void * b)
+static int
+sdev_scandir_sort(const void * a, const void * b)
 {
         const char * lnam = (*(struct dirent **)a)->d_name;
         const char * rnam = (*(struct dirent **)b)->d_name;
@@ -1695,7 +1783,8 @@ static int sdev_scandir_sort(const void * a, const void * b)
         return cmp_hctl(&left_hctl, &right_hctl);
 }
 
-static void list_sdevices(const struct lsscsi_opt_coll * opts)
+static void
+list_sdevices(const struct lsscsi_opt_coll * opts)
 {
         char buff[NAME_LEN_MAX];
         char name[NAME_LEN_MAX];
@@ -1729,8 +1818,8 @@ static void list_sdevices(const struct lsscsi_opt_coll * opts)
         free(namelist);
 }
 
-static void longer_h_entry(const char * path_name,
-                           const struct lsscsi_opt_coll * opts)
+static void
+longer_h_entry(const char * path_name, const struct lsscsi_opt_coll * opts)
 {
         char value[NAME_LEN_MAX];
 
@@ -1804,8 +1893,9 @@ static void longer_h_entry(const char * path_name,
         }
 }
 
-static void one_host_entry(const char * dir_name, const char * devname,
-                           const struct lsscsi_opt_coll * opts)
+static void
+one_host_entry(const char * dir_name, const char * devname,
+               const struct lsscsi_opt_coll * opts)
 {
         char buff[NAME_LEN_MAX];
         char value[NAME_LEN_MAX];
@@ -1862,7 +1952,8 @@ static void one_host_entry(const char * dir_name, const char * devname,
         }
 }
 
-static int host_scandir_select(const struct dirent * s)
+static int
+host_scandir_select(const struct dirent * s)
 {
         int h;
 
@@ -1881,7 +1972,8 @@ static int host_scandir_select(const struct dirent * s)
         return 0;
 }
 
-static int host_scandir_sort(const void * a, const void * b)
+static int
+host_scandir_sort(const void * a, const void * b)
 {
         const char * lnam = (*(struct dirent **)a)->d_name;
         const char * rnam = (*(struct dirent **)b)->d_name;
@@ -1898,7 +1990,8 @@ static int host_scandir_sort(const void * a, const void * b)
         return 0;
 }
 
-static void list_hosts(const struct lsscsi_opt_coll * opts)
+static void
+list_hosts(const struct lsscsi_opt_coll * opts)
 {
         char buff[NAME_LEN_MAX];
         char name[NAME_LEN_MAX];
@@ -1928,7 +2021,8 @@ static void list_hosts(const struct lsscsi_opt_coll * opts)
 }
 
 /* Return 0 if able to decode, otheriwse 1 */
-static int one_filter_arg(const char * arg, struct addr_hctl * filtp)
+static int
+one_filter_arg(const char * arg, struct addr_hctl * filtp)
 {
         const char * cp;
         const char * cpe;
@@ -1978,9 +2072,9 @@ static int one_filter_arg(const char * arg, struct addr_hctl * filtp)
 }
 
 /* Return 0 if able to decode, otheriwse 1 */
-static int decode_filter_arg(const char * a1p, const char * a2p,
-                             const char * a3p, const char * a4p,
-                             struct addr_hctl * filtp)
+static int
+decode_filter_arg(const char * a1p, const char * a2p, const char * a3p,
+                  const char * a4p, struct addr_hctl * filtp)
 {
         char b1[256];
         char * b1p;
@@ -2040,7 +2134,8 @@ err_out:
 }
 
 
-int main(int argc, char **argv)
+int
+main(int argc, char **argv)
 {
         int c;
         int do_sdevices = 1;
