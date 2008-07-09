@@ -1,4 +1,4 @@
-.TH lsscsi "8" "January 2007" "lsscsi\-0.19" LSSCSI
+.TH lsscsi "8" "July 2008" "lsscsi\-0.20" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
@@ -102,6 +102,10 @@ as '\-' rather than something like '/dev/st0'. Note that some
 devices (e.g. scanners and medium changers) do not have a primary upper
 level driver and can only be accessed via a scsi generic (sg) device
 name.
+.PP
+This version of lsscsi (0.20) or later is required to correctly display
+SCSI devices in linux kernel 2.6.26 (and possibly later) when the
+CONFIG_SYSFS_DEPRECATED_V2 kernel option is not defined.
 .SH TRANSPORTS
 This utility lists SCSI devices which are known as logical units (lu) in
 the SCSI Architecture Model (ref: SAM\-4 at http://www.t10.org) or hosts
@@ -170,7 +174,7 @@ Written by Doug Gilbert
 .SH "REPORTING BUGS"
 Report bugs to <dgilbert at interlog dot com>.
 .SH COPYRIGHT
-Copyright \(co 2003\-2007 Douglas Gilbert
+Copyright \(co 2003\-2008 Douglas Gilbert
 .br
 This software is distributed under the GPL version 2. There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.

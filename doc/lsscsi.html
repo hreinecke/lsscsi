@@ -5,7 +5,7 @@
   <meta http-equiv="Content-Type"
  content="text/html; charset=iso-8859-1">
   <meta name="keywords"
- content="lsscsi, linux, SCSI, device scan, sysfs">
+ content="lsscsi, linux storage scan, SCSI, sysfs">
   <meta name="GENERATOR"
  content="Mozilla/4.79 [en] (X11; U; Linux 2.5.31 i686) [Netscape]">
 </head>
@@ -25,30 +25,43 @@
           <li><a href="#mozTocId339163">FC</a></li>
           <li><a href="#mozTocId419863">1394</a></li>
           <li><a href="#mozTocId194875">iSCSI</a></li>
-          <li><a href="#mozTocId798449">SPI</a></li>
           <li><a href="#mozTocId80471">SAS</a></li>
+          <li><a href="#mozTocId798449">SPI</a></li>
         </ol>
       </li>
       <li><a href="#mozTocId908089">lsscsi version 0.15
-to 0.19 notes</a></li>
+to 0.20 notes</a></li>
       <li><a href="#mozTocId856130"> Download and Build
 information</a></li>
     </ol>
   </li>
 </ol>
 <h2><a class="mozTocH2" name="mozTocId557900"></a><b>Introduction</b></h2>
-The <span style="font-weight: bold;">lsscsi</span> command lists
-information about SCSI devices or hosts in Linux. Using SCSI
-terminology, <span style="font-weight: bold;">lsscsi</span> lists
-information about SCSI <span style="font-style: italic;">logical units</span>
-(or <span style="font-style: italic;">targets</span> when the
-'--transport' option is given) or <span style="font-style: italic;">initiators</span>.
-The default action is to produce one line of output for each SCSI
-device attached to the system.<br>
+The <b>lsscsi</b> command lists information about SCSI devices in
+Linux.
+Using SCSI terminology, <b>lsscsi</b> lists
+SCSI <span style="font-style: italic;">logical units</span>
+(or SCSI <span style="font-style: italic;">targets</span> when
+the '--transport' option is given). The default action is to produce
+one
+line of output for each SCSI device currently attached to the system.<br>
 <br>
-The <span style="font-weight: bold;">lsscsi</span> command scans the <span
- style="font-weight: bold;">sysfs</span> pseudo file system introduced
-in the 2.6 linux kernel series. Since most users have permissions to
+When the '--hosts' option is given the <b>lsscsi</b> command lists
+information about SCSI hosts attached to
+the system. A host can be actual hardware (sometimes referred to as
+Host
+Bus Adapters (HBAs)) or virtual. An example of a virtual host is USB
+mass
+storage that bridges between USB and the SCSI subsystem. In SCSI
+parlance,
+a host is referred to as an SCSI
+<span style="font-style: italic;">initiator</span>.<br>
+<br>
+The <b>lsscsi</b> command scans the
+<span style="font-weight: bold;">sysfs</span> pseudo file system that
+was
+introduced in the 2.6 linux kernel series. Since most users have
+permissions to
 read sysfs (usually mounted at <span style="font-family: monospace;">/sys</span>
 ) then meta information can be found on some or all SCSI devices
 without a user needing elevated permissions to access special files
@@ -400,7 +413,7 @@ contains one logical unit) as two devices; to be more precise, linux
 shows a different device for each distinct path to a logical unit.<br>
 <br>
 When the '--transport' option is given the SCSI INQUIRY strings
-(vendor, product and revison) usually output by <span
+(vendor, product and revision) usually output by <span
  style="font-weight: bold;">lsscsi</span> are replaced by a target name
 or identifier. Annex A in the <a
  href="http://www.t10.org/ftp/t10/drafts/sam4/sam4r08.pdf">SAM-4</a>
@@ -783,13 +796,15 @@ mptspi&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; spi:</span><br
  style="font-family: monospace;">
 <span style="font-family: monospace;">&nbsp; signalling=unknown</span><br>
 <h2><a class="mozTocH2" name="mozTocId908089"></a>lsscsi version 0.15
-to 0.19 notes</h2>
+to 0.20 notes</h2>
 These versions attempt to find the device name
 used in the <span style="font-family: monospace;">/dev</span>
 directory rather than the kernel generated name. The kernel generated
 name of the first SCSI disk discovered is <span
  style="font-family: monospace;">/dev/sda</span> . However in the lk
-2.6 series kernels udev may be used to give this device some other name
+2.6 series kernels <a
+ href="http://www.kernel.org/pub/linux/utils/kernel/hotplug/udev.html">udev</a>
+may be used to give this device some other name
 in the <span style="font-family: monospace;">/dev</span> directory,
 for example <span style="font-family: monospace;">/dev/root_disk</span>
 . By default this version will search for the device node name in the
@@ -800,7 +815,9 @@ SCSI (or USB, Firewire, etc) CD/DVD drive appear with a name like <span
 distributions now use) rather than its kernel device node name of <span
  style="font-family: monospace;">sr0</span> used by sysfs. There are
 other ways this could be done which would be more efficient in CPU
-usage, for example by lsscsi using the udevinfo facilities internally.
+usage, for example by lsscsi using the <a
+ href="http://www.die.net/doc/linux/man/man8/udevinfo.8.html">udevinfo</a>
+facilities internally.
 This version of lsscsi can be given a '--kname' option to show the
 kernel (i.e. sysfs) device node name instead. Note that sysfs and SCSI
 errors and warning sent to the system log continue to use the kernel
@@ -932,6 +949,18 @@ for "generic" and "tape" symlinks to be dropped in sysfs.<br>
 '--list' option, fixes for lk 2.6.20<br>
       </td>
     </tr>
+    <tr>
+      <td style="vertical-align: top;"><a href="lsscsi-0.20.tgz">lsscsi-0.20.tgz</a></td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.20-1.i386.rpm">lsscsi-0.20-1.i386.rpm</a><br>
+      <a href="lsscsi_0.20-0.1_i386.deb">lsscsi_0.20-0.1_i386.deb</a> </td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.20-1.src.rpm">lsscsi-0.20-1.src.rpm</a>
+      </td>
+      <td style="vertical-align: top;"><span
+ style="text-decoration: underline;"></span>for lk
+2.6.26 when CONFIG_SYSFS_DEPRECATED_V2<br>
+not defined<br>
+      </td>
+    </tr>
   </tbody>
 </table>
 <p>Here is the most recent <a href="lsscsi.ChangeLog">ChangeLog</a> .<br>
@@ -943,7 +972,7 @@ the link and select "Save link as ..." to download the file.
 </p>
 <p> </p>
 <div style="text-align: center;">Doug Gilbert (dgilbert@interlog.com) <br>
-Last updated: 4th February 2007<br>
+Last updated: 9th july 2008<br>
 </div>
 <p>&nbsp; </p>
 </body>

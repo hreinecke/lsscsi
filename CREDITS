@@ -4,6 +4,10 @@ have made contributions:
 FUJITA Tomonori <fujita dot tomonori at lab dot ntt dot co dot jp>
     iSCSI transport help [20070107]
 
+Hannes Reinecke <hare at suse dot de >
+    proposed additional code so lsscsi would work with lk 2.6.26
+    (when CONFIG_SYSFS_DEPRECATED_V2 not defined) [20080318]
+
 James Smart <James dot Smart at Emulex dot Com>
     transport help, especially for FC [20061128]
 
@@ -23,4 +27,4 @@ Stefan Richter <stefanr at s5r6 dot in-berlin dot de>
     transport help with ieee1394 [20061231]
 
 Doug Gilbert
-7th January 2007
+9th July 2008

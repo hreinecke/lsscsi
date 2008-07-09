@@ -1,9 +1,11 @@
 
-Version 0.20 2008/3/19
+Version 0.20 2008/7/9 [svn: r43]
   - Handle SCSI midlayer rework circa lk 2.6.25/26
-    [H. Reinecke 20080318]
+    - this fix needed if CONFIG_SYSFS_DEPRECATED_V2 is not
+      defined in the kernel build (lk 2.6.26)
+  - clean superfluous files from package
 
-Version 0.19 2007/1/25
+Version 0.19 2007/1/25 [svn: r37]
   - add transport information (target + initiator)
     - start with FC, SAS, SPI, iSCSI and SBP
     - alter ISCSI for 2.6.20 changes
