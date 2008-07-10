@@ -55,6 +55,9 @@ make install \
 
 
 %changelog
+* Thu Jul 10 2008 - dgilbert at interlog dot com
+- more changes  for lk 2.6.26 (SCSI sysfs)
+  * lsscsi-0.21
 * Wed Jul 9 2008 - dgilbert at interlog dot com
 - changes for lk 2.6.25/26 SCSI midlayer rework
   * lsscsi-0.20

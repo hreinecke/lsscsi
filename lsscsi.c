@@ -26,7 +26,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.21  2008/07/9";
+static const char * version_str = "0.21  2008/07/10";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -107,12 +107,12 @@ static const char * scsi_device_types[] =
         "Bridge controller",
         "Object based storage",
         "Automation Drive interface",
-        "Reserved (0x13)", "Reserved (0x14)", 
-        "Reserved (0x15)", "Reserved (0x16)", "Reserved (0x17)", 
-        "Reserved (0x18)", "Reserved (0x19)", "Reserved (0x1a)", 
-        "Reserved (0x1b)", "Reserved (0x1c)", "Reserved (0x1e)", 
-        "Well known LU", 
-        "No device", 
+        "Reserved (0x13)", "Reserved (0x14)",
+        "Reserved (0x15)", "Reserved (0x16)", "Reserved (0x17)",
+        "Reserved (0x18)", "Reserved (0x19)", "Reserved (0x1a)",
+        "Reserved (0x1b)", "Reserved (0x1c)", "Reserved (0x1e)",
+        "Well known LU",
+        "No device",
 };
 
 static const char * scsi_short_device_types[] =
@@ -120,9 +120,9 @@ static const char * scsi_short_device_types[] =
         "disk   ", "tape   ", "printer", "process", "worm   ", "cd/dvd ",
         "scanner", "optical", "mediumx", "comms  ", "(0xa)  ", "(0xb)  ",
         "storage", "enclosu", "sim dsk", "opti rd", "bridge ", "osd    ",
-        "adi    ", "(0x13) ", "(0x14) ", "(0x15) ", "(0x16) ", "(0x17) ", 
-        "(0x18) ", "(0x19) ", "(0x1a) ", "(0x1b) ", "(0x1c) ", "(0x1e) ", 
-        "wlun   ", "no dev ", 
+        "adi    ", "(0x13) ", "(0x14) ", "(0x15) ", "(0x16) ", "(0x17) ",
+        "(0x18) ", "(0x19) ", "(0x1a) ", "(0x1b) ", "(0x1c) ", "(0x1e) ",
+        "wlun   ", "no dev ",
 };
 
 static struct option long_options[] = {
@@ -738,7 +738,7 @@ exit:
         return match_found;
 }
 
-/*  Parse colon_list into host/channel/target/lun ("hctl") array, 
+/*  Parse colon_list into host/channel/target/lun ("hctl") array,
  *  return 1 if successful, else 0 */
 static int
 parse_colon_list(const char * colon_list, struct addr_hctl * outp)
@@ -1560,7 +1560,7 @@ one_classic_sdev_entry(const char * dir_name, const char * devname,
                 printf("ANSI SCSI revision: %02x\n", (scsi_level - 1) ?
                                             scsi_level - 1 : 1);
         if (opts->generic) {
-                if (if_directory_ch2generic(buff)) { 
+                if (if_directory_ch2generic(buff)) {
                         char wd[NAME_LEN_MAX];
 
                         if (NULL == getcwd(wd, NAME_LEN_MAX))
@@ -1617,12 +1617,12 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         printf("%-8s ", value);
                 else
                         printf("vendor?  ");
-        
+
                 if (get_value(buff, "model", value, NAME_LEN_MAX))
                         printf("%-16s ", value);
                 else
                         printf("model?           ");
-        
+
                 if (get_value(buff, "rev", value, NAME_LEN_MAX))
                         printf("%-4s  ", value);
                 else
@@ -1682,7 +1682,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                 printf("-       ");
 
         if (opts->generic) {
-                if (if_directory_ch2generic(buff)) { 
+                if (if_directory_ch2generic(buff)) {
                         char wd[NAME_LEN_MAX];
 
                         if (NULL == getcwd(wd, NAME_LEN_MAX))
@@ -1698,7 +1698,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
 
                                 printf("  %s", dev_node);
                                 if (opts->dev_maj_min) {
-                                        if (get_value(wd, "dev", value, 
+                                        if (get_value(wd, "dev", value,
                                                       NAME_LEN_MAX))
                                                 printf("[%s]", value);
                                         else
@@ -1794,7 +1794,7 @@ list_sdevices(const struct lsscsi_opt_coll * opts)
         strcpy(buff, sysfsroot);
         strcat(buff, bus_scsi_devs);
 
-        num = scandir(buff, &namelist, sdev_scandir_select, 
+        num = scandir(buff, &namelist, sdev_scandir_select,
                       sdev_scandir_sort);
         if (num < 0) {  /* scsi mid level may not be loaded */
                 if (opts->verbose > 0) {
@@ -1924,7 +1924,7 @@ one_host_entry(const char * dir_name, const char * devname,
                         printf("  %-12s  ", nullname);
                 else
                         printf("  %-12s  ", basename(wd));
-                        
+
         } else
                 printf("  proc_name=????  ");
         if (opts->transport > 0) {
@@ -1937,7 +1937,7 @@ one_host_entry(const char * dir_name, const char * devname,
 
         if (opts->long_opt > 0)
                 longer_h_entry(buff, opts);
-                
+
         if (opts->verbose > 0) {
                 printf("  dir: %s\n  device dir: ", buff);
                 if (if_directory_chdir(buff, "device")) {
@@ -2001,7 +2001,7 @@ list_hosts(const struct lsscsi_opt_coll * opts)
         strcpy(buff, sysfsroot);
         strcat(buff, scsi_host);
 
-        num = scandir(buff, &namelist, host_scandir_select, 
+        num = scandir(buff, &namelist, host_scandir_select,
                       host_scandir_sort);
         if (num < 0) {
                 snprintf(name, NAME_LEN_MAX, "scandir: %s", buff);
@@ -2127,7 +2127,7 @@ decode_filter_arg(const char * a1p, const char * a2p, const char * a3p,
 
         }
 err_out:
-        
+
         fprintf(stderr, "filter arguments exceed internal buffer size "
                 "(%d)\n", (int)sizeof(b1));
         return 1;
@@ -2148,7 +2148,7 @@ main(int argc, char **argv)
         while (1) {
                 int option_index = 0;
 
-                c = getopt_long(argc, argv, "cdghHklLtvV", long_options, 
+                c = getopt_long(argc, argv, "cdghHklLtvV", long_options,
                                 &option_index);
                 if (c == -1)
                         break;
