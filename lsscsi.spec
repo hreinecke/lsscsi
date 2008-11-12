@@ -28,24 +28,20 @@ Author:
 %setup -q
 
 %build
-
-./configure --prefix=%{_prefix} --mandir=%{_mandir}
-make
+%configure
 
 %install
-
-[ "%{buildroot}" != "/" ] && rm -rf %{buildroot}
+if [ "$RPM_BUILD_ROOT" != "/" ]; then
+        rm -rf $RPM_BUILD_ROOT
+fi
 
 make install \
         DESTDIR=$RPM_BUILD_ROOT
 
-%post
-
-%postun
-
 %clean
-
-[ "%{buildroot}" != "/" ] && rm -rf %{buildroot}
+if [ "$RPM_BUILD_ROOT" != "/" ]; then
+        rm -rf $RPM_BUILD_ROOT
+fi
 
 %files
 %defattr(-,root,root)
@@ -55,7 +51,7 @@ make install \
 
 
 %changelog
-* Thu Jul 10 2008 - dgilbert at interlog dot com
+* Tue Jul 29 2008 - dgilbert at interlog dot com
 - more changes  for lk 2.6.26 (SCSI sysfs)
   * lsscsi-0.21
 * Wed Jul 9 2008 - dgilbert at interlog dot com
