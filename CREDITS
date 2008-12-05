@@ -8,11 +8,17 @@ Hannes Reinecke <hare at suse dot de >
     proposed additional code so lsscsi would work with lk 2.6.26
     (when CONFIG_SYSFS_DEPRECATED_V2 not defined) [20080318]
 
+Ihab Hamadi <ihab dot hamadi at emulex dot com>
+    co-author of protection information addition [20081206]
+
 James Smart <James dot Smart at Emulex dot Com>
     transport help, especially for FC [20061128]
 
 Luben Tuikov <ltuikov at yahoo dot com>
     transport help [20061127]
+
+Martin K. Petersen <martin dot petersen at oracle dot com>
+    co-author of protection information addition [20081206]
 
 Mike Christie <michaelc at cs dot wisc dot edu>
     iSCSI transport help [20070104]
@@ -27,4 +33,4 @@ Stefan Richter <stefanr at s5r6 dot in-berlin dot de>
     transport help with ieee1394 [20061231]
 
 Doug Gilbert
-9th July 2008
+6th December 2008

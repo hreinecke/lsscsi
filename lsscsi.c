@@ -26,7 +26,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.22  2008/12/02";
+static const char * version_str = "0.22  2008/12/06";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -83,6 +83,7 @@ struct lsscsi_opt_coll {
         int kname;
         int transport;
         int verbose;
+        int protection;         /* data integrity */
 };
 
 
@@ -135,6 +136,7 @@ static struct option long_options[] = {
         {"long", 0, 0, 'l'},
         {"list", 0, 0, 'L'},
 /*      {"name", 0, 0, 'n'},    */
+        {"protection", 0, 0, 'p'},
 /*      {"sysfsroot", 1, 0, 'y'},       */
         {"transport", 0, 0, 't'},
         {"verbose", 0, 0, 'v'},
@@ -160,15 +162,17 @@ struct dev_node_list {
 };
 static struct dev_node_list* dev_node_listhead = NULL;
 
-struct sg_item_t {
+struct item_t {
         char name[NAME_LEN_MAX];
         int ft;
         int d_type;
 };
 
-static struct sg_item_t non_sg;
-static struct sg_item_t aa_sg;
-static struct sg_item_t aa_first;
+static struct item_t non_sg;
+static struct item_t aa_sg;
+static struct item_t aa_first;
+static struct item_t aa_sd;
+static struct item_t aa_block;
 
 static char sas_low_phy[NAME_LEN_MAX];
 static char sas_hold_end_device[NAME_LEN_MAX];
@@ -211,36 +215,39 @@ usage()
 {
         fprintf(stderr, "Usage: lsscsi   [--classic] [--device] [--generic]"
                         " [--help] [--hosts]\n"
-                        "\t\t[--kname] [--list] [--long] [--transport] "
-                        "[--verbose]\n"
-                        "\t\t[--version] [<h:c:t:l>]\n");
+                        "\t\t[--kname] [--list] [--long] [--protection] "
+                        "[--transport]\n"
+                        "\t\t[--verbose] [--version] [<h:c:t:l>]\n");
         fprintf(stderr, "  where:\n");
-        fprintf(stderr, "    --classic|-c    alternate output similar "
+        fprintf(stderr, "    --classic|-c      alternate output similar "
                         "to 'cat /proc/scsi/scsi'\n");
-        fprintf(stderr, "    --device|-d     show device node's major + "
+        fprintf(stderr, "    --device|-d       show device node's major + "
                         "minor numbers\n");
-        fprintf(stderr, "    --generic|-g    show scsi generic device "
+        fprintf(stderr, "    --generic|-g      show scsi generic device "
                         "name\n");
-        fprintf(stderr, "    --help|-h       this usage information\n");
-        fprintf(stderr, "    --hosts|-H      lists scsi hosts rather than "
+        fprintf(stderr, "    --help|-h         this usage information\n");
+        fprintf(stderr, "    --hosts|-H        lists scsi hosts rather than "
                         "scsi devices\n");
-        fprintf(stderr, "    --kname|-k      show kernel name instead of "
+        fprintf(stderr, "    --kname|-k        show kernel name instead of "
                         "device node name\n");
-        fprintf(stderr, "    --list|-L       additional information "
+        fprintf(stderr, "    --list|-L         additional information "
                         "output one\n");
-        fprintf(stderr, "                    attribute=value per line\n");
-        fprintf(stderr, "    --long|-l       additional information "
+        fprintf(stderr, "                      attribute=value per line\n");
+        fprintf(stderr, "    --long|-l         additional information "
                         "output\n");
-        fprintf(stderr, "    --transport|-t  transport information for "
+        fprintf(stderr, "    --protection|-p   show data integrity "
+                        "(protection) information\n");
+        fprintf(stderr, "    --transport|-t    transport information for "
                         "target or, if '--hosts'\n"
-                        "                    given, for initiator\n");
-        fprintf(stderr, "    --verbose|-v    output path names where data "
+                        "                      given, for initiator\n");
+        fprintf(stderr, "    --verbose|-v      output path names where data "
                         "is found\n");
-        fprintf(stderr, "    --version|-V    output version string and "
+        fprintf(stderr, "    --version|-V      output version string and "
                         "exit\n");
-        fprintf(stderr, "    <h:c:t:l>       filter output list (def: "
+        fprintf(stderr, "    <h:c:t:l>         filter output list (def: "
                         "'- - - -' (all))\n\n");
-        fprintf(stderr, "List SCSI devices or hosts\n");
+        fprintf(stderr, "List SCSI devices or hosts, optionally with "
+                "additional information\n");
 }
 
 static int
@@ -255,6 +262,77 @@ first_scandir_select(const struct dirent * s)
         aa_first.ft = FT_CHAR;  /* dummy */
         aa_first.d_type =  s->d_type;
         return 1;
+}
+
+static int
+block_scandir_select(const struct dirent * s)
+{
+        if ((DT_LNK != s->d_type) &&
+            ((DT_DIR != s->d_type) || ('.' == s->d_name[0])))
+                return 0;
+        if (strstr(s->d_name, "block")){
+                strncpy(aa_block.name, s->d_name, NAME_LEN_MAX);
+                aa_block.ft = FT_CHAR;  /* dummy */
+                aa_block.d_type =  s->d_type;
+        }
+        return 1;
+}
+
+/* scan for scsi_disk directory in  /sys/bus/scsi/devices/<h:c:i:l> */
+static int
+block_scan(const char * dir_name, const struct lsscsi_opt_coll * opts)
+{
+        char name[NAME_LEN_MAX];
+        struct dirent ** namelist;
+        int num, k;
+
+        num = scandir(dir_name, &namelist, block_scandir_select, NULL);
+        if (num < 0) {
+                if (opts->verbose > 0) {
+                        snprintf(name, NAME_LEN_MAX, "scandir: %s", dir_name);
+                        perror(name);
+                }
+                return -1;
+        }
+        for (k = 0; k < num; ++k)
+                free(namelist[k]);
+        free(namelist);
+        return num;
+}
+
+static int
+sd_scandir_select(const struct dirent * s)
+{
+        if ((DT_LNK != s->d_type) &&
+            ((DT_DIR != s->d_type) || ('.' == s->d_name[0])))
+                return 0;
+        if (strstr(s->d_name, "scsi_disk")){
+                strncpy(aa_sd.name, s->d_name, NAME_LEN_MAX);
+                aa_sd.ft = FT_CHAR;  /* dummy */
+                aa_sd.d_type =  s->d_type;
+        }
+        return 1;
+}
+
+static int
+sd_scan(const char * dir_name, const struct lsscsi_opt_coll * opts)
+{
+        char name[NAME_LEN_MAX];
+        struct dirent ** namelist;
+        int num, k;
+
+        num = scandir(dir_name, &namelist, sd_scandir_select, NULL);
+        if (num < 0) {
+                if (opts->verbose > 0) {
+                        snprintf(name, NAME_LEN_MAX, "scandir: %s", dir_name);
+                        perror(name);
+                }
+                return -1;
+        }
+        for (k = 0; k < num; ++k)
+                free(namelist[k]);
+        free(namelist);
+        return num;
 }
 
 /* scan for directory entry that is either a symlink or a directory */
@@ -1670,7 +1748,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         else if (!get_dev_node(wd, dev_node, typ))
                                 snprintf(dev_node, NAME_MAX, "-       ");
 
-                        printf("%s", dev_node);
+                        printf("%-9s", dev_node);
                         if (opts->dev_maj_min) {
                                 if (get_value(wd, "dev", value, NAME_LEN_MAX))
                                         printf("[%s]", value);
@@ -1709,6 +1787,58 @@ one_sdev_entry(const char * dir_name, const char * devname,
                 else
                         printf("  -");
         }
+
+        if (opts->protection) {
+                int kernel_dif_support = 0;
+                if (sd_scan(buff,opts)) {
+                        if (if_directory_chdir(buff,aa_sd.name)) {
+                                char value[NAME_LEN_MAX];
+                                char sddir[NAME_LEN_MAX];
+                                strncpy(sddir,buff,NAME_LEN_MAX);
+                                strcat(sddir,"/");
+                                strcat(sddir,aa_sd.name);
+                                if (!get_value(sddir, "protection_type", value, 
+                                        NAME_LEN_MAX)) {
+                                        /* kernel < 2.6.27 */
+                                        if (opts->verbose)
+                                                printf(" No Data Integrity "
+                                                                "Support\n");
+                                } else {
+                                        kernel_dif_support = 1;
+                                        if (strncmp(value, "0", 1))
+                                                printf("  DIF/Type%1s ",value);
+                                        else
+                                                printf("  -         ");
+                                }
+                        } else {
+                                printf("  -         ");
+                        }
+                }
+
+                if (kernel_dif_support && block_scan(buff,opts)) {
+                        if (if_directory_chdir(buff,aa_block.name)) {
+                                char value[NAME_LEN_MAX];
+                                char blkdir[NAME_LEN_MAX];
+                                strncpy(blkdir,buff,NAME_LEN_MAX);
+                                strcat(blkdir,"/");
+                                strcat(blkdir,aa_block.name);
+                                if (if_directory_chdir(blkdir,"integrity")) {
+                                        if (!get_value(".", "format", value, 
+                                                                NAME_LEN_MAX)) {
+                                                if (opts->verbose)
+                                                        printf(" No Data "
+                                                                "Integrity "
+                                                                "Support\n");
+                                        } else {
+                                                printf(" %-17s",value);
+                                        }
+                                } else {
+                                        printf(" %-17s","-   ");
+                                }
+                        }
+                }
+        }
+
         printf("\n");
         if (opts->long_opt > 0)
                 longer_d_entry(buff, devname, opts);
@@ -2148,7 +2278,7 @@ main(int argc, char **argv)
         while (1) {
                 int option_index = 0;
 
-                c = getopt_long(argc, argv, "cdghHklLtvV", long_options,
+                c = getopt_long(argc, argv, "cdghHklLptvV", long_options,
                                 &option_index);
                 if (c == -1)
                         break;
@@ -2177,6 +2307,9 @@ main(int argc, char **argv)
                         break;
                 case 'L':
                         opts.long_opt += 3;
+                        break;
+                case 'p':
+                        ++opts.protection;
                         break;
                 case 't':
                         ++opts.transport;

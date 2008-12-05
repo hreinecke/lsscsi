@@ -30,7 +30,7 @@
         </ol>
       </li>
       <li><a href="#mozTocId908089">lsscsi version 0.15
-to 0.21 notes</a></li>
+to 0.22 notes</a></li>
       <li><a href="#mozTocId856130"> Download and Build
 information</a></li>
     </ol>
@@ -336,6 +336,17 @@ or more spaces<br>
       <td style="vertical-align: top;">show
 &lt;attribute&gt;=&lt;value&gt; pairs, several to a line. can be used
 multiple times for more output and different format.<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;">--protection<br>
+      </td>
+      <td style="vertical-align: top;">-p<br>
+      </td>
+      <td style="vertical-align: top;">0.22<br>
+      </td>
+      <td style="vertical-align: top;">show protection information
+(T10-DIF).<br>
       </td>
     </tr>
     <tr>
@@ -796,7 +807,7 @@ mptspi&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; spi:</span><br
  style="font-family: monospace;">
 <span style="font-family: monospace;">&nbsp; signalling=unknown</span><br>
 <h2><a class="mozTocH2" name="mozTocId908089"></a>lsscsi version 0.15
-to 0.21 notes</h2>
+to 0.22 notes</h2>
 These versions attempt to find the device name
 used in the <span style="font-family: monospace;">/dev</span>
 directory rather than the kernel generated name. The kernel generated
@@ -976,6 +987,18 @@ not defined<br>
       <td style="vertical-align: top;">more changes for lk 2.6.26<br>
       </td>
     </tr>
+    <tr>
+      <td style="vertical-align: top;"><a href="lsscsi-0.22.tgz">lsscsi-0.22.tgz</a><br>
+beta</td>
+      <td style="vertical-align: top;"><br>
+      </td>
+      <td style="vertical-align: top;"><br>
+      </td>
+      <td style="vertical-align: top;">add protection information with
+'--protection' option (T10-DIF, reference: SBC-3 revision 17 section
+4.17)<br>
+      </td>
+    </tr>
   </tbody>
 </table>
 <p>Here is the most recent <a href="lsscsi.ChangeLog">ChangeLog</a> .<br>
@@ -987,7 +1010,7 @@ the link and select "Save link as ..." to download the file.
 </p>
 <p> </p>
 <div style="text-align: center;">Doug Gilbert (dgilbert@interlog.com) <br>
-Last updated: 10th july 2008<br>
+Last updated: 6th December 2008<br>
 </div>
 <p>&nbsp; </p>
 </body>

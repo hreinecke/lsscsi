@@ -1,12 +1,12 @@
-.TH lsscsi "8" "July 2008" "lsscsi\-0.20" LSSCSI
+.TH lsscsi "8" "December 2008" "lsscsi\-0.22" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
 .B lsscsi
 [\fI\-\-classic\fR] [\fI\-\-device\fR] [\fI\-\-generic\fR] [\fI\-\-help\fR]
 [\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-long\fR]
-[\fI\-\-transport\fR] [\fI\-\-verbose\fR] [\fI\-\-version\fR]
-[\fIH:C:T:L\fR]
+[\fI\-\-protection\fR] [\fI\-\-transport\fR] [\fI\-\-verbose\fR] 
+[\fI\-\-version\fR] [\fIH:C:T:L\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
@@ -74,6 +74,9 @@ used multiple times for more output in which case the shorter option
 form is more convenient (e.g. '\-lll'). When used three times (i.e. '\-lll')
 outputs SCSI device (host) attributes one per line; preceded by
 two spaces; in the form "<attribute_name>=<value>".
+.TP
+\fB\-p\fR, \fB\-\-protection\fR
+Output additional data integrity (protection) information.
 .TP
 \fB\-t\fR, \fB\-\-transport\fR
 Output transport information. This will be a target related information or,
