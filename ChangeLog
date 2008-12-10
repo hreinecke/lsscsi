@@ -1,6 +1,7 @@
 
-Version 0.22 2008/12/06 [svn: r68]
+Version 0.22 2008/12/10 [svn: r68]
   - add protection information (see CREDITS file)
+  - experiment with USB transport type
 
 Version 0.21 2008/7/10 [svn: r64]
   - more sysfs scanning work needed for lk 2.6.26

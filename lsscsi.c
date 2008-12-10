@@ -26,7 +26,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.22  2008/12/06";
+static const char * version_str = "0.22  2008/12/10";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -40,6 +40,7 @@ static const char * version_str = "0.22  2008/12/06";
 #define TRANSPORT_SAS_CLASS 4
 #define TRANSPORT_ISCSI 5
 #define TRANSPORT_SBP 6
+#define TRANSPORT_USB 7
 
 static int transport_id = TRANSPORT_UNKNOWN;
 
@@ -591,7 +592,8 @@ find_sysfsroot()
         return res;
 }
 
-/* Return 1 if directory, else 0 */
+/* If 'dir_name'/'base_name' is a directory chdir to it. If that is successful
+   return 1, else 0 */
 static int
 if_directory_chdir(const char * dir_name, const char * base_name)
 {
@@ -611,7 +613,10 @@ if_directory_chdir(const char * dir_name, const char * base_name)
         return 0;
 }
 
-/* Return 1 if directory, else 0 */
+/* If 'dir_name'/generic is a directory chdir to it. If that is successful
+   return 1. Otherwise look a directory of the form
+   'dir_name'/scsi_generic:sg<n> and if found chdir to it and return 1.
+   Otherwise return 0. */
 static int
 if_directory_ch2generic(const char * dir_name)
 {
@@ -845,14 +850,17 @@ parse_colon_list(const char * colon_list, struct addr_hctl * outp)
         return 1;
 }
 
-/* Fetch initiator (port) wwn(s) or identifier if available. Return 1 if
-   successful, 0 otherwise */
+/* Check host associated with 'devname' for known transport types. If so set
+   transport_id, place a string in 'b' and return 1. Otherwise return 0. */
 static int
 transport_init(const char * devname, /* const struct lsscsi_opt_coll * opts, */
                int b_len, char * b)
 {
         char buff[NAME_LEN_MAX];
-        int off;
+        char wd[NAME_LEN_MAX];
+        int off, len;
+        char * cp;
+        char * c2p;
         struct stat a_stat;
 
         /* SPI host */
@@ -973,9 +981,28 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * opts, */
 //           Hmmm, probably would like SAM-4 ",i,0x" notation here.
                 return 1;
         }
+        /* USB host? */
+        strcpy(buff, sysfsroot);
+        strcat(buff, scsi_host);
+        if (if_directory_chdir(buff, devname) && getcwd(wd, NAME_LEN_MAX) &&
+            strstr(wd, "usb")) {
+                transport_id = TRANSPORT_USB;
+                if ((cp = strstr(wd, "/host"))) {
+                        len = (cp - wd) - 1;
+                        if ((len > 0) && ((c2p = memrchr(wd, '/', len)))) {
+                                len = cp - ++c2p;
+                                snprintf(b, b_len, "usb: %.*s", len, c2p);
+                        } else
+                                snprintf(b, b_len, "usb:");
+                } else
+                        snprintf(b, b_len, "usb:");
+                return 1;
+        }
         return 0;
 }
 
+/* Given the transport_id of a SCSI host (initiator) associated with 'devname'
+   output additional information. */
 static void
 transport_init_longer(const char * path_name,
                       const struct lsscsi_opt_coll * opts)
@@ -1104,10 +1131,14 @@ transport_init_longer(const char * path_name,
         case TRANSPORT_ISCSI:
                 printf("  transport=iSCSI\n");
 // >>>       This is the multi-line host output for iSCSI. Anymore to
-//           add here? [From /sys/class/scsi_host/hostN/device/iscsi_host:hostN directory]
+//           add here? [From
+//           /sys/class/scsi_host/hostN/device/iscsi_host:hostN directory]
                 break;
         case TRANSPORT_SBP:
                 printf("  transport=sbp\n");
+                break;
+        case TRANSPORT_USB:
+                printf("  transport=usb\n");
                 break;
         default:
                 if (opts->verbose > 1)
@@ -1116,8 +1147,9 @@ transport_init_longer(const char * path_name,
         }
 }
 
-/* Fetch target port wwn(s) or identifier if available. Return 1 if
-   successful, 0 otherwise */
+/* Attempt to determine the transport type of the SCSI device (LU) associated
+   with 'devname'. If found set transport_id, place string in 'b' and return
+   1. Otherwise return 0. */
 static int
 transport_tport(const char * devname,
                 /* const struct lsscsi_opt_coll * opts, */ int b_len, char * b)
@@ -1127,12 +1159,14 @@ transport_tport(const char * devname,
         char nm[NAME_LEN_MAX];
         char tpgt[NAME_LEN_MAX];
         char * cp;
+        char * c2p;
         struct addr_hctl hctl;
         int len, off, n;
         struct stat a_stat;
 
         if (! parse_colon_list(devname, &hctl))
                 return 0;
+
         /* SAS host? */
         strcpy(buff, sysfsroot);
         strcat(buff, sas_host);
@@ -1251,9 +1285,28 @@ transport_tport(const char * devname,
 //           (UTF-8) excluding trailing null.
                 return 1;
         }
+        /* USB device? */
+        strcpy(buff, sysfsroot);
+        strcat(buff, class_scsi_dev);
+        if (if_directory_chdir(buff, devname) && getcwd(wd, NAME_LEN_MAX) &&
+            strstr(wd, "usb")) {
+                transport_id = TRANSPORT_USB;
+                if ((cp = strstr(wd, "/host"))) {
+                        len = (cp - wd) - 1;
+                        if ((len > 0) && ((c2p = memrchr(wd, '/', len)))) {
+                                len = cp - ++c2p;
+                                snprintf(b, b_len, "usb: %.*s", len, c2p);
+                        } else
+                                snprintf(b, b_len, "usb:");
+                } else
+                        snprintf(b, b_len, "usb:");
+                return 1;
+        }
         return 0;
 }
 
+/* Given the transport_id of the SCSI device (LU) associated with 'devname'
+   output additional information. */
 static void
 transport_tport_longer(const char * devname,
                        const struct lsscsi_opt_coll * opts)
@@ -1461,6 +1514,9 @@ transport_tport_longer(const char * devname,
                         printf("  ieee1394_id=%s\n", value);
                 if (opts->verbose > 2)
                         printf("fetched from directory: %s\n", buff);
+                break;
+        case TRANSPORT_USB:
+                printf("  transport=usb\n");
                 break;
         default:
                 if (opts->verbose > 1)
@@ -1913,6 +1969,7 @@ sdev_scandir_sort(const void * a, const void * b)
         return cmp_hctl(&left_hctl, &right_hctl);
 }
 
+/* List SCSI devices (LUs). */
 static void
 list_sdevices(const struct lsscsi_opt_coll * opts)
 {
@@ -1948,6 +2005,7 @@ list_sdevices(const struct lsscsi_opt_coll * opts)
         free(namelist);
 }
 
+/* List host (initiator) attributes when --long given (one or more times). */
 static void
 longer_h_entry(const char * path_name, const struct lsscsi_opt_coll * opts)
 {
@@ -2201,7 +2259,7 @@ one_filter_arg(const char * arg, struct addr_hctl * filtp)
         return 0;
 }
 
-/* Return 0 if able to decode, otheriwse 1 */
+/* Return 0 if able to decode, otherwise 1 */
 static int
 decode_filter_arg(const char * a1p, const char * a2p, const char * a3p,
                   const char * a4p, struct addr_hctl * filtp)

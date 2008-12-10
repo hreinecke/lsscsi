@@ -51,8 +51,8 @@ fi
 
 
 %changelog
-* Sat Dec 06 2008 - dgilbert at interlog dot com
-- protection (T10-DIF) information
+* Wed Dec 10 2008 - dgilbert at interlog dot com
+- protection (T10-DIF) information, USB transport
   * lsscsi-0.22
 * Tue Jul 29 2008 - dgilbert at interlog dot com
 - more changes  for lk 2.6.26 (SCSI sysfs)
