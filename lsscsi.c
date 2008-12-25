@@ -26,7 +26,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.22  2008/12/10";
+static const char * version_str = "0.22  2008/12/24";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -41,6 +41,8 @@ static const char * version_str = "0.22  2008/12/10";
 #define TRANSPORT_ISCSI 5
 #define TRANSPORT_SBP 6
 #define TRANSPORT_USB 7
+#define TRANSPORT_ATA 8         /* probably PATA, could be SATA */
+#define TRANSPORT_SATA 9        /* most likely SATA */
 
 static int transport_id = TRANSPORT_UNKNOWN;
 
@@ -52,7 +54,7 @@ static const char * sysfs_test_top = "/sys";
 static const char * proc_mounts = "/proc/mounts";
 static const char * bus_scsi_devs = "/bus/scsi/devices";
 static const char * class_scsi_dev = "/class/scsi_device/";
-static const char * scsi_host = "/class/scsi_host";
+static const char * scsi_host = "/class/scsi_host/";
 static const char * spi_host = "/class/spi_host/";
 static const char * spi_transport = "/class/spi_transport/";
 static const char * sas_host = "/class/sas_host/";
@@ -183,34 +185,6 @@ static const struct addr_hctl * iscsi_target_hct;
 static int iscsi_tsession_num;
 
 
-
-static int
-cmp_hctl(const struct addr_hctl * le, const struct addr_hctl * ri)
-{
-        if (le->h == ri->h) {
-                if (le->c == ri->c) {
-                        if (le->t == ri->t)
-                                return ((le->l == ri->l) ? 0 :
-                                        ((le->l < ri->l) ? -1 : 1));
-                        else
-                                return (le->t < ri->t) ? -1 : 1;
-                } else
-                        return (le->c < ri->c) ? -1 : 1;
-        } else
-                return (le->h < ri->h) ? -1 : 1;
-}
-
-static void
-invalidate_hctl(struct addr_hctl * p)
-{
-        if (p) {
-                p->h = -1;
-                p->c = -1;
-                p->t = -1;
-                p->l = -1;
-        }
-}
-
 static void
 usage()
 {
@@ -251,6 +225,37 @@ usage()
                 "additional information\n");
 }
 
+/* Compare <host:controller:target:lun> tuples (aka <h:c:t:l> or hctl) */
+static int
+cmp_hctl(const struct addr_hctl * le, const struct addr_hctl * ri)
+{
+        if (le->h == ri->h) {
+                if (le->c == ri->c) {
+                        if (le->t == ri->t)
+                                return ((le->l == ri->l) ? 0 :
+                                        ((le->l < ri->l) ? -1 : 1));
+                        else
+                                return (le->t < ri->t) ? -1 : 1;
+                } else
+                        return (le->c < ri->c) ? -1 : 1;
+        } else
+                return (le->h < ri->h) ? -1 : 1;
+}
+
+static void
+invalidate_hctl(struct addr_hctl * p)
+{
+        if (p) {
+                p->h = -1;
+                p->c = -1;
+                p->t = -1;
+                p->l = -1;
+        }
+}
+
+/* Return 1 for directory entry that is link or directory (other than
+ * a directory name starting with dot). Else return 0.
+ */
 static int
 first_scandir_select(const struct dirent * s)
 {
@@ -265,6 +270,9 @@ first_scandir_select(const struct dirent * s)
         return 1;
 }
 
+/* Return 1 for directory entry that is link or directory (other than a
+ * directory name starting with dot) that contains "block". Else return 0.
+ */
 static int
 block_scandir_select(const struct dirent * s)
 {
@@ -648,7 +656,9 @@ if_directory_ch2generic(const char * dir_name)
         return 0;
 }
 
-/* Return 1 if found, else 0 if problems */
+/* If 'dir_name'/'base_name' is found places corresponding value in 'value'
+ * and returns 1 . Else returns 0.
+ */
 static int
 get_value(const char * dir_name, const char * base_name, char * value,
           int max_value_len)
@@ -822,7 +832,8 @@ exit:
 }
 
 /*  Parse colon_list into host/channel/target/lun ("hctl") array,
- *  return 1 if successful, else 0 */
+ *  return 1 if successful, else 0.
+ */
 static int
 parse_colon_list(const char * colon_list, struct addr_hctl * outp)
 {
@@ -917,7 +928,6 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * opts, */
         /* SAS class representation */
         strcpy(buff, sysfsroot);
         strcat(buff, scsi_host);
-        strcat(buff, "/");
         strcat(buff, devname);
         strcat(buff, "/device/sas/ha");
         if ((stat(buff, &a_stat) >= 0) && S_ISDIR(a_stat.st_mode)) {
@@ -938,7 +948,6 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * opts, */
                 /* resolve SCSI host device */
                 strcpy(buff, sysfsroot);
                 strcat(buff, scsi_host);
-                strcat(buff, "/");
                 strcat(buff, devname);
                 strcat(buff, "/device");
                 if (readlink(buff, buff2, sizeof(buff2)) <= 0)
@@ -962,7 +971,7 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * opts, */
                 strcat(buff, buff2);
 
                 /* read the FireWire host's EUI-64 */
-                if (!get_value(buff, "host_id/guid", buff2, sizeof(buff)) ||
+                if (!get_value(buff, "host_id/guid", buff2, sizeof(buff2)) ||
                     strlen(buff2) != 18)
                         break;
                 snprintf(b, b_len, "sbp:%s", buff2 + 2);
@@ -997,6 +1006,26 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * opts, */
                 } else
                         snprintf(b, b_len, "usb:");
                 return 1;
+        }
+        /* ATA or SATA host, crude check: driver name */
+        strcpy(buff, sysfsroot);
+        strcat(buff, scsi_host);
+        strcat(buff, devname);
+        if (get_value(buff, "proc_name", wd, sizeof(wd))) {
+                if (0 == strcmp("ahci", wd)) {
+                        transport_id = TRANSPORT_SATA;
+                        snprintf(b, b_len, "sata:");
+                        return 1;
+                } else if (strstr(wd, "ata")) {
+                        if (0 == memcmp("sata", wd, 4)) {
+                                transport_id = TRANSPORT_SATA;
+                                snprintf(b, b_len, "sata:");
+                                return 1;
+                        }
+                        transport_id = TRANSPORT_ATA;
+                        snprintf(b, b_len, "ata:");
+                        return 1;
+                }
         }
         return 0;
 }
@@ -1139,6 +1168,12 @@ transport_init_longer(const char * path_name,
                 break;
         case TRANSPORT_USB:
                 printf("  transport=usb\n");
+                break;
+        case TRANSPORT_ATA:
+                printf("  transport=ata\n");
+                break;
+        case TRANSPORT_SATA:
+                printf("  transport=sata\n");
                 break;
         default:
                 if (opts->verbose > 1)
@@ -1301,6 +1336,27 @@ transport_tport(const char * devname,
                 } else
                         snprintf(b, b_len, "usb:");
                 return 1;
+        }
+        /* ATA or SATA device, crude check: driver name */
+        strcpy(buff, sysfsroot);
+        strcat(buff, scsi_host);
+        len = strlen(buff);
+        snprintf(buff + len, NAME_LEN_MAX - len, "host%d", hctl.h);
+        if (get_value(buff, "proc_name", wd, sizeof(wd))) {
+                if (0 == strcmp("ahci", wd)) {
+                        transport_id = TRANSPORT_SATA;
+                        snprintf(b, b_len, "sata:");
+                        return 1;
+                } else if (strstr(wd, "ata")) {
+                        if (0 == memcmp("sata", wd, 4)) {
+                                transport_id = TRANSPORT_SATA;
+                                snprintf(b, b_len, "sata:");
+                                return 1;
+                        }
+                        transport_id = TRANSPORT_ATA;
+                        snprintf(b, b_len, "ata:");
+                        return 1;
+                }
         }
         return 0;
 }
@@ -1517,6 +1573,12 @@ transport_tport_longer(const char * devname,
                 break;
         case TRANSPORT_USB:
                 printf("  transport=usb\n");
+                break;
+        case TRANSPORT_ATA:
+                printf("  transport=ata\n");
+                break;
+        case TRANSPORT_SATA:
+                printf("  transport=sata\n");
                 break;
         default:
                 if (opts->verbose > 1)
