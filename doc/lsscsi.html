@@ -22,11 +22,14 @@
       <li><a href="#mozTocId473619">Command line interface</a></li>
       <li><a href="#mozTocId782775">Transports</a>
         <ol>
+          <li><a href="#mozTocId961094">ATA</a></li>
           <li><a href="#mozTocId339163">FC</a></li>
           <li><a href="#mozTocId419863">1394</a></li>
           <li><a href="#mozTocId194875">iSCSI</a></li>
           <li><a href="#mozTocId80471">SAS</a></li>
+          <li><a href="#mozTocId348880">SATA</a></li>
           <li><a href="#mozTocId798449">SPI</a></li>
+          <li><a href="#mozTocId607245">USB</a></li>
         </ol>
       </li>
       <li><a href="#mozTocId908089">lsscsi version 0.15
@@ -88,7 +91,7 @@ CD5233E&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 Linux&nbsp;&nbsp;&nbsp; scsi_debug&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 0004&nbsp; /dev/sdb</tt><br>
 <br>
-The first entry on each line is the scsi_host,channel,target_number,lun
+The first entry on each line is the scsi_host,channel,target_number,
 tuple. It is placed in brackets and each element is colon separated.
 When there are multiple SCSI devices their entries are sorted in
 ascending tuple order.
@@ -226,7 +229,7 @@ The filter can comprise of up to four numbers, separated by ":" or
 spaces; alternatively it can be of the form "host&lt;n&gt;" where
 &lt;n&gt; is a host number. The four numbers represent host number,
 channel (or bus) number, target number and logical unit number (i.e.
-lun) respectively. The "-" symbol is used to represent a wildcard. For
+LUN) respectively. The "-" symbol is used to represent a wildcard. For
 device listings, no filter argument is equivalent to "-:-:-:-". Numbers
 missing from the filter are treated as wildcards: hence "5:0:1" and
 "5:0:1:-" are the same.<br>
@@ -397,6 +400,7 @@ transport. In the case of modern transports that may include a world
 wide unique name or identifier. The transports for which extra
 information is provided are:<br>
 <ul>
+  <li>ATA</li>
   <li>Fibre channel (FC): substantial amount both for target and host<br>
   </li>
   <li>IEEE 1394 (SBP): target and host<br>
@@ -406,7 +410,9 @@ information is provided are:<br>
   <li>SCSI Parallel Interface (SPI): trivial<br>
   </li>
   <li>Serial Attached SCSI (SAS): substantial amount for both target
-and host<br>
+and host</li>
+  <li>SATA</li>
+  <li>USB<br>
   </li>
 </ul>
 Even though <span style="font-weight: bold;">lsscsi</span>, in the
@@ -430,6 +436,64 @@ or identifier. Annex A in the <a
  href="http://www.t10.org/ftp/t10/drafts/sam4/sam4r08.pdf">SAM-4</a>
 document has been used as a guide for the appropriate initiator (i.e.
 host) and target names and identifiers to display.<br>
+<h3><a class="mozTocH3" name="mozTocId961094"></a>ATA</h3>
+The detection of&nbsp; parallel ATA devices is somewhat crude and is
+performed after checks are made for more traditional SCSI transports.
+The identification of an ATA transport is made on the basis of the low
+level driver name that the device or host uses. A similar mechanism is
+used to detect SATA devices and there is some overlap since some
+drivers support both SATA and PATA devices. No other attributes are
+provided. For example:<br>
+<span style="font-family: monospace;">$ lsscsi</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[0:0:0:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp; ATA&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; FUJITSU
+MHY2160B 0000&nbsp; /dev/sda</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">[3:0:0:0]&nbsp;&nbsp;&nbsp;
+cd/dvd&nbsp; MATSHITA DVD/CDRW UJDA775 CB03&nbsp; /dev/scd0</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[5:0:0:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp; USB 2.0&nbsp; SD/MMC
+Reader&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; /dev/sdb</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[6:0:0:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp; JetFlash TS2GJFVxx
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 8.01&nbsp; /dev/sdc</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">$ lsscsi -t</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">[0:0:0:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp;
+sata:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/dev/sda</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">[3:0:0:0]&nbsp;&nbsp;&nbsp;
+cd/dvd&nbsp;
+ata:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/dev/scd0</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">[5:0:0:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp; usb:
+7-1:1.0&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/dev/sdb</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">[6:0:0:0]&nbsp;&nbsp;&nbsp;
+disk&nbsp;&nbsp;&nbsp; usb:
+7-2.4:1.0&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+/dev/sdc<br>
+$ lsscsi -Ht<br>
+[0]&nbsp;&nbsp;&nbsp;
+ahci&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; sata:<br>
+[1]&nbsp;&nbsp;&nbsp;
+ahci&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; sata:<br>
+[2]&nbsp;&nbsp;&nbsp;
+ahci&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; sata:<br>
+[3]&nbsp;&nbsp;&nbsp; ata_piix&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ata:<br>
+[4]&nbsp;&nbsp;&nbsp; ata_piix&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ata:<br>
+[5]&nbsp;&nbsp;&nbsp; usb-storage&nbsp;&nbsp; usb: 7-1:1.0<br>
+[6]&nbsp;&nbsp;&nbsp; usb-storage&nbsp;&nbsp; usb: 7-2.4:1.0<br>
+</span><br>
+In this case the device at 3:0:0:0 (and device node /dev/scd0) is a
+DVD/CD drive whose transport is (parallel) ATA. That device is attached
+to host3 which is associated with the ata_piix driver.<br>
+<br>
 <h3><a class="mozTocH3" name="mozTocId339163"></a>FC</h3>
 For FC devices (logical units), the '--transport' option will show the
 port name and the port identifier instead of the SCSI INQUIRY
@@ -745,6 +809,16 @@ aic94xx&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; sas:50000d100f2dc000</span><br>
 <br>
 Adding a '--list' option will print multiple 'name=value' pair lines,
 each indented with two or more spaces.<br>
+<h3><a class="mozTocH3" name="mozTocId348880"></a>SATA</h3>
+The detection of serial ATA (SATA) devices is somewhat crude and is
+performed after checks are made for more traditional SCSI transports.
+The identification of an SATA transport is made on the basis of the low
+level driver name that the device or host uses. A similar mechanism is
+used to detect&nbsp; parallel ATA devices and there is some overlap
+since some
+drivers support both SATA and PATA devices. No other attributes are
+provided. See the example in the <a href="#mozTocId961094">ATA</a>
+section, specifically device 0:0:0:0 and the associated host0.<br>
 <h3><a class="mozTocH3" name="mozTocId798449"></a>SPI</h3>
 The SCSI parallel interface (SPI) can be detected (as indicated by the
 "spi:" prefix) but sysfs provides no world wide unique names (there may
@@ -805,7 +879,23 @@ mptspi&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; spi:</span><br
  style="font-family: monospace;">
 <span style="font-family: monospace;">&nbsp; transport=spi</span><br
  style="font-family: monospace;">
-<span style="font-family: monospace;">&nbsp; signalling=unknown</span><br>
+<span style="font-family: monospace;">&nbsp; signalling=unknown<br>
+<br>
+</span>
+<h3><a class="mozTocH3" name="mozTocId607245"></a>USB</h3>
+When a USB transport is detected the device or host summary line will
+contain "usb:" followed by a USB device name. The USB device name has
+the form "&lt;b&gt;-&lt;p1&gt;[.&lt;p2&gt;]+:&lt;c&gt;.&lt;i&gt;" where
+&lt;b&gt; is the USB bus number, &lt;p1&gt; is the port on the host.
+&lt;p2&gt; is a port on a host connected hub, if&nbsp; present. If
+needed &lt;p3&gt; is another USB hub port closer to the USB storage
+device. &lt;c&gt; refers to the configuration number while &lt;i&gt; is
+the interface number. There is a separate USB SCSI host for each USB
+logical unit. Thus the same "usb: &lt;device_name&gt;" appears for both
+the device (logical unit) and the corresponding SCSI host. See the
+example in the <a href="lsscsi.html#mozTocId961094">ATA</a> section,
+specifically devices 5:0:0:0 and 6:0:0:0 . 5:0:0:0 is connected
+directly to a laptop while 6:0:0:0 is connected via an external hub.
 <h2><a class="mozTocH2" name="mozTocId908089"></a>lsscsi version 0.15
 to 0.22 notes</h2>
 These versions attempt to find the device name
@@ -836,7 +926,7 @@ device node name.<br>
 <br>
 By default lsscsi lists all SCSI devices (or hosts). This version
 allows select arguments to reduce the number of devices listed. For
-example "lsscsi 1" will list all channels, targets and luns within
+example "lsscsi 1" will list all channels, targets and LUNs within
 host1. A single SCSI device can be listed with 'lsscsi 1 0 0 0' (or
 'lsscsi 1:0:0:0' or 'lsscsi [1:0:0:0]'). See man page for more
 information. This version of lsscsi uses the facilities of the
@@ -989,14 +1079,14 @@ not defined<br>
     </tr>
     <tr>
       <td style="vertical-align: top;"><a href="lsscsi-0.22.tgz">lsscsi-0.22.tgz</a><br>
-beta</td>
-      <td style="vertical-align: top;"><br>
+20081226</td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.22-1.i386.rpm">lsscsi-0.22-1.i386.rpm</a><br>
+      <a href="lsscsi_0.22-0.1_i386.deb">lsscsi_0.22-0.1_i386.deb</a><br>
       </td>
-      <td style="vertical-align: top;"><br>
+      <td style="vertical-align: top;"><a href="lsscsi-0.22-1.src.rpm">lsscsi-0.22-1.src.rpm</a>
       </td>
-      <td style="vertical-align: top;">add protection information with
-'--protection' option (T10-DIF, reference: SBC-3 revision 17 section
-4.17)<br>
+      <td style="vertical-align: top;">show protection information with
+'--protection' option, ATA, SATA and USB transport information<br>
       </td>
     </tr>
   </tbody>
@@ -1010,7 +1100,7 @@ the link and select "Save link as ..." to download the file.
 </p>
 <p> </p>
 <div style="text-align: center;">Doug Gilbert (dgilbert@interlog.com) <br>
-Last updated: 6th December 2008<br>
+Last updated: 26th December 2008<br>
 </div>
 <p>&nbsp; </p>
 </body>

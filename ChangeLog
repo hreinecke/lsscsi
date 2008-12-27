@@ -1,8 +1,8 @@
 
-Version 0.22 2008/12/24 [svn: r68]
+Version 0.22 2008/12/26 [svn: r71]
   - add protection information (see CREDITS file)
   - add USB transport type with USB device name
-  - add ATA and SATA transport types (crude: driver name)
+  - add ATA and SATA transport types (crude: by driver name)
 
 Version 0.21 2008/7/10 [svn: r64]
   - more sysfs scanning work needed for lk 2.6.26

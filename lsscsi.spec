@@ -8,8 +8,8 @@ Version: 	%{version}
 Release: 	%{release}
 License:	GPL
 Group:		Utilities/System
-Source0:	http://www.torque.net/scsi/%{name}-%{version}.tgz
-Url:		http://www.torque.net/scsi/lsscsi.html
+Source0:	http://sg.danny.cz/scsi/%{name}-%{version}.tgz
+Url:		http://sg.danny.cz/scsi/lsscsi.html
 BuildRoot:	%{_tmppath}/%{name}-%{version}-root/
 Packager:	dgilbert at interlog dot com
 
@@ -51,7 +51,7 @@ fi
 
 
 %changelog
-* Wed Dec 24 2008 - dgilbert at interlog dot com
+* Fri Dec 26 2008 - dgilbert at interlog dot com
 - protection (T10-DIF) information, USB, ATA + SATA transports
   * lsscsi-0.22
 * Tue Jul 29 2008 - dgilbert at interlog dot com

@@ -26,7 +26,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.22  2008/12/24";
+static const char * version_str = "0.22  2008/12/26";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -831,6 +831,46 @@ exit:
         return match_found;
 }
 
+/* Fetch USB device name string (form "<b>-<p1>[.<p2>]+:<c>.<i>") given
+ * either a SCSI host name or devname (i.e. "h:c:t:l") string. If detected
+ * return 'b' (pointer to start of USB device name string which is null
+ * terminated), else return NULL.
+ */
+static char *
+get_usb_devname(const char * hname, const char * devname, char * b, int b_len)
+{
+        char buff[NAME_LEN_MAX];
+        char bf2[NAME_LEN_MAX];
+        int len;
+        const char * np;
+        char * cp;
+        char * c2p;
+
+        strcpy(buff, sysfsroot);
+        if (hname) {
+                strcat(buff, scsi_host);
+                np = hname;
+        } else if (devname) {
+                strcat(buff, class_scsi_dev);
+                np = devname;
+        } else
+                return NULL;
+        if (if_directory_chdir(buff, np) && getcwd(bf2, NAME_LEN_MAX) &&
+            strstr(bf2, "usb")) {
+                if (b_len > 0)
+                        b[0] = '\0';
+                if ((cp = strstr(bf2, "/host"))) {
+                        len = (cp - bf2) - 1;
+                        if ((len > 0) && ((c2p = memrchr(bf2, '/', len)))) {
+                                len = cp - ++c2p;
+                                snprintf(b, b_len, "%.*s", len, c2p);
+                        }
+                }
+                return b;
+        }
+        return NULL;
+}
+
 /*  Parse colon_list into host/channel/target/lun ("hctl") array,
  *  return 1 if successful, else 0.
  */
@@ -869,9 +909,8 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * opts, */
 {
         char buff[NAME_LEN_MAX];
         char wd[NAME_LEN_MAX];
-        int off, len;
+        int off;
         char * cp;
-        char * c2p;
         struct stat a_stat;
 
         /* SPI host */
@@ -991,20 +1030,10 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * opts, */
                 return 1;
         }
         /* USB host? */
-        strcpy(buff, sysfsroot);
-        strcat(buff, scsi_host);
-        if (if_directory_chdir(buff, devname) && getcwd(wd, NAME_LEN_MAX) &&
-            strstr(wd, "usb")) {
+        cp = get_usb_devname(devname, NULL, wd, sizeof(wd) - 1);
+        if (cp) {
                 transport_id = TRANSPORT_USB;
-                if ((cp = strstr(wd, "/host"))) {
-                        len = (cp - wd) - 1;
-                        if ((len > 0) && ((c2p = memrchr(wd, '/', len)))) {
-                                len = cp - ++c2p;
-                                snprintf(b, b_len, "usb: %.*s", len, c2p);
-                        } else
-                                snprintf(b, b_len, "usb:");
-                } else
-                        snprintf(b, b_len, "usb:");
+                snprintf(b, b_len, "usb: %s", cp);
                 return 1;
         }
         /* ATA or SATA host, crude check: driver name */
@@ -1030,8 +1059,9 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * opts, */
         return 0;
 }
 
-/* Given the transport_id of a SCSI host (initiator) associated with 'devname'
-   output additional information. */
+/* Given the transport_id of a SCSI host (initiator) associated with
+ * 'path_name' output additional information.
+ */
 static void
 transport_init_longer(const char * path_name,
                       const struct lsscsi_opt_coll * opts)
@@ -1168,6 +1198,8 @@ transport_init_longer(const char * path_name,
                 break;
         case TRANSPORT_USB:
                 printf("  transport=usb\n");
+                printf("  device_name=%s\n", get_usb_devname(cp, NULL,
+                       value, NAME_LEN_MAX));
                 break;
         case TRANSPORT_ATA:
                 printf("  transport=ata\n");
@@ -1194,7 +1226,6 @@ transport_tport(const char * devname,
         char nm[NAME_LEN_MAX];
         char tpgt[NAME_LEN_MAX];
         char * cp;
-        char * c2p;
         struct addr_hctl hctl;
         int len, off, n;
         struct stat a_stat;
@@ -1321,20 +1352,10 @@ transport_tport(const char * devname,
                 return 1;
         }
         /* USB device? */
-        strcpy(buff, sysfsroot);
-        strcat(buff, class_scsi_dev);
-        if (if_directory_chdir(buff, devname) && getcwd(wd, NAME_LEN_MAX) &&
-            strstr(wd, "usb")) {
+        cp = get_usb_devname(NULL, devname, wd, sizeof(wd) - 1);
+        if (cp) {
                 transport_id = TRANSPORT_USB;
-                if ((cp = strstr(wd, "/host"))) {
-                        len = (cp - wd) - 1;
-                        if ((len > 0) && ((c2p = memrchr(wd, '/', len)))) {
-                                len = cp - ++c2p;
-                                snprintf(b, b_len, "usb: %.*s", len, c2p);
-                        } else
-                                snprintf(b, b_len, "usb:");
-                } else
-                        snprintf(b, b_len, "usb:");
+                snprintf(b, b_len, "usb: %s", cp);
                 return 1;
         }
         /* ATA or SATA device, crude check: driver name */
@@ -1573,6 +1594,8 @@ transport_tport_longer(const char * devname,
                 break;
         case TRANSPORT_USB:
                 printf("  transport=usb\n");
+                printf("  device_name=%s\n", get_usb_devname(NULL, devname,
+                       value, NAME_LEN_MAX));
                 break;
         case TRANSPORT_ATA:
                 printf("  transport=ata\n");

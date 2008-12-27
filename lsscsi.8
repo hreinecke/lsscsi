@@ -38,7 +38,7 @@ An example of where this may be useful is kernel error logs which tend to
 report disk error messages using the disk's default kernel name.
 .PP
 Information about this utility including examples can also be found at:
-http://www.torque.net/scsi/lsscsi.html .
+http://sg.danny.cz/scsi/lsscsi.html .
 .SH OPTIONS
 .TP
 \fB\-c\fR, \fB\-\-classic\fR
@@ -106,8 +106,8 @@ devices (e.g. scanners and medium changers) do not have a primary upper
 level driver and can only be accessed via a scsi generic (sg) device
 name.
 .PP
-This version of lsscsi (0.20) or later is required to correctly display
-SCSI devices in linux kernel 2.6.26 (and possibly later) when the
+lsscsi version 0.21 or later is required to correctly display SCSI devices
+in linux kernel 2.6.26 (and possibly later) when the
 CONFIG_SYSFS_DEPRECATED_V2 kernel option is not defined.
 .SH TRANSPORTS
 This utility lists SCSI devices which are known as logical units (lu) in
@@ -136,14 +136,21 @@ form "<attribute_name>=<value>" are output, each indented by two spaces.
 Using a filter argument will reduce the volume of output if a lot of
 devices or hosts are present.
 .PP 
-The transports that are currently recognized are: IEEE 1394, FC, iSCSI, SAS
-and SPI.
+The transports that are currently recognized are: IEEE 1394, ATA, FC,
+iSCSI, SAS, SATA, SPI and USB.
 .PP
 For IEEE 1394 (a.k.a. Firewire and "SBP" when storage is involved), the
 EUI-64 based target port name is output when \fI\-\-transport\fR is given,
 in the absence of the \fI\-\-hosts\fR option. When the \fI\-\-hosts\fR
 option is given then the EUI-64 initiator port name is output. Output on
 the summary line specific to the IEEE 1394 transport is prefixed by "sbp:".
+.PP
+to detect ATA and SATA a crude check is performed on the driver
+name (after the checks for other transports are exhausted). Based on the
+driver name either ATA or SATA transport type is chosen. Output on the
+summary line is either "ata:" or "sata:". No other attributes are given.
+Most device and hosts flagged as "ata:" will use the parallel ATA
+transport (PATA).
 .PP
 For Fibre Channel (FC) the port name and port identifier are output
 when \fI\-\-transport\fR is given. In the absence of the \fI\-\-hosts\fR
@@ -172,6 +179,16 @@ For the SCSI Parallel Interface (SPI) the target port identifier (usually
 a number between 0 and 15 inclusive) is output when \fI\-\-transport\fR is
 given, in the absence of the \fI\-\-hosts\fR option. When the \fI\-\-hosts\fR
 option is given then only "spi:" is output on the summary line.
+.PP
+When a USB transport is detected, the summary line will contain "usb:"
+followed by a USB device name. The USB device name has the
+form "<b>-<p1>[.<p2>[.<p3>]]:<c>.<i>" where <b> is the USB bus number, <p1>
+is the port on the host. <p2> is a port on a host connected hub, if present.
+If needed <p3> is a USB hub port closer to the USB storage device. <c>
+refers to the configuration number while <i> is the interface number. There
+is a separate SCSI host for each USB logical unit. Thus the
+same "usb: <device_name>" string appears for both the device (logical unit)
+and the its associated SCSI host.
 .SH AUTHOR
 Written by Doug Gilbert
 .SH "REPORTING BUGS"
