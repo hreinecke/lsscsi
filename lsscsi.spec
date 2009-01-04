@@ -1,5 +1,5 @@
 %define name    lsscsi
-%define version 0.22
+%define version 0.23
 %define release 1
 
 Summary: 	List SCSI devices (or hosts) and associated information
@@ -51,6 +51,9 @@ fi
 
 
 %changelog
+* Sun Jan 04 2009 - dgilbert at interlog dot com
+- xxxxxxxxxxxxxxxx
+  * lsscsi-0.23
 * Fri Dec 26 2008 - dgilbert at interlog dot com
 - protection (T10-DIF) information, USB, ATA + SATA transports
   * lsscsi-0.22
