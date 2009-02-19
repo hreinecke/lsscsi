@@ -186,9 +186,10 @@ form "<b>-<p1>[.<p2>[.<p3>]]:<c>.<i>" where <b> is the USB bus number, <p1>
 is the port on the host. <p2> is a port on a host connected hub, if present.
 If needed <p3> is a USB hub port closer to the USB storage device. <c>
 refers to the configuration number while <i> is the interface number. There
-is a separate SCSI host for each USB logical unit. Thus the
-same "usb: <device_name>" string appears for both the device (logical unit)
-and the its associated SCSI host.
+is a separate SCSI host for each USB (SCSI) target. A USB SCSI target may
+contain multiple logical units. Thus the same "usb: <device_name>" string
+appears for a USB SCSI host and all logical units that belong to the USB
+SCSI target associated with that USB SCSI host.
 .SH AUTHOR
 Written by Doug Gilbert
 .SH "REPORTING BUGS"
