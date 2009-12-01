@@ -1,12 +1,12 @@
-.TH lsscsi "8" "January 2009" "lsscsi\-0.23" LSSCSI
+.TH lsscsi "8" "November 2009" "lsscsi\-0.23" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
 .B lsscsi
 [\fI\-\-classic\fR] [\fI\-\-device\fR] [\fI\-\-generic\fR] [\fI\-\-help\fR]
 [\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-long\fR]
-[\fI\-\-protection\fR] [\fI\-\-transport\fR] [\fI\-\-verbose\fR] 
-[\fI\-\-version\fR] [\fIH:C:T:L\fR]
+[\fI\-\-protection\fR] [\fI\-\-sysfsroot=PATH\fR] [\fI\-\-transport\fR]
+[\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fIH:C:T:L\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
@@ -94,9 +94,14 @@ more output.
 .TP
 \fB\-V\fR, \fB\-\-version\fR
 outputs version information then exits.
+.TP
+\fB\-y\fR, \fB\-\-sysfsroot\fR=\fIPATH\fR
+assumes sysfs is mounted at PATH instead of the default '/sys' . If this
+option is given PATH should be an absolute path (i.e. start with '/').
 .SH NOTES
-Information for this command is derived from the sysfs file system
-whose mount point is found by examining the contents of /proc/mounts .
+Information for this command is derived from the sysfs file system,
+which is assumed to be mounted at /sys unless specified otherwise
+by the user.
 SCSI (pseudo) devices that have been detected by the SCSI mid level
 will be listed even if the required upper level drivers (i.e. sd, sr,
 st, osst or ch) have not been loaded. If the appropriate upper level

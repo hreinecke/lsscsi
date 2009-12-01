@@ -14,6 +14,9 @@ Ihab Hamadi <ihab dot hamadi at emulex dot com>
 James Smart <James dot Smart at Emulex dot Com>
     transport help, especially for FC [20061128]
 
+Jean Delvare <jdelvare@suse.de>
+    retire /proc/mounts scan for sysfs mount point;
+
 Luben Tuikov <ltuikov at yahoo dot com>
     transport help [20061127]
 
@@ -33,4 +36,4 @@ Stefan Richter <stefanr at s5r6 dot in-berlin dot de>
     transport help with ieee1394 [20061231]
 
 Doug Gilbert
-6th December 2008
+30th November 2009

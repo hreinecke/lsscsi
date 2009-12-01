@@ -51,8 +51,8 @@ fi
 
 
 %changelog
-* Sun Jan 04 2009 - dgilbert at interlog dot com
-- xxxxxxxxxxxxxxxx
+* Mon Nov 30 2009 - dgilbert at interlog dot com
+- remove /proc/mounts scan for sysfs mount point, assume /sys
   * lsscsi-0.23
 * Fri Dec 26 2008 - dgilbert at interlog dot com
 - protection (T10-DIF) information, USB, ATA + SATA transports

@@ -1,6 +1,7 @@
 
-Version 0.23 2009/01/04 [svn: r73]
-  - xxxxxxxxxxxxxxxxxx
+Version 0.23 2009/11/30 [svn: r75]
+  - remove /proc/mounts scan for sysfs mount point, assume
+    /sys unless overridden by re-instated '--sysfsroot' option
 
 Version 0.22 2008/12/26 [svn: r71]
   - add protection information (see CREDITS file)

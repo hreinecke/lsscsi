@@ -26,7 +26,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.23  2009/01/04";
+static const char * version_str = "0.23  2009/11/30";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -47,11 +47,7 @@ static const char * version_str = "0.23  2009/01/04";
 static int transport_id = TRANSPORT_UNKNOWN;
 
 
-static char sysfsroot[NAME_LEN_MAX];
-static const char * sysfs_name = "sysfs";
-static const char * sysfs_test_dir = "/sys/class";
-static const char * sysfs_test_top = "/sys";
-static const char * proc_mounts = "/proc/mounts";
+static const char * sysfsroot = "/sys";
 static const char * bus_scsi_devs = "/bus/scsi/devices";
 static const char * class_scsi_dev = "/class/scsi_device/";
 static const char * scsi_host = "/class/scsi_host/";
@@ -140,7 +136,7 @@ static struct option long_options[] = {
         {"list", 0, 0, 'L'},
 /*      {"name", 0, 0, 'n'},    */
         {"protection", 0, 0, 'p'},
-/*      {"sysfsroot", 1, 0, 'y'},       */
+        {"sysfsroot", 1, 0, 'y'},
         {"transport", 0, 0, 't'},
         {"verbose", 0, 0, 'v'},
         {"version", 0, 0, 'V'},
@@ -185,44 +181,34 @@ static const struct addr_hctl * iscsi_target_hct;
 static int iscsi_tsession_num;
 
 
+static const char * usage_message =
+"Usage: lsscsi   [--classic] [--device] [--generic] [--help] [--hosts]\n"
+            "\t\t[--kname] [--list] [--long] [--protection] "
+            "[--sysfsroot=PATH]\n"
+            "\t\t[--transport] [--verbose] [--version] [<h:c:t:l>]\n"
+"  where:\n"
+"    --classic|-c      alternate output similar to 'cat /proc/scsi/scsi'\n"
+"    --device|-d       show device node's major + minor numbers\n"
+"    --generic|-g      show scsi generic device name\n"
+"    --help|-h         this usage information\n"
+"    --hosts|-H        lists scsi hosts rather than scsi devices\n"
+"    --kname|-k        show kernel name instead of device node name\n"
+"    --list|-L         additional information output one\n"
+"                      attribute=value per line\n"
+"    --long|-l         additional information output\n"
+"    --protection|-p   show data integrity (protection) information\n"
+"    --sysfsroot=PATH|-y PATH    set sysfs mount point to PATH (def: /sys)\n"
+"    --transport|-t    transport information for target or, if '--hosts'\n"
+"                      given, for initiator\n"
+"    --verbose|-v      output path names where data is found\n"
+"    --version|-V      output version string and exit\n"
+"    <h:c:t:l>         filter output list (def: '- - - -' (all))\n\n"
+"List SCSI devices or hosts, optionally with additional information\n";
+
 static void
 usage()
 {
-        fprintf(stderr, "Usage: lsscsi   [--classic] [--device] [--generic]"
-                        " [--help] [--hosts]\n"
-                        "\t\t[--kname] [--list] [--long] [--protection] "
-                        "[--transport]\n"
-                        "\t\t[--verbose] [--version] [<h:c:t:l>]\n");
-        fprintf(stderr, "  where:\n");
-        fprintf(stderr, "    --classic|-c      alternate output similar "
-                        "to 'cat /proc/scsi/scsi'\n");
-        fprintf(stderr, "    --device|-d       show device node's major + "
-                        "minor numbers\n");
-        fprintf(stderr, "    --generic|-g      show scsi generic device "
-                        "name\n");
-        fprintf(stderr, "    --help|-h         this usage information\n");
-        fprintf(stderr, "    --hosts|-H        lists scsi hosts rather than "
-                        "scsi devices\n");
-        fprintf(stderr, "    --kname|-k        show kernel name instead of "
-                        "device node name\n");
-        fprintf(stderr, "    --list|-L         additional information "
-                        "output one\n");
-        fprintf(stderr, "                      attribute=value per line\n");
-        fprintf(stderr, "    --long|-l         additional information "
-                        "output\n");
-        fprintf(stderr, "    --protection|-p   show data integrity "
-                        "(protection) information\n");
-        fprintf(stderr, "    --transport|-t    transport information for "
-                        "target or, if '--hosts'\n"
-                        "                      given, for initiator\n");
-        fprintf(stderr, "    --verbose|-v      output path names where data "
-                        "is found\n");
-        fprintf(stderr, "    --version|-V      output version string and "
-                        "exit\n");
-        fprintf(stderr, "    <h:c:t:l>         filter output list (def: "
-                        "'- - - -' (all))\n\n");
-        fprintf(stderr, "List SCSI devices or hosts, optionally with "
-                "additional information\n");
+        fprintf(stderr, "%s", usage_message);
 }
 
 /* Compare <host:controller:target:lun> tuples (aka <h:c:t:l> or hctl) */
@@ -556,49 +542,6 @@ iscsi_target_scan(const char * dir_name, const struct addr_hctl * hctl)
         return num;
 }
 
-
-/* Return 1 if found (in /proc/mounts or /sys/class directory exists),
-   else 0 if problems */
-static int
-find_sysfsroot()
-{
-        char buff[NAME_LEN_MAX];
-        char dev[34];
-        char fs_type[34];
-        FILE * f;
-        int res = 0;
-        int n;
-
-        memset(buff, 0, sizeof(buff));
-        memset(dev, 0, sizeof(dev));
-        memset(fs_type, 0, sizeof(fs_type));
-        if (NULL == (f = fopen(proc_mounts, "r"))) {
-                DIR * dirp;
-
-                dirp = opendir(sysfs_test_dir);
-                if (dirp) {
-                        closedir(dirp);
-                        strcpy(sysfsroot, sysfs_test_top);
-                        return 1;
-                }
-                fprintf(stderr, "Unable to open %s for reading",
-                        proc_mounts);
-                return 0;
-        }
-        while (fgets(buff, sizeof(buff) - 2, f)) {
-                n = sscanf(buff, "%32s %256s %32s", dev, sysfsroot, fs_type);
-                if (3 != n) {
-                        fprintf(stderr, "unexpected short scan,n=%d\n", n);
-                        break;
-                }
-                if (0 == strcmp(fs_type, sysfs_name)) {
-                        res = 1;
-                        break;
-                }
-        }
-        fclose(f);
-        return res;
-}
 
 /* If 'dir_name'/'base_name' is a directory chdir to it. If that is successful
    return 1, else 0 */
@@ -2035,11 +1978,16 @@ sdev_scandir_select(const struct dirent * s)
         return 0;
 }
 
+/* Returns -1 if (a->d_name < b->d_name) ; 0 if they are equal
+ * and 1 otherwise.
+ * Function signature was more generic before version 0.23 :
+ * static int sdev_scandir_sort(const void * a, const void * b)
+ */
 static int
-sdev_scandir_sort(const void * a, const void * b)
+sdev_scandir_sort(const struct dirent ** a, const struct dirent ** b)
 {
-        const char * lnam = (*(struct dirent **)a)->d_name;
-        const char * rnam = (*(struct dirent **)b)->d_name;
+        const char * lnam = (*a)->d_name;
+        const char * rnam = (*b)->d_name;
         struct addr_hctl left_hctl;
         struct addr_hctl right_hctl;
 
@@ -2245,11 +2193,16 @@ host_scandir_select(const struct dirent * s)
         return 0;
 }
 
+/* Returns -1 if (a->d_name < b->d_name) ; 0 if they are equal
+ * and 1 otherwise.
+ * Function signature was more generic before version 0.23 :
+ * static int host_scandir_sort(const void * a, const void * b)
+ */
 static int
-host_scandir_sort(const void * a, const void * b)
+host_scandir_sort(const struct dirent ** a, const struct dirent ** b)
 {
-        const char * lnam = (*(struct dirent **)a)->d_name;
-        const char * rnam = (*(struct dirent **)b)->d_name;
+        const char * lnam = (*a)->d_name;
+        const char * rnam = (*b)->d_name;
         unsigned int l, r;
 
         if (1 != sscanf(lnam, "host%u", &l))
@@ -2415,13 +2368,12 @@ main(int argc, char **argv)
         int do_hosts = 0;
         struct lsscsi_opt_coll opts;
 
-        sysfsroot[0] = '\0';
         invalidate_hctl(&filter);
         memset(&opts, 0, sizeof(opts));
         while (1) {
                 int option_index = 0;
 
-                c = getopt_long(argc, argv, "cdghHklLptvV", long_options,
+                c = getopt_long(argc, argv, "cdghHklLptvVy:", long_options,
                                 &option_index);
                 if (c == -1)
                         break;
@@ -2463,11 +2415,9 @@ main(int argc, char **argv)
                 case 'V':
                         fprintf(stderr, "version: %s\n", version_str);
                         return 0;
-#if 0
                 case 'y':       /* sysfsroot <dir> */
-                        strncpy(sysfsroot, optarg, sizeof(sysfsroot));
+                        sysfsroot = optarg;
                         break;
-#endif
                 case '?':
                         usage();
                         return 1;
@@ -2512,14 +2462,6 @@ main(int argc, char **argv)
                 fprintf(stderr, "please '--list' (rather than '--long') "
                                 "with --transport\n");
                 return 1;
-        }
-        if ('\0' == sysfsroot[0]) {
-                if (! find_sysfsroot()) {
-                        fprintf(stderr, "Unable to locate sysfsroot. If "
-                                "kernel >= 2.6.0\n    Try something like"
-                                " 'mount -t sysfs none /sys'\n");
-                        return 1;
-                }
         }
         if (opts.verbose > 1) {
                 printf(" sysfsroot: %s\n", sysfsroot);
