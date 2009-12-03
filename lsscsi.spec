@@ -1,5 +1,5 @@
 %define name    lsscsi
-%define version 0.23
+%define version 0.24
 %define release 1
 
 Summary: 	List SCSI devices (or hosts) and associated information
@@ -51,6 +51,9 @@ fi
 
 
 %changelog
+* Thu Dec 03 2009 - dgilbert at interlog dot com
+- xxxxxxxxxx
+  * lsscsi-0.24
 * Thu Dec 03 2009 - dgilbert at interlog dot com
 - remove /proc/mounts scan for sysfs mount point, assume /sys
   * lsscsi-0.23

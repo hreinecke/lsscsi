@@ -1,6 +1,7 @@
-AC_INIT(lsscsi, 0.23, dgilbert@interlog.com)
+AC_INIT(lsscsi, 0.24, dgilbert@interlog.com)
 
 AM_INIT_AUTOMAKE
+AM_MAINTAINER_MODE
 AM_CONFIG_HEADER(config.h)
 
 AC_PROG_CC

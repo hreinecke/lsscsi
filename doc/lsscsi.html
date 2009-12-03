@@ -33,7 +33,7 @@
         </ol>
       </li>
       <li><a href="#mozTocId908089">lsscsi version 0.15
-to 0.22 notes</a></li>
+to 0.23 notes</a></li>
       <li><a href="#mozTocId856130"> Download and Build
 information</a></li>
     </ol>
@@ -350,6 +350,17 @@ multiple times for more output and different format.<br>
       </td>
       <td style="vertical-align: top;">show protection information
 (T10-DIF).<br>
+      </td>
+    </tr>
+    <tr>
+      <td style="vertical-align: top;">--sysfsroot=PATH<br>
+      </td>
+      <td style="vertical-align: top;">-y<br>
+      </td>
+      <td style="vertical-align: top;">0.23<br>
+      </td>
+      <td style="vertical-align: top;">Uses PATH as sysfs mount point
+(default sysfs mount point is '/sys')<br>
       </td>
     </tr>
     <tr>
@@ -891,13 +902,15 @@ the form "&lt;b&gt;-&lt;p1&gt;[.&lt;p2&gt;]+:&lt;c&gt;.&lt;i&gt;" where
 needed &lt;p3&gt; is another USB hub port closer to the USB storage
 device. &lt;c&gt; refers to the configuration number while &lt;i&gt; is
 the interface number. There is a separate USB SCSI host for each USB
-logical unit. Thus the same "usb: &lt;device_name&gt;" appears for both
-the device (logical unit) and the corresponding SCSI host. See the
+(SCSI) target. A USB SCSI target may contain multiple logical units.
+Thus the same "usb: &lt;device_name&gt;" string appears for a USB SCSI
+host and all logical units that belong to the USB SCSI target
+associated with that USB SCSI host. See the
 example in the <a href="lsscsi.html#mozTocId961094">ATA</a> section,
 specifically devices 5:0:0:0 and 6:0:0:0 . 5:0:0:0 is connected
 directly to a laptop while 6:0:0:0 is connected via an external hub.
 <h2><a class="mozTocH2" name="mozTocId908089"></a>lsscsi version 0.15
-to 0.22 notes</h2>
+to 0.23 notes</h2>
 These versions attempt to find the device name
 used in the <span style="font-family: monospace;">/dev</span>
 directory rather than the kernel generated name. The kernel generated
@@ -1089,6 +1102,16 @@ not defined<br>
 '--protection' option, ATA, SATA and USB transport information<br>
       </td>
     </tr>
+    <tr>
+      <td style="vertical-align: top;"><a href="lsscsi-0.23.tgz">lsscsi-0.23.tgz</a><br>
+20091203</td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.23-1.i386.rpm">lsscsi-0.23-1.i386.rpm</a><br>
+      <a href="lsscsi_0.23-0.1_i386.deb">lsscsi_0.23-0.1_i386.deb</a></td>
+      <td style="vertical-align: top;"><a href="lsscsi-0.23-1.src.rpm">lsscsi-0.23-1.src.rpm</a></td>
+      <td style="vertical-align: top;">stop scanning /proc/mounts;
+assume /sys unless overridden by '--sysfsroot=PATH' option<br>
+      </td>
+    </tr>
   </tbody>
 </table>
 <p>Here is the most recent <a href="lsscsi.ChangeLog">ChangeLog</a> .<br>
@@ -1100,7 +1123,7 @@ the link and select "Save link as ..." to download the file.
 </p>
 <p> </p>
 <div style="text-align: center;">Doug Gilbert (dgilbert@interlog.com) <br>
-Last updated: 26th December 2008<br>
+Last updated: 3rd December 2009<br>
 </div>
 <p>&nbsp; </p>
 </body>
