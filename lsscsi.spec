@@ -51,7 +51,7 @@ fi
 
 
 %changelog
-* Mon Nov 30 2009 - dgilbert at interlog dot com
+* Thu Dec 03 2009 - dgilbert at interlog dot com
 - remove /proc/mounts scan for sysfs mount point, assume /sys
   * lsscsi-0.23
 * Fri Dec 26 2008 - dgilbert at interlog dot com

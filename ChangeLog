@@ -1,5 +1,5 @@
 
-Version 0.23 2009/11/30 [svn: r75]
+Version 0.23 2009/12/01 [svn: r76]
   - remove /proc/mounts scan for sysfs mount point, assume
     /sys unless overridden by re-instated '--sysfsroot' option
 

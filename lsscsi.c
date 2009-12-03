@@ -26,7 +26,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.23  2009/11/30";
+static const char * version_str = "0.23  2009/12/03";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -183,8 +183,7 @@ static int iscsi_tsession_num;
 
 static const char * usage_message =
 "Usage: lsscsi   [--classic] [--device] [--generic] [--help] [--hosts]\n"
-            "\t\t[--kname] [--list] [--long] [--protection] "
-            "[--sysfsroot=PATH]\n"
+            "\t\t[--kname] [--list] [--long] [--protection] [--sysfsroot=PATH]\n"
             "\t\t[--transport] [--verbose] [--version] [<h:c:t:l>]\n"
 "  where:\n"
 "    --classic|-c      alternate output similar to 'cat /proc/scsi/scsi'\n"
