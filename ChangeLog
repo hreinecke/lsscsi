@@ -1,4 +1,7 @@
 
+Version 0.24 2009/12/03 [svn: r78]
+  - add AM_MAINTAINER_MODE to configure.ac
+
 Version 0.23 2009/12/01 [svn: r76]
   - remove /proc/mounts scan for sysfs mount point, assume
     /sys unless overridden by re-instated '--sysfsroot' option
