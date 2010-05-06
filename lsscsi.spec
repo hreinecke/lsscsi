@@ -51,8 +51,8 @@ fi
 
 
 %changelog
-* Thu Dec 03 2009 - dgilbert at interlog dot com
-- xxxxxxxxxx
+* Fri May 07 2010 - dgilbert at interlog dot com
+- FC transport syntax change
   * lsscsi-0.24
 * Thu Dec 03 2009 - dgilbert at interlog dot com
 - remove /proc/mounts scan for sysfs mount point, assume /sys

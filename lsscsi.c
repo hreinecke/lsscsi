@@ -26,7 +26,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.24  2009/12/03";
+static const char * version_str = "0.24  2010/05/06";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -1027,7 +1027,7 @@ transport_init_longer(const char * path_name,
                 break;
         case TRANSPORT_FC:
                 printf("  transport=fc\n");
-                strcat(buff, "/device/fc_host:");
+                strcat(buff, "/device/fc_host/");
                 strcat(buff, cp);
                 if (get_value(buff, "node_name", value, NAME_LEN_MAX))
                         printf("  node_name=%s\n", value);
@@ -1394,7 +1394,7 @@ transport_tport_longer(const char * devname,
                         return;
                 *cp = '\0';
                 cp = basename(wd);
-                strcpy(buff, "fc_remote_ports:");
+                strcpy(buff, "fc_remote_ports/");
                 strcat(buff, cp);
                 if (! if_directory_chdir(wd, buff))
                         return;
@@ -2119,7 +2119,8 @@ one_host_entry(const char * dir_name, const char * devname,
 {
         char buff[NAME_LEN_MAX];
         char value[NAME_LEN_MAX];
-        char * nullname = "<NULL>";
+        char * nullname1 = "<NULL>";
+        char * nullname2 = "(null)";
         unsigned int host_id;
 
         if (opts->classic) {
@@ -2135,13 +2136,13 @@ one_host_entry(const char * dir_name, const char * devname,
         strcat(buff, "/");
         strcat(buff, devname);
         if ((get_value(buff, "proc_name", value, NAME_LEN_MAX)) &&
-            (strncmp(value, nullname, 6)))
+            (strncmp(value, nullname1, 6)) && (strncmp(value, nullname2, 6)))
                 printf("  %-12s  ", value);
         else if (if_directory_chdir(buff, "device/../driver")) {
                 char wd[NAME_LEN_MAX];
 
                 if (NULL == getcwd(wd, NAME_LEN_MAX))
-                        printf("  %-12s  ", nullname);
+                        printf("  %-12s  ", nullname2);
                 else
                         printf("  %-12s  ", basename(wd));
 
