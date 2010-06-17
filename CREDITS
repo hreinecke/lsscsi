@@ -1,6 +1,10 @@
 The author of lsscsi would like to thank the following people who
 have made contributions:
 
+Dan Horak <dhorak at redhat dot com>
+    Cope with proc_name from "<NULL>" to "(null") around
+    lk 2.6.32 and FC transport syntax change [20100506]
+
 FUJITA Tomonori <fujita dot tomonori at lab dot ntt dot co dot jp>
     iSCSI transport help [20070107]
 

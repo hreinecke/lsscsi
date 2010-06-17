@@ -1,5 +1,5 @@
 
-Version 0.24 2010/05/06 [svn: r81]
+Version 0.24 2010/06/12 [svn: r82]
   - add AM_MAINTAINER_MODE to configure.ac
   - scandir() library function has changed its signature
     in its 4th argument, use newer (non-void) variant
