@@ -1,4 +1,4 @@
-.TH lsscsi "8" "November 2009" "lsscsi\-0.24" LSSCSI
+.TH lsscsi "8" "December 2010" "lsscsi\-0.24" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
@@ -10,7 +10,7 @@ lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
-Uses information in sysfs (linux kernel series 2.6 and later) to list scsi
+Uses information in sysfs (Linux kernel series 2.6 and later) to list scsi
 devices (or hosts) currently attached to the system. Options can be used to
 control the amount and form of information provided for each device.
 .PP
@@ -33,7 +33,7 @@ given a different name by udev (for example) to be correctly reported by
 this utility.
 .PP
 In some situations it may be useful to see the device node name that
-linux would produce by default, so the \fI\-\-kname\fR option is provided.
+Linux would produce by default, so the \fI\-\-kname\fR option is provided.
 An example of where this may be useful is kernel error logs which tend to
 report disk error messages using the disk's default kernel name.
 .PP
@@ -60,7 +60,7 @@ List the SCSI hosts currently attached to the system. If this option is
 not given then SCSI devices are listed.
 .TP
 \fB\-k\fR, \fB\-\-kname\fR
-Use linux default algorithm for naming devices (e.g. block major 8,
+Use Linux default algorithm for naming devices (e.g. block major 8,
 minor 0 is "/dev/sda") rather than the "match by major and minor"
 in the "/dev" directory as discussed above.
 .TP
@@ -112,7 +112,7 @@ level driver and can only be accessed via a scsi generic (sg) device
 name.
 .PP
 lsscsi version 0.21 or later is required to correctly display SCSI devices
-in linux kernel 2.6.26 (and possibly later) when the
+in Linux kernel 2.6.26 (and possibly later) when the
 CONFIG_SYSFS_DEPRECATED_V2 kernel option is not defined.
 .SH TRANSPORTS
 This utility lists SCSI devices which are known as logical units (lu) in
@@ -145,9 +145,9 @@ The transports that are currently recognized are: IEEE 1394, ATA, FC,
 iSCSI, SAS, SATA, SPI and USB.
 .PP
 For IEEE 1394 (a.k.a. Firewire and "SBP" when storage is involved), the
-EUI-64 based target port name is output when \fI\-\-transport\fR is given,
+EUI\-64 based target port name is output when \fI\-\-transport\fR is given,
 in the absence of the \fI\-\-hosts\fR option. When the \fI\-\-hosts\fR
-option is given then the EUI-64 initiator port name is output. Output on
+option is given then the EUI\-64 initiator port name is output. Output on
 the summary line specific to the IEEE 1394 transport is prefixed by "sbp:".
 .PP
 to detect ATA and SATA a crude check is performed on the driver
@@ -187,7 +187,7 @@ option is given then only "spi:" is output on the summary line.
 .PP
 When a USB transport is detected, the summary line will contain "usb:"
 followed by a USB device name. The USB device name has the
-form "<b>-<p1>[.<p2>[.<p3>]]:<c>.<i>" where <b> is the USB bus number, <p1>
+form "<b>\-<p1>[.<p2>[.<p3>]]:<c>.<i>" where <b> is the USB bus number, <p1>
 is the port on the host. <p2> is a port on a host connected hub, if present.
 If needed <p3> is a USB hub port closer to the USB storage device. <c>
 refers to the configuration number while <i> is the interface number. There
@@ -200,7 +200,7 @@ Written by Doug Gilbert
 .SH "REPORTING BUGS"
 Report bugs to <dgilbert at interlog dot com>.
 .SH COPYRIGHT
-Copyright \(co 2003\-2009 Douglas Gilbert
+Copyright \(co 2003\-2010 Douglas Gilbert
 .br
 This software is distributed under the GPL version 2. There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.

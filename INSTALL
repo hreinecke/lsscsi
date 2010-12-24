@@ -7,7 +7,8 @@ To install call:
 This will most likely need superuser privilege. The executable is placed
 in the /usr/local/bin directory while the man page is placed in the
 /usr/local/man/man8 directory. The install directory are controlled by
-the PREFIX variable in the Makefile.
+the PREFIX variable in the Makefile. To install executable in the /usr/bin
+directory use './configure --prefix=/usr ' instead.
 
 To uninstall the executable and man page call:
  $ make uninstall
@@ -30,7 +31,7 @@ rpm on Suse and Mandrake is similar (although they use their names
 rather than "redhat" in the above paths).
 
 
-To build a linux debian "deb" (binary) package, first untar the tarball,
+To build a Linux debian "deb" (binary) package, first untar the tarball,
 then change directory to the top level within the lsscsi source. Then:
  # chmod +x debian/rules
  # dpkg-buildpackage -b -rfakeroot
@@ -38,4 +39,4 @@ The binary deb packages will be placed in the parent directory (of
 the lsscsi source directory) if all goes well.
 
 Douglas Gilbert
-30th December 2005
+24th December 2010

@@ -1,11 +1,11 @@
 
-Version 0.24 2010/06/12 [svn: r82]
-  - add AM_MAINTAINER_MODE to configure.ac
-  - scandir() library function has changed its signature
-    in its 4th argument, use newer (non-void) variant
+Version 0.24 2010/06/12 [svn: r83]
   - FC transport syntax changes (colon to slash)
   - add "(null)" to the currently accepted "<NULL>" as
     the string representation of NULL
+  - add AM_MAINTAINER_MODE to configure.ac
+  - scandir() library function has changed its signature
+    in its 4th argument, use newer (non-void) variant
 
 Version 0.23 2009/12/01 [svn: r76]
   - remove /proc/mounts scan for sysfs mount point, assume

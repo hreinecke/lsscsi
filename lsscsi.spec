@@ -51,7 +51,7 @@ fi
 
 
 %changelog
-* Fri May 07 2010 - dgilbert at interlog dot com
+* Thu Dec 23 2010 - dgilbert at interlog dot com
 - FC transport syntax change
   * lsscsi-0.24
 * Thu Dec 03 2009 - dgilbert at interlog dot com

@@ -3,6 +3,4 @@ Installation instructions are in the INSTALL file.
 For a description of this utility see:
 http://sg.danny.cz/scsi/lsscsi.html
 
-a copy of this web page is in doc/lsscsi.html
-
-The "man" page may also be useful.
+The "man" page (lsscsi.8) and this directory may also be useful.
