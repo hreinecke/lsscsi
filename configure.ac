@@ -1,4 +1,4 @@
-AC_INIT(lsscsi, 0.24, dgilbert@interlog.com)
+AC_INIT(lsscsi, 0.25, dgilbert@interlog.com)
 
 AM_INIT_AUTOMAKE
 AM_MAINTAINER_MODE

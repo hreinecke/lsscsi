@@ -1,4 +1,7 @@
 
+Version 0.25 2010/12/26 [svn: r84]
+  - xxxxxxxxxxxxxxx
+
 Version 0.24 2010/06/12 [svn: r83]
   - FC transport syntax changes (colon to slash)
   - add "(null)" to the currently accepted "<NULL>" as

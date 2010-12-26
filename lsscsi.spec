@@ -1,5 +1,5 @@
 %define name    lsscsi
-%define version 0.24
+%define version 0.25
 %define release 1
 
 Summary: 	List SCSI devices (or hosts) and associated information
@@ -51,6 +51,9 @@ fi
 
 
 %changelog
+* Sun Dec 26 2010 - dgilbert at interlog dot com
+- xxxxxxxxxxxxxx
+  * lsscsi-0.25
 * Thu Dec 23 2010 - dgilbert at interlog dot com
 - FC transport syntax change
   * lsscsi-0.24
