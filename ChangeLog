@@ -1,6 +1,6 @@
 
-Version 0.25 2010/12/26 [svn: r84]
-  - xxxxxxxxxxxxxxx
+Version 0.25 2010/12/29 [svn: r85]
+  - add sas_port and fc_remote_ports transport information
 
 Version 0.24 2010/06/12 [svn: r83]
   - FC transport syntax changes (colon to slash)

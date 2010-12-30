@@ -24,6 +24,10 @@ Jean Delvare <jdelvare@suse.de>
 Luben Tuikov <ltuikov at yahoo dot com>
     transport help [20061127]
 
+Mark Reed <mdr at sgi dot com>
+    mine sas_port and fc_remote_ports directories for
+    more transport information [20101229]
+
 Martin K. Petersen <martin dot petersen at oracle dot com>
     co-author of protection information addition [20081206]
 
@@ -40,4 +44,4 @@ Stefan Richter <stefanr at s5r6 dot in-berlin dot de>
     transport help with ieee1394 [20061231]
 
 Doug Gilbert
-30th November 2009
+29th December 2010

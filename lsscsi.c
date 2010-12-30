@@ -26,7 +26,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.25  2010/12/26 [svn: r84]";
+static const char * version_str = "0.25  2010/12/29 [svn: r85]";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -55,10 +55,12 @@ static const char * spi_host = "/class/spi_host/";
 static const char * spi_transport = "/class/spi_transport/";
 static const char * sas_host = "/class/sas_host/";
 static const char * sas_phy = "/class/sas_phy/";
+static const char * sas_port = "/class/sas_port/";
 static const char * sas_device = "/class/sas_device/";
 static const char * sas_end_device = "/class/sas_end_device/";
 static const char * fc_host = "/class/fc_host/";
 static const char * fc_transport = "/class/fc_transport/";
+static const char * fc_remote_ports = "/class/fc_remote_ports/";
 static const char * iscsi_host = "/class/iscsi_host/";
 static const char * iscsi_session = "/class/iscsi_session/";
 static const char * dev_dir = "/dev";
@@ -454,6 +456,33 @@ sg_scan(const char * dir_name)
 
 
 static int
+sas_port_scandir_select(const struct dirent * s)
+{
+        if ((DT_LNK != s->d_type) && (DT_DIR != s->d_type))
+                return 0;
+        if (0 == strncmp("port-", s->d_name, 5))
+                return 1;
+	return 0;
+}
+
+static int
+sas_port_scan(const char * dir_name, struct dirent ***port_list)
+{
+        struct dirent ** namelist;
+        int num;
+
+	namelist = NULL;
+        num = scandir(dir_name, &namelist, sas_port_scandir_select, NULL);
+        if (num < 0) {
+		*port_list = NULL;
+                return -1;
+	}
+	*port_list = namelist;
+        return num;
+}
+
+
+static int
 sas_low_phy_scandir_select(const struct dirent * s)
 {
         char * cp;
@@ -483,21 +512,24 @@ sas_low_phy_scandir_select(const struct dirent * s)
 }
 
 static int
-sas_low_phy_scan(const char * dir_name)
+sas_low_phy_scan(const char * dir_name, struct dirent ***phy_list)
 {
-        struct dirent ** namelist;
+        struct dirent ** namelist=NULL;
         int num, k;
 
         memset(sas_low_phy, 0, sizeof(sas_low_phy));
         num = scandir(dir_name, &namelist, sas_low_phy_scandir_select, NULL);
-        if (num < 0)
-                return -1;
-        for (k = 0; k < num; ++k)
-                free(namelist[k]);
-        free(namelist);
-        return num;
+	if (num < 0)
+		return -1;
+	if (!phy_list) {
+		for (k=0; k<num; ++k)
+			free(namelist[k]);
+		free(namelist);
+	}
+	else
+		*phy_list = namelist;
+	return num;
 }
-
 
 static int
 iscsi_target_scandir_select(const struct dirent * s)
@@ -892,7 +924,7 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * opts, */
         if ((stat(buff, &a_stat) >= 0) && S_ISDIR(a_stat.st_mode)) {
                 transport_id = TRANSPORT_SAS;
                 strcat(buff, "/device");
-                if (sas_low_phy_scan(buff) < 1)
+                if (sas_low_phy_scan(buff, NULL) < 1)
                         return 0;
                 strcpy(buff, sysfsroot);
                 strcat(buff, sas_phy);
@@ -1012,6 +1044,12 @@ transport_init_longer(const char * path_name,
         char wd[NAME_LEN_MAX];
         char value[NAME_LEN_MAX];
         char * cp;
+        struct stat a_stat;
+        struct dirent ** phylist;
+        struct dirent ** portlist;
+	int phynum;
+	int portnum;
+	int i, j;
 
         strcpy(buff, path_name);
         strcpy(wd, path_name);
@@ -1029,16 +1067,44 @@ transport_init_longer(const char * path_name,
                 printf("  transport=fc\n");
                 strcat(buff, "/device/fc_host/");
                 strcat(buff, cp);
+
+		if (stat(buff, &a_stat) < 0) {
+			/* newer sysfs format: /sys/class/scsi_host/host6/device/fc_host/host6 */
+			strcpy(buff, path_name);
+			strcat(buff, "/device/fc_host/");
+			strcat(buff, cp);
+			if (stat(buff, &a_stat) < 0) {
+				if (opts->verbose > 2)
+					printf("no fc_host directory\n");
+				break;
+			}
+		}
+		if (get_value(buff, "active_fc4s", value, NAME_LEN_MAX))
+			printf("  active_fc4s=%s\n", value);
+		if (get_value(buff, "supported_fc4s", value, NAME_LEN_MAX))
+			printf("  supported_fc4s=%s\n", value);
+		if (get_value(buff, "fabric_name", value, NAME_LEN_MAX))
+			printf("  fabric_name=%s\n", value);
+		if (get_value(buff, "maxframe_size", value, NAME_LEN_MAX))
+			printf("  maxframe_size=%s\n", value);
+		if (get_value(buff, "max_npiv_vports", value, NAME_LEN_MAX))
+			printf("  max_npiv_vports=%s\n", value);
+		if (get_value(buff, "npiv_vports_inuse", value, NAME_LEN_MAX))
+			printf("  npiv_vports_inuse=%s\n", value);
                 if (get_value(buff, "node_name", value, NAME_LEN_MAX))
                         printf("  node_name=%s\n", value);
                 if (get_value(buff, "port_name", value, NAME_LEN_MAX))
                         printf("  port_name=%s\n", value);
                 if (get_value(buff, "port_id", value, NAME_LEN_MAX))
                         printf("  port_id=%s\n", value);
+		if (get_value(buff, "port_state", value, NAME_LEN_MAX))
+			printf("  port_state=%s\n", value);
                 if (get_value(buff, "port_type", value, NAME_LEN_MAX))
                         printf("  port_type=%s\n", value);
                 if (get_value(buff, "speed", value, NAME_LEN_MAX))
                         printf("  speed=%s\n", value);
+		if (get_value(buff, "supported_speeds", value, NAME_LEN_MAX))
+			printf("  supported_speeds=%s\n", value);
                 if (get_value(buff, "supported_classes", value, NAME_LEN_MAX))
                         printf("  supported_classes=%s\n", value);
                 if (get_value(buff, "tgtid_bind_type", value, NAME_LEN_MAX))
@@ -1049,50 +1115,111 @@ transport_init_longer(const char * path_name,
         case TRANSPORT_SAS:
                 printf("  transport=sas\n");
                 strcat(buff, "/device");
-                if (sas_low_phy_scan(buff) < 1)
-                        return;
-                strcpy(buff, sysfsroot);
-                strcat(buff, sas_phy);
-                strcat(buff, sas_low_phy);
-                if (get_value(buff, "device_type", value, NAME_LEN_MAX))
-                        printf("  device_type=%s\n", value);
-                if (get_value(buff, "initiator_port_protocols", value,
-                              NAME_LEN_MAX))
-                        printf("  initiator_port_protocols=%s\n", value);
-                if (get_value(buff, "invalid_dword_count", value,
-                              NAME_LEN_MAX))
-                        printf("  invalid_dword_count=%s\n", value);
-                if (get_value(buff, "loss_of_dword_sync_count", value,
-                              NAME_LEN_MAX))
-                        printf("  loss_of_dword_sync_count=%s\n", value);
-                if (get_value(buff, "maximum_linkrate", value, NAME_LEN_MAX))
-                        printf("  maximum_linkrate=%s\n", value);
-                if (get_value(buff, "maximum_linkrate_hw", value,
-                              NAME_LEN_MAX))
-                        printf("  maximum_linkrate_hw=%s\n", value);
-                if (get_value(buff, "minimum_linkrate", value, NAME_LEN_MAX))
-                        printf("  minimum_linkrate=%s\n", value);
-                if (get_value(buff, "minimum_linkrate_hw", value,
-                              NAME_LEN_MAX))
-                        printf("  minimum_linkrate_hw=%s\n", value);
-                if (get_value(buff, "negotiated_linkrate", value,
-                              NAME_LEN_MAX))
-                        printf("  negotiated_linkrate=%s\n", value);
-                if (get_value(buff, "phy_identifier", value, NAME_LEN_MAX))
-                        printf("  phy_identifier=%s\n", value);
-                if (get_value(buff, "phy_reset_problem_count", value,
-                              NAME_LEN_MAX))
-                        printf("  phy_reset_problem_count=%s\n", value);
-                if (get_value(buff, "running_disparity_error_count", value,
-                              NAME_LEN_MAX))
-                        printf("  running_disparity_error_count=%s\n", value);
-                if (get_value(buff, "sas_address", value, NAME_LEN_MAX))
-                        printf("  sas_address=%s\n", value);
-                if (get_value(buff, "target_port_protocols", value,
-                              NAME_LEN_MAX))
-                        printf("  target_port_protocols=%s\n", value);
-                if (opts->verbose > 2)
-                        printf("fetched from directory: %s\n", buff);
+		if ((portnum=sas_port_scan(buff, &portlist)) < 1) {	/* no configured ports */
+			printf("  no configured ports\n");
+			if ((phynum=sas_low_phy_scan(buff, &phylist)) < 1) {	/* no phys */
+				printf("  no configured phys\n");
+				return;
+			}
+			for (i=0; i<phynum; i++) {
+				/* emit something potentially useful */
+				strcpy(buff, sysfsroot);
+				strcat(buff, sas_phy);
+				strcat(buff, phylist[i]->d_name);
+				printf("  %s\n",phylist[i]->d_name);
+				if (get_value(buff, "sas_address", value, NAME_LEN_MAX))
+					printf("    sas_address=%s\n", value);
+				if (get_value(buff, "phy_identifier", value, NAME_LEN_MAX))
+					printf("    phy_identifier=%s\n", value);
+				if (get_value(buff, "minimum_linkrate", value, NAME_LEN_MAX))
+					printf("    minimum_linkrate=%s\n", value);
+				if (get_value(buff, "minimum_linkrate_hw", value,
+					      NAME_LEN_MAX))
+					printf("    minimum_linkrate_hw=%s\n", value);
+				if (get_value(buff, "maximum_linkrate", value, NAME_LEN_MAX))
+					printf("    maximum_linkrate=%s\n", value);
+				if (get_value(buff, "maximum_linkrate_hw", value,
+					      NAME_LEN_MAX))
+					printf("    maximum_linkrate_hw=%s\n", value);
+				if (get_value(buff, "negotiated_linkrate", value,
+					      NAME_LEN_MAX))
+					printf("    negotiated_linkrate=%s\n", value);
+			}
+			return;
+		}
+		for (i=0; i<portnum; i++) {	/* for each host port */
+			strcpy(buff, path_name);
+			strcat(buff, "/device/");
+			strcat(buff, portlist[i]->d_name);
+			if ((phynum=sas_low_phy_scan(buff, &phylist)) < 1) {
+				printf("  %s: phy list not available\n",portlist[i]->d_name);
+				free(portlist[i]);
+				continue;
+			}
+
+			strcpy(buff, sysfsroot);
+			strcat(buff, sas_port);
+			strcat(buff, portlist[i]->d_name);
+
+			if (get_value(buff, "num_phys", value, NAME_LEN_MAX)) {
+				printf("  %s: num_phys=%s,",portlist[i]->d_name, value);
+				for (j=0; j<phynum; j++) {
+					printf(" %s",phylist[j]->d_name);
+					free(phylist[j]);
+				}
+				printf("\n");
+				if (opts->verbose > 2)
+					printf("  fetched from directory: %s\n", buff);
+				free(phylist);
+			}
+			strcpy(buff, sysfsroot);
+			strcat(buff, sas_phy);
+			strcat(buff, sas_low_phy);
+			if (get_value(buff, "device_type", value, NAME_LEN_MAX))
+				printf("    device_type=%s\n", value);
+			if (get_value(buff, "initiator_port_protocols", value,
+				      NAME_LEN_MAX))
+				printf("    initiator_port_protocols=%s\n", value);
+			if (get_value(buff, "invalid_dword_count", value,
+				      NAME_LEN_MAX))
+				printf("    invalid_dword_count=%s\n", value);
+			if (get_value(buff, "loss_of_dword_sync_count", value,
+				      NAME_LEN_MAX))
+				printf("    loss_of_dword_sync_count=%s\n", value);
+			if (get_value(buff, "minimum_linkrate", value, NAME_LEN_MAX))
+				printf("    minimum_linkrate=%s\n", value);
+			if (get_value(buff, "minimum_linkrate_hw", value,
+				      NAME_LEN_MAX))
+				printf("    minimum_linkrate_hw=%s\n", value);
+			if (get_value(buff, "maximum_linkrate", value, NAME_LEN_MAX))
+				printf("    maximum_linkrate=%s\n", value);
+			if (get_value(buff, "maximum_linkrate_hw", value,
+				      NAME_LEN_MAX))
+				printf("    maximum_linkrate_hw=%s\n", value);
+			if (get_value(buff, "negotiated_linkrate", value,
+				      NAME_LEN_MAX))
+				printf("    negotiated_linkrate=%s\n", value);
+			if (get_value(buff, "phy_identifier", value, NAME_LEN_MAX))
+				printf("    phy_identifier=%s\n", value);
+			if (get_value(buff, "phy_reset_problem_count", value,
+				      NAME_LEN_MAX))
+				printf("    phy_reset_problem_count=%s\n", value);
+			if (get_value(buff, "running_disparity_error_count", value,
+				      NAME_LEN_MAX))
+				printf("    running_disparity_error_count=%s\n", value);
+			if (get_value(buff, "sas_address", value, NAME_LEN_MAX))
+				printf("    sas_address=%s\n", value);
+			if (get_value(buff, "target_port_protocols", value,
+				      NAME_LEN_MAX))
+				printf("    target_port_protocols=%s\n", value);
+			if (opts->verbose > 2)
+				printf("  fetched from directory: %s\n", buff);
+
+			free(portlist[i]);
+
+		}
+		free(portlist);
+
                 break;
         case TRANSPORT_SAS_CLASS:
                 printf("  transport=sas\n");
@@ -1396,10 +1523,23 @@ transport_tport_longer(const char * devname,
                 cp = basename(wd);
                 strcpy(buff, "fc_remote_ports/");
                 strcat(buff, cp);
-                if (! if_directory_chdir(wd, buff))
-                        return;
-                if (NULL == getcwd(buff, NAME_LEN_MAX))
-                        return;
+                if (if_directory_chdir(wd, buff)) {
+			if (NULL == getcwd(buff, NAME_LEN_MAX))
+				return;
+		}
+		else {	/* newer transport */
+			strcpy(buff, sysfsroot);	/* /sys */
+			strcat(buff, fc_remote_ports);	/* /class/fc_remote_ports/ */
+			strcat(buff, cp);		/* rport-x:y-z */
+			strcat(buff, "/");		/* rport-x:y-z */
+		}
+		strcpy(b2, path_name);
+		strcat(b2, "/device/");
+                if (get_value(b2, "vendor", value, NAME_LEN_MAX))
+                        printf("  vendor=%s\n", value);
+                if (get_value(b2, "model", value, NAME_LEN_MAX))
+                        printf("  model=%s\n", value);
+		printf("  %s\n",cp);	/* rport */
                 if (get_value(buff, "node_name", value, NAME_LEN_MAX))
                         printf("  node_name=%s\n", value);
                 if (get_value(buff, "port_name", value, NAME_LEN_MAX))
@@ -1414,19 +1554,37 @@ transport_tport_longer(const char * devname,
                         printf("  scsi_target_id=%s\n", value);
                 if (get_value(buff, "supported_classes", value, NAME_LEN_MAX))
                         printf("  supported_classes=%s\n", value);
+                if (get_value(buff, "fast_io_fail_tmo", value, NAME_LEN_MAX))
+                        printf("  fast_io_fail_tmo=%s\n", value);
                 if (get_value(buff, "dev_loss_tmo", value, NAME_LEN_MAX))
                         printf("  dev_loss_tmo=%s\n", value);
-                if (opts->verbose > 2)
-                        printf("fetched from directory: %s\n", buff);
+                if (opts->verbose > 2) {
+                        printf("  fetched from directory: %s\n", buff);
+                        printf("  fetched from directory: %s\n", b2);
+		}
                 break;
         case TRANSPORT_SAS:
                 printf("  transport=sas\n");
                 strcpy(buff, sysfsroot);
                 strcat(buff, sas_device);
                 strcat(buff, sas_hold_end_device);
+
+		strcpy(b2, path_name);
+		strcat(b2, "/device/");
+                if (get_value(b2, "vendor", value, NAME_LEN_MAX))
+                        printf("  vendor=%s\n", value);
+                if (get_value(b2, "model", value, NAME_LEN_MAX))
+                        printf("  model=%s\n", value);
+
                 strcpy(b2, sysfsroot);
                 strcat(b2, sas_end_device);
                 strcat(b2, sas_hold_end_device);
+                if (get_value(buff, "bay_identifier", value,
+                              NAME_LEN_MAX))
+                        printf("  bay_identifier=%s\n", value);
+                if (get_value(buff, "enclosure_identifier", value,
+                              NAME_LEN_MAX))
+                        printf("  enclosure_identifier=%s\n", value);
                 if (get_value(buff, "initiator_port_protocols", value,
                               NAME_LEN_MAX))
                         printf("  initiator_port_protocols=%s\n", value);
@@ -1445,6 +1603,10 @@ transport_tport_longer(const char * devname,
                 if (get_value(buff, "target_port_protocols", value,
                               NAME_LEN_MAX))
                         printf("  target_port_protocols=%s\n", value);
+                if (get_value(b2, "tlr_enabled", value, NAME_LEN_MAX))
+                        printf("  tlr_enabled=%s\n", value);
+                if (get_value(b2, "tlr_supported", value, NAME_LEN_MAX))
+                        printf("  tlr_supported=%s\n", value);
                 if (opts->verbose > 2) {
                         printf("fetched from directory: %s\n", buff);
                         printf("fetched from directory: %s\n", b2);
