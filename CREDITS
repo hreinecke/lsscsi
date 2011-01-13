@@ -26,7 +26,7 @@ Luben Tuikov <ltuikov at yahoo dot com>
 
 Mark Reed <mdr at sgi dot com>
     mine sas_port and fc_remote_ports directories for
-    more transport information [20101229]
+    more transport information [20110113]
 
 Martin K. Petersen <martin dot petersen at oracle dot com>
     co-author of protection information addition [20081206]

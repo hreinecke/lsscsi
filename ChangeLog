@@ -1,6 +1,7 @@
 
-Version 0.25 2010/12/29 [svn: r85]
+Version 0.25 2011/01/13 [svn: r86]
   - add sas_port and fc_remote_ports transport information
+  - print enclosure_device entry
 
 Version 0.24 2010/06/12 [svn: r83]
   - FC transport syntax changes (colon to slash)

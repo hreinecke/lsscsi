@@ -51,7 +51,7 @@ fi
 
 
 %changelog
-* Wed Dec 29 2010 - dgilbert at interlog dot com
+* Thu Jan 13 2011 - dgilbert at interlog dot com
 - add sas_port and fc_remore_ports transport information
   * lsscsi-0.25
 * Thu Dec 23 2010 - dgilbert at interlog dot com
