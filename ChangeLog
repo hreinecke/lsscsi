@@ -1,5 +1,5 @@
 
-Version 0.25 2011/01/13 [svn: r86]
+Version 0.25 2011/01/19 [svn: r87]
   - add sas_port and fc_remote_ports transport information
   - print enclosure_device entry
 

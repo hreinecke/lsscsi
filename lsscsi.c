@@ -26,7 +26,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.25  2011/01/13 [svn: r86]";
+static const char * version_str = "0.25  2011/01/19 [svn: r87]";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -307,8 +307,9 @@ enclosure_device_scandir_select(const struct dirent * s)
                 strncpy(enclosure_device.name, s->d_name, NAME_LEN_MAX);
                 enclosure_device.ft = FT_CHAR;  /* dummy */
                 enclosure_device.d_type =  s->d_type;
+                return 1;
         }
-        return 1;
+        return 0;
 }
 
 /* Return 1 for directory entry that is link or directory (other than a
