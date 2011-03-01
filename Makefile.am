@@ -1,6 +1,6 @@
 man_MANS = lsscsi.8
 SUBDIRS =
-EXTRA_DIST=autogen.sh
+EXTRA_DIST=autogen.sh $(man_MANS) CREDITS
 
 # added for Debian
 prefix=/usr

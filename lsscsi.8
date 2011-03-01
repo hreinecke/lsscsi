@@ -1,12 +1,13 @@
-.TH lsscsi "8" "January 2011" "lsscsi\-0.25" LSSCSI
+.TH lsscsi "8" "March 2011" "lsscsi\-0.25" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
 .B lsscsi
 [\fI\-\-classic\fR] [\fI\-\-device\fR] [\fI\-\-generic\fR] [\fI\-\-help\fR]
 [\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-long\fR]
-[\fI\-\-protection\fR] [\fI\-\-sysfsroot=PATH\fR] [\fI\-\-transport\fR]
-[\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fIH:C:T:L\fR]
+[\fI\-\-protection\fR] [\fI\-\-protmode\fR] [\fI\-\-size\fR]
+[\fI\-\-sysfsroot=PATH\fR] [\fI\-\-transport\fR] [\fI\-\-verbose\fR]
+[\fI\-\-version\fR] [\fIH:C:T:L\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
@@ -76,7 +77,13 @@ outputs SCSI device (host) attributes one per line; preceded by
 two spaces; in the form "<attribute_name>=<value>".
 .TP
 \fB\-p\fR, \fB\-\-protection\fR
-Output additional data integrity (protection) information.
+Output target (DIF) and initiator (DIX) protection types.
+.TP
+\fB\-P\fR, \fB\-\-protmode\fR
+Output effective protection information mode for each disk device.
+.TP
+\fB\-s\fR, \fB\-\-size\fR
+Print disk capacity in human readable form.
 .TP
 \fB\-t\fR, \fB\-\-transport\fR
 Output transport information. This will be a target related information or,

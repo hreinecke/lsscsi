@@ -226,7 +226,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 man_MANS = lsscsi.8
 SUBDIRS = 
-EXTRA_DIST = autogen.sh
+EXTRA_DIST = autogen.sh $(man_MANS) CREDITS
 
 # INCLUDES = -I$(top_srcdir)/include
 AM_CFLAGS = -Wall -W

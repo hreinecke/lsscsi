@@ -15,6 +15,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
@@ -26,7 +27,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.25  2011/01/19 [svn: r87]";
+static const char * version_str = "0.25  2011/03/01 [svn: r88]";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -85,6 +86,8 @@ struct lsscsi_opt_coll {
         int transport;
         int verbose;
         int protection;         /* data integrity */
+	int protmode;		/* data integrity */
+        int size;
 };
 
 
@@ -127,6 +130,7 @@ static const char * scsi_short_device_types[] =
         "wlun   ", "no dev ",
 };
 
+/* '--name' ('-n') option removed in version 0.11 and can now be reused */
 static struct option long_options[] = {
         {"classic", 0, 0, 'c'},
         {"device", 0, 0, 'd'},
@@ -136,14 +140,86 @@ static struct option long_options[] = {
         {"kname", 0, 0, 'k'},
         {"long", 0, 0, 'l'},
         {"list", 0, 0, 'L'},
-/*      {"name", 0, 0, 'n'},    */
         {"protection", 0, 0, 'p'},
+        {"protmode", 0, 0, 'P'},
+        {"size", 0, 0, 's'},
         {"sysfsroot", 1, 0, 'y'},
         {"transport", 0, 0, 't'},
         {"verbose", 0, 0, 'v'},
         {"version", 0, 0, 'V'},
         {0, 0, 0, 0}
 };
+
+typedef uint64_t u64;
+
+#define do_div(n,base) ({ \
+        int __res; \
+        __res = ((unsigned long) n) % (unsigned) base; \
+        n = ((unsigned long) n) / (unsigned) base; \
+        __res; })
+
+enum string_size_units {
+        STRING_UNITS_10,        /* use powers of 10^3 (standard SI) */
+        STRING_UNITS_2,         /* use binary powers of 2^10 */
+};
+
+/**
+ * string_get_size - get the size in the specified units
+ * @size:       The size to be converted
+ * @units:      units to use (powers of 1000 or 1024)
+ * @buf:        buffer to format to
+ * @len:        length of buffer
+ *
+ * This function returns a string formatted to 3 significant figures
+ * giving the size in the required units.  Returns 0 on success or
+ * error on failure.  @buf is always zero terminated.
+ *
+ */
+int string_get_size(u64 size, const enum string_size_units units,
+                    char *buf, int len)
+{
+        const char *units_10[] = { "B", "kB", "MB", "GB", "TB", "PB",
+                                   "EB", "ZB", "YB", NULL};
+        const char *units_2[] = {"B", "KiB", "MiB", "GiB", "TiB", "PiB",
+                                 "EiB", "ZiB", "YiB", NULL };
+        const char **units_str[] = {
+                [STRING_UNITS_10] =  units_10,
+                [STRING_UNITS_2] = units_2,
+        };
+        const unsigned int divisor[] = {
+                [STRING_UNITS_10] = 1000,
+                [STRING_UNITS_2] = 1024,
+        };
+        int i, j;
+        u64 remainder = 0, sf_cap;
+        char tmp[8];
+
+        tmp[0] = '\0';
+        i = 0;
+        if (size >= divisor[units]) {
+                while (size >= divisor[units] && units_str[units][i]) {
+                        remainder = do_div(size, divisor[units]);
+                        i++;
+                }
+
+                sf_cap = size;
+                for (j = 0; sf_cap*10 < 1000; j++)
+                        sf_cap *= 10;
+
+                if (j) {
+                        remainder *= 1000;
+                        do_div(remainder, divisor[units]);
+                        snprintf(tmp, sizeof(tmp), ".%03lld",
+                                 (unsigned long long)remainder);
+                        tmp[j+1] = '\0';
+                }
+        }
+
+        snprintf(buf, len, "%lld%s", (unsigned long long)size,
+                 units_str[units][i]);
+
+        return 0;
+}
 
 
 /* Device node list: contains the information needed to match a node with a
@@ -186,8 +262,9 @@ static int iscsi_tsession_num;
 
 static const char * usage_message =
 "Usage: lsscsi   [--classic] [--device] [--generic] [--help] [--hosts]\n"
-            "\t\t[--kname] [--list] [--long] [--protection] [--sysfsroot=PATH]\n"
-            "\t\t[--transport] [--verbose] [--version] [<h:c:t:l>]\n"
+            "\t\t[--kname] [--list] [--long] [--protection] [--size]\n"
+            "\t\t[--sysfsroot=PATH] [--transport] [--verbose] [--version]\n"
+            "\t\t[<h:c:t:l>]\n"
 "  where:\n"
 "    --classic|-c      alternate output similar to 'cat /proc/scsi/scsi'\n"
 "    --device|-d       show device node's major + minor numbers\n"
@@ -198,7 +275,9 @@ static const char * usage_message =
 "    --list|-L         additional information output one\n"
 "                      attribute=value per line\n"
 "    --long|-l         additional information output\n"
-"    --protection|-p   show data integrity (protection) information\n"
+"    --protection|-p   show target and initiator protection information\n"
+"    --protmode|-P     show negotiated protection information mode\n"
+"    --size|-s         show disk size\n"
 "    --sysfsroot=PATH|-y PATH    set sysfs mount point to PATH (def: /sys)\n"
 "    --transport|-t    transport information for target or, if '--hosts'\n"
 "                      given, for initiator\n"
@@ -294,6 +373,11 @@ block_scan(const char * dir_name, const struct lsscsi_opt_coll * opts)
         for (k = 0; k < num; ++k)
                 free(namelist[k]);
         free(namelist);
+	/* Add bdev name if path is block/sda instead of block:sda (2.6.34+) */
+	if (num && strstr(aa_block.name, ":") == 0) {
+		strcat(aa_block.name, "/");
+		strcat(aa_block.name, aa_first.name);
+	}
         return num;
 }
 
@@ -2104,24 +2188,24 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         if (if_directory_chdir(buff,aa_sd.name)) {
                                 char value[NAME_LEN_MAX];
                                 char sddir[NAME_LEN_MAX];
-                                strncpy(sddir,buff,NAME_LEN_MAX);
+                                strncpy(sddir, buff, NAME_LEN_MAX);
                                 strcat(sddir,"/");
-                                strcat(sddir,aa_sd.name);
-                                if (!get_value(sddir, "protection_type", value, 
+                                strcat(sddir, aa_sd.name);
+                                if (!get_value(sddir, "protection_type", value,
                                         NAME_LEN_MAX)) {
                                         /* kernel < 2.6.27 */
                                         if (opts->verbose)
-                                                printf(" No Data Integrity "
-                                                                "Support\n");
+                                                printf("No Data Integrity "
+						       "Support\n");
                                 } else {
                                         kernel_dif_support = 1;
                                         if (strncmp(value, "0", 1))
-                                                printf("  DIF/Type%1s ",value);
+                                                printf(" DIF/Type%1s ", value);
                                         else
-                                                printf("  -         ");
+                                                printf(" -         ");
                                 }
                         } else {
-                                printf("  -         ");
+                                printf(" -         ");
                         }
                 }
 
@@ -2146,6 +2230,47 @@ one_sdev_entry(const char * dir_name, const char * devname,
                                         printf(" %-17s","-   ");
                                 }
                         }
+                }
+        }
+
+        if (opts->protmode) {
+                if (sd_scan(buff,opts)) {
+                        if (if_directory_chdir(buff,aa_sd.name)) {
+                                char value[NAME_LEN_MAX];
+                                char sddir[NAME_LEN_MAX];
+                                strncpy(sddir, buff, NAME_LEN_MAX);
+                                strcat(sddir, "/");
+                                strcat(sddir, aa_sd.name);
+                                if (!get_value(sddir, "protection_mode", value,
+					       NAME_LEN_MAX)) {
+                                        /* kernel < 2.6.37 */
+                                        if (opts->verbose)
+                                                printf("Kernel too old\n");
+                                } else {
+					if (!strcmp(value, "none"))
+						printf(" %-4s ", "-");
+					else
+						printf(" %-4s ", value);
+				}
+                        } else {
+                                printf(" -    ");
+                        }
+                }
+	}
+
+        if (opts->size && block_scan(buff, opts) &&
+            if_directory_chdir(buff, aa_block.name)) {
+                char value[NAME_LEN_MAX];
+
+                if (get_value(".", "size", value, NAME_LEN_MAX)) {
+                        u64 blocks = atol(value);
+
+                        if (!string_get_size(blocks << 9, STRING_UNITS_2,
+                                             value, NAME_LEN_MAX)) {
+                                value[strlen(value)-2] = '\0';
+                                printf("  %8s", value);
+                        } else
+                                printf("  %8s", "-");
                 }
         }
 
@@ -2600,7 +2725,7 @@ main(int argc, char **argv)
         while (1) {
                 int option_index = 0;
 
-                c = getopt_long(argc, argv, "cdghHklLptvVy:", long_options,
+                c = getopt_long(argc, argv, "cdghHklLpPstvVy:", long_options,
                                 &option_index);
                 if (c == -1)
                         break;
@@ -2632,6 +2757,12 @@ main(int argc, char **argv)
                         break;
                 case 'p':
                         ++opts.protection;
+                        break;
+                case 'P':
+                        ++opts.protmode;
+                        break;
+                case 's':
+                        ++opts.size;
                         break;
                 case 't':
                         ++opts.transport;

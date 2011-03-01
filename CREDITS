@@ -30,6 +30,7 @@ Mark Reed <mdr at sgi dot com>
 
 Martin K. Petersen <martin dot petersen at oracle dot com>
     co-author of protection information addition [20081206]
+    '--size' and '--protmode' options [20110301]
 
 Mike Christie <michaelc at cs dot wisc dot edu>
     iSCSI transport help [20070104]
@@ -44,4 +45,4 @@ Stefan Richter <stefanr at s5r6 dot in-berlin dot de>
     transport help with ieee1394 [20061231]
 
 Doug Gilbert
-29th December 2010
+1st March 2011

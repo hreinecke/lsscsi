@@ -1,7 +1,9 @@
 
-Version 0.25 2011/01/19 [svn: r87]
+Version 0.25 2011/03/01 [svn: r88]
   - add sas_port and fc_remote_ports transport information
   - print enclosure_device entry
+  - add '--size' option to show size of disks
+  - add '--protmode' option to show protection information mode
 
 Version 0.24 2010/06/12 [svn: r83]
   - FC transport syntax changes (colon to slash)
