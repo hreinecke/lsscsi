@@ -27,7 +27,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.25  2011/03/04 [svn: r89]";
+static const char * version_str = "0.25  2011/03/04 [svn: r90]";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -150,12 +150,11 @@ static struct option long_options[] = {
         {0, 0, 0, 0}
 };
 
-typedef uint64_t u64;
 
-static unsigned long
-do_div_rem(unsigned long long * np, unsigned long base)
+static unsigned int
+do_div_rem(uint64_t * np, unsigned int base)
 {
-        unsigned long res;
+        unsigned int res;
 
         res = *np % base;
         *np /= base;
@@ -179,7 +178,7 @@ enum string_size_units {
  * error on failure.  @buf is always zero terminated.
  *
  */
-int string_get_size(u64 size, const enum string_size_units units,
+int string_get_size(uint64_t size, const enum string_size_units units,
                     char *buf, int len)
 {
         const char *units_10[] = { "B", "kB", "MB", "GB", "TB", "PB",
@@ -195,7 +194,9 @@ int string_get_size(u64 size, const enum string_size_units units,
                 [STRING_UNITS_2] = 1024,
         };
         int i, j;
-        u64 remainder = 0, sf_cap;
+        unsigned int res;
+        uint64_t sf_cap;
+        uint64_t remainder = 0;
         char tmp[8];
 
         tmp[0] = '\0';
@@ -213,14 +214,14 @@ int string_get_size(u64 size, const enum string_size_units units,
                 if (j) {
                         remainder *= 1000;
                         do_div_rem(&remainder, divisor[units]);
-                        snprintf(tmp, sizeof(tmp), ".%03lld",
-                                 (unsigned long long)remainder);
+                        res = remainder;
+                        snprintf(tmp, sizeof(tmp), ".%03u", res);
                         tmp[j+1] = '\0';
                 }
         }
 
-        snprintf(buf, len, "%lld%s%s", (unsigned long long)size,
-                 tmp, units_str[units][i]);
+        res = size;
+        snprintf(buf, len, "%u%s%s", res, tmp, units_str[units][i]);
 
         return 0;
 }
@@ -2258,7 +2259,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                     block_scan(blkdir) &&
                     if_directory_chdir(blkdir, ".") &&
                     get_value(".", "size", value, NAME_LEN_MAX)) {
-                        u64 blocks = atol(value);
+                        uint64_t blocks = atol(value);
 
                         blocks <<= 9;
                         if (blocks > 0 &&
