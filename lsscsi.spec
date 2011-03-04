@@ -51,7 +51,7 @@ fi
 
 
 %changelog
-* Tue Mar 01 2011 - dgilbert at interlog dot com
+* Fri Mar 04 2011 - dgilbert at interlog dot com
 - add sas_port and fc_remore_ports infoR; '--size' option
   * lsscsi-0.25
 * Thu Dec 23 2010 - dgilbert at interlog dot com

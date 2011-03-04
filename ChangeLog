@@ -1,5 +1,5 @@
 
-Version 0.25 2011/03/01 [svn: r88]
+Version 0.25 2011/03/04 [svn: r89]
   - add sas_port and fc_remote_ports transport information
   - print enclosure_device entry
   - add '--size' option to show size of disks

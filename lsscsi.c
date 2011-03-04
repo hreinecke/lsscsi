@@ -27,7 +27,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.25  2011/03/01 [svn: r88]";
+static const char * version_str = "0.25  2011/03/04 [svn: r89]";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -86,7 +86,7 @@ struct lsscsi_opt_coll {
         int transport;
         int verbose;
         int protection;         /* data integrity */
-	int protmode;		/* data integrity */
+        int protmode;           /* data integrity */
         int size;
 };
 
@@ -152,11 +152,15 @@ static struct option long_options[] = {
 
 typedef uint64_t u64;
 
-#define do_div(n,base) ({ \
-        int __res; \
-        __res = ((unsigned long) n) % (unsigned) base; \
-        n = ((unsigned long) n) / (unsigned) base; \
-        __res; })
+static unsigned long
+do_div_rem(unsigned long long * np, unsigned long base)
+{
+        unsigned long res;
+
+        res = *np % base;
+        *np /= base;
+        return res;
+}
 
 enum string_size_units {
         STRING_UNITS_10,        /* use powers of 10^3 (standard SI) */
@@ -197,8 +201,8 @@ int string_get_size(u64 size, const enum string_size_units units,
         tmp[0] = '\0';
         i = 0;
         if (size >= divisor[units]) {
-                while (size >= divisor[units] && units_str[units][i]) {
-                        remainder = do_div(size, divisor[units]);
+                while ((size >= divisor[units]) && units_str[units][i]) {
+                        remainder = do_div_rem(&size, divisor[units]);
                         i++;
                 }
 
@@ -208,15 +212,15 @@ int string_get_size(u64 size, const enum string_size_units units,
 
                 if (j) {
                         remainder *= 1000;
-                        do_div(remainder, divisor[units]);
+                        do_div_rem(&remainder, divisor[units]);
                         snprintf(tmp, sizeof(tmp), ".%03lld",
                                  (unsigned long long)remainder);
                         tmp[j+1] = '\0';
                 }
         }
 
-        snprintf(buf, len, "%lld%s", (unsigned long long)size,
-                 units_str[units][i]);
+        snprintf(buf, len, "%lld%s%s", (unsigned long long)size,
+                 tmp, units_str[units][i]);
 
         return 0;
 }
@@ -248,8 +252,6 @@ struct item_t {
 static struct item_t non_sg;
 static struct item_t aa_sg;
 static struct item_t aa_first;
-static struct item_t aa_sd;
-static struct item_t aa_block;
 static struct item_t enclosure_device;
 
 static char sas_low_phy[NAME_LEN_MAX];
@@ -337,48 +339,104 @@ first_scandir_select(const struct dirent * s)
         return 1;
 }
 
+static int
+sub_scandir_select(const struct dirent * s)
+{
+        if (s->d_type == DT_LNK)
+                return 1;
+
+        if (s->d_type == DT_DIR && s->d_name[0] != '.')
+                return 1;
+
+        return 0;
+}
+
+static int
+sd_scandir_select(const struct dirent * s)
+{
+        if (s->d_type != DT_LNK && s->d_type != DT_DIR)
+                return 0;
+
+        if (s->d_name[0] == '.')
+                return 0;
+
+        if (strstr(s->d_name, "scsi_disk"))
+                return 1;
+
+        return 0;
+}
+
 /* Return 1 for directory entry that is link or directory (other than a
  * directory name starting with dot) that contains "block". Else return 0.
  */
 static int
 block_scandir_select(const struct dirent * s)
 {
-        if ((DT_LNK != s->d_type) &&
-            ((DT_DIR != s->d_type) || ('.' == s->d_name[0])))
+        if (s->d_type != DT_LNK && s->d_type != DT_DIR)
                 return 0;
-        if (strstr(s->d_name, "block")){
-                strncpy(aa_block.name, s->d_name, NAME_LEN_MAX);
-                aa_block.ft = FT_CHAR;  /* dummy */
-                aa_block.d_type =  s->d_type;
+
+        if (s->d_name[0] == '.')
+                return 0;
+
+        if (strstr(s->d_name, "block"))
+                return 1;
+
+        return 0;
+}
+
+typedef int (* dirent_select_fn) (const struct dirent *);
+
+static int
+sub_scan(char * dir_name, const char * sub_str, dirent_select_fn fn)
+{
+        struct dirent ** namelist;
+        int num, i;
+
+        num = scandir(dir_name, &namelist, fn, NULL);
+        if (num <= 0)
+                return 0;
+
+        strcat(dir_name, "/");
+        strcat(dir_name, namelist[0]->d_name);
+
+        for (i = 0; i < num; i++)
+                free(namelist[i]);
+        free(namelist);
+
+        if (num && strstr(dir_name, sub_str) == 0) {
+
+                num = scandir(dir_name, &namelist, sub_scandir_select, NULL);
+
+                if (num <= 0)
+                        return 0;
+
+                strcat(dir_name, "/");
+                strcat(dir_name, namelist[0]->d_name);
+
+                for (i = 0; i < num; i++)
+                        free(namelist[i]);
+                free(namelist);
         }
+
         return 1;
 }
 
-/* scan for scsi_disk directory in  /sys/bus/scsi/devices/<h:c:i:l> */
+/* Scan for block:sdN or block/sdN directory in
+ * /sys/bus/scsi/devices/h:c:i:l
+ */
 static int
-block_scan(const char * dir_name, const struct lsscsi_opt_coll * opts)
+block_scan(char * dir_name)
 {
-        char name[NAME_LEN_MAX];
-        struct dirent ** namelist;
-        int num, k;
+        return sub_scan(dir_name, "block:", block_scandir_select);
+}
 
-        num = scandir(dir_name, &namelist, block_scandir_select, NULL);
-        if (num < 0) {
-                if (opts->verbose > 0) {
-                        snprintf(name, NAME_LEN_MAX, "scandir: %s", dir_name);
-                        perror(name);
-                }
-                return -1;
-        }
-        for (k = 0; k < num; ++k)
-                free(namelist[k]);
-        free(namelist);
-	/* Add bdev name if path is block/sda instead of block:sda (2.6.34+) */
-	if (num && strstr(aa_block.name, ":") == 0) {
-		strcat(aa_block.name, "/");
-		strcat(aa_block.name, aa_first.name);
-	}
-        return num;
+/* Scan for scsi_disk:h:c:i:l or scsi_disk/h:c:i:l directory in
+ * /sys/bus/scsi/devices/h:c:i:l
+ */
+static int
+sd_scan(char * dir_name)
+{
+        return sub_scan(dir_name, "scsi_disk:", sd_scandir_select);
 }
 
 static int
@@ -408,42 +466,6 @@ enclosure_device_scan(const char * dir_name, const struct lsscsi_opt_coll * opts
         int num, k;
 
         num = scandir(dir_name, &namelist, enclosure_device_scandir_select, NULL);
-        if (num < 0) {
-                if (opts->verbose > 0) {
-                        snprintf(name, NAME_LEN_MAX, "scandir: %s", dir_name);
-                        perror(name);
-                }
-                return -1;
-        }
-        for (k = 0; k < num; ++k)
-                free(namelist[k]);
-        free(namelist);
-        return num;
-}
-
-
-static int
-sd_scandir_select(const struct dirent * s)
-{
-        if ((DT_LNK != s->d_type) &&
-            ((DT_DIR != s->d_type) || ('.' == s->d_name[0])))
-                return 0;
-        if (strstr(s->d_name, "scsi_disk")){
-                strncpy(aa_sd.name, s->d_name, NAME_LEN_MAX);
-                aa_sd.ft = FT_CHAR;  /* dummy */
-                aa_sd.d_type =  s->d_type;
-        }
-        return 1;
-}
-
-static int
-sd_scan(const char * dir_name, const struct lsscsi_opt_coll * opts)
-{
-        char name[NAME_LEN_MAX];
-        struct dirent ** namelist;
-        int num, k;
-
-        num = scandir(dir_name, &namelist, sd_scandir_select, NULL);
         if (num < 0) {
                 if (opts->verbose > 0) {
                         snprintf(name, NAME_LEN_MAX, "scandir: %s", dir_name);
@@ -2151,7 +2173,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         }
                 }
         } else
-                printf("-       ");
+                printf("%-9s", "-");
 
         if (opts->generic) {
                 if (if_directory_ch2generic(buff)) {
@@ -2168,7 +2190,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                                 else if (!get_dev_node(wd, dev_node, CHR_DEV))
                                         snprintf(dev_node, NAME_MAX, "-");
 
-                                printf("  %s", dev_node);
+                                printf("  %-9s", dev_node);
                                 if (opts->dev_maj_min) {
                                         if (get_value(wd, "dev", value,
                                                       NAME_LEN_MAX))
@@ -2179,99 +2201,74 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         }
                 }
                 else
-                        printf("  -");
+                        printf("  %-9s", "-");
         }
 
         if (opts->protection) {
-                int kernel_dif_support = 0;
-                if (sd_scan(buff,opts)) {
-                        if (if_directory_chdir(buff,aa_sd.name)) {
-                                char value[NAME_LEN_MAX];
-                                char sddir[NAME_LEN_MAX];
-                                strncpy(sddir, buff, NAME_LEN_MAX);
-                                strcat(sddir,"/");
-                                strcat(sddir, aa_sd.name);
-                                if (!get_value(sddir, "protection_type", value,
-                                        NAME_LEN_MAX)) {
-                                        /* kernel < 2.6.27 */
-                                        if (opts->verbose)
-                                                printf("No Data Integrity "
-						       "Support\n");
-                                } else {
-                                        kernel_dif_support = 1;
-                                        if (strncmp(value, "0", 1))
-                                                printf(" DIF/Type%1s ", value);
-                                        else
-                                                printf(" -         ");
-                                }
-                        } else {
-                                printf(" -         ");
-                        }
-                }
+                char sddir[NAME_LEN_MAX];
+                char blkdir[NAME_LEN_MAX];
 
-                if (kernel_dif_support && block_scan(buff,opts)) {
-                        if (if_directory_chdir(buff,aa_block.name)) {
-                                char value[NAME_LEN_MAX];
-                                char blkdir[NAME_LEN_MAX];
-                                strncpy(blkdir,buff,NAME_LEN_MAX);
-                                strcat(blkdir,"/");
-                                strcat(blkdir,aa_block.name);
-                                if (if_directory_chdir(blkdir,"integrity")) {
-                                        if (!get_value(".", "format", value, 
-                                                                NAME_LEN_MAX)) {
-                                                if (opts->verbose)
-                                                        printf(" No Data "
-                                                                "Integrity "
-                                                                "Support\n");
-                                        } else {
-                                                printf(" %-17s",value);
-                                        }
-                                } else {
-                                        printf(" %-17s","-   ");
-                                }
-                        }
-                }
+                strncpy(sddir,  buff, NAME_LEN_MAX);
+                strncpy(blkdir, buff, NAME_LEN_MAX);
+
+                if (sd_scan(sddir) &&
+                    if_directory_chdir(sddir, ".") &&
+                    get_value(".", "protection_type", value, NAME_LEN_MAX)) {
+
+                        if (!strncmp(value, "0", 1))
+                                printf("  %-9s", "-");
+                        else
+                                printf("  DIF/Type%1s", value);
+
+                } else
+                        printf("  %-9s", "-");
+
+                if (block_scan(blkdir) &&
+                    if_directory_chdir(blkdir, "integrity") &&
+                    get_value(".", "format", value, NAME_LEN_MAX))
+                        printf("  %-16s", value);
+                else
+                        printf("  %-16s", "-");
         }
 
         if (opts->protmode) {
-                if (sd_scan(buff,opts)) {
-                        if (if_directory_chdir(buff,aa_sd.name)) {
-                                char value[NAME_LEN_MAX];
-                                char sddir[NAME_LEN_MAX];
-                                strncpy(sddir, buff, NAME_LEN_MAX);
-                                strcat(sddir, "/");
-                                strcat(sddir, aa_sd.name);
-                                if (!get_value(sddir, "protection_mode", value,
-					       NAME_LEN_MAX)) {
-                                        /* kernel < 2.6.37 */
-                                        if (opts->verbose)
-                                                printf("Kernel too old\n");
-                                } else {
-					if (!strcmp(value, "none"))
-						printf(" %-4s ", "-");
-					else
-						printf(" %-4s ", value);
-				}
-                        } else {
-                                printf(" -    ");
-                        }
-                }
-	}
+                char sddir[NAME_LEN_MAX];
 
-        if (opts->size && block_scan(buff, opts) &&
-            if_directory_chdir(buff, aa_block.name)) {
-                char value[NAME_LEN_MAX];
+                strncpy(sddir, buff, NAME_LEN_MAX);
 
-                if (get_value(".", "size", value, NAME_LEN_MAX)) {
+                if (sd_scan(sddir) &&
+                    if_directory_chdir(sddir, ".") &&
+                    get_value(sddir, "protection_mode", value, NAME_LEN_MAX)) {
+
+                        if (!strcmp(value, "none"))
+                                printf("  %-4s", "-");
+                        else
+                                printf("  %-4s", value);
+                } else
+                        printf("  %-4s", "-");
+        }
+
+        if (opts->size) {
+                char blkdir[NAME_LEN_MAX];
+
+                strncpy(blkdir, buff, NAME_LEN_MAX);
+
+                value[0] = 0;
+                if (type == 0 &&
+                    block_scan(blkdir) &&
+                    if_directory_chdir(blkdir, ".") &&
+                    get_value(".", "size", value, NAME_LEN_MAX)) {
                         u64 blocks = atol(value);
 
-                        if (!string_get_size(blocks << 9, STRING_UNITS_2,
-                                             value, NAME_LEN_MAX)) {
-                                value[strlen(value)-2] = '\0';
-                                printf("  %8s", value);
+                        blocks <<= 9;
+                        if (blocks > 0 &&
+                            !string_get_size(blocks, STRING_UNITS_10, value,
+                                             NAME_LEN_MAX)) {
+                                printf("  %6s", value);
                         } else
-                                printf("  %8s", "-");
-                }
+                                printf("  %6s", "-");
+                } else
+                        printf("  %6s", "-");
         }
 
         printf("\n");
