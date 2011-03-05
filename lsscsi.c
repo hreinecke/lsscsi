@@ -8,7 +8,7 @@
  *  any later version.
  */
 
-#define _XOPEN_SOURCE 500
+#define _XOPEN_SOURCE 600
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
@@ -27,7 +27,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.25  2011/03/04 [svn: r90]";
+static const char * version_str = "0.25  2011/03/04 [svn: r91]";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -2259,7 +2259,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                     block_scan(blkdir) &&
                     if_directory_chdir(blkdir, ".") &&
                     get_value(".", "size", value, NAME_LEN_MAX)) {
-                        uint64_t blocks = atol(value);
+                        uint64_t blocks = atoll(value);
 
                         blocks <<= 9;
                         if (blocks > 0 &&
