@@ -4,3 +4,13 @@ For a description of this utility see:
 http://sg.danny.cz/scsi/lsscsi.html
 
 The "man" page (lsscsi.8) in this directory may also be useful.
+
+In Linux kernel versions 2.6.37 and 2.6.38 (and perhaps later)
+configuring:
+  CONFIG_SYSFS_DEPRECATED=y
+  CONFIG_SYSFS_DEPRECATED_V2=y 
+
+causes blocks device names (e.g. /dev/sda) not to be found.
+
+Douglas Gilbert
+9th May 2011

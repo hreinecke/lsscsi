@@ -27,7 +27,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.25  2011/03/04 [svn: r91]";
+static const char * version_str = "0.25  2011/05/09 [svn: r92]";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
