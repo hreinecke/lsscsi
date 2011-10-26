@@ -51,6 +51,9 @@ fi
 
 
 %changelog
+* Wed Oct 26 2011 - dgilbert at interlog dot com
+- add fcoe transport indicator
+  * lsscsi-0.26
 * Mon May 09 2011 - dgilbert at interlog dot com
 - add sas_port and fc_remore_ports infoR; '--size' option
   * lsscsi-0.25

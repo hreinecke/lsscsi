@@ -1,4 +1,7 @@
 
+Version 0.26 2011/10/26 [svn: r93]
+  - add 'fcoe' transport indicator
+
 Version 0.25 2011/05/09 [svn: r92]
   - add sas_port and fc_remote_ports transport information
   - print enclosure_device entry

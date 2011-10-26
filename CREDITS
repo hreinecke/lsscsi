@@ -11,6 +11,7 @@ FUJITA Tomonori <fujita dot tomonori at lab dot ntt dot co dot jp>
 Hannes Reinecke <hare at suse dot de >
     proposed additional code so lsscsi would work with lk 2.6.26
     (when CONFIG_SYSFS_DEPRECATED_V2 not defined) [20080318]
+    fcoe transport indicator [20111026]
 
 Ihab Hamadi <ihab dot hamadi at emulex dot com>
     co-author of protection information addition [20081206]

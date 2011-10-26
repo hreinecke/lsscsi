@@ -27,7 +27,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.25  2011/05/09 [svn: r92]";
+static const char * version_str = "0.26  2011/10/26 [svn: r93]";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -44,6 +44,7 @@ static const char * version_str = "0.25  2011/05/09 [svn: r92]";
 #define TRANSPORT_USB 7
 #define TRANSPORT_ATA 8         /* probably PATA, could be SATA */
 #define TRANSPORT_SATA 9        /* most likely SATA */
+#define TRANSPORT_FCOE 10
 
 static int transport_id = TRANSPORT_UNKNOWN;
 
@@ -1072,8 +1073,16 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * opts, */
         strcat(buff, fc_host);
         strcat(buff, devname);
         if ((stat(buff, &a_stat) >= 0) && S_ISDIR(a_stat.st_mode)) {
-                transport_id = TRANSPORT_FC;
-                snprintf(b, b_len, "fc:");
+                if (get_value(buff, "symbolic_name", wd, NAME_LEN_MAX)) {
+                        if (strstr(wd, " over ")) {
+                                transport_id = TRANSPORT_FCOE;
+                                snprintf(b, b_len, "fcoe:");
+                        }
+                }
+                if (transport_id != TRANSPORT_FCOE) {
+                        transport_id = TRANSPORT_FC;
+                        snprintf(b, b_len, "fc:");
+                }
                 off = strlen(b);
                 if (get_value(buff, "port_name", b + off, b_len - off)) {
                         strcat(b, ",");
@@ -1234,7 +1243,9 @@ transport_init_longer(const char * path_name,
                         printf("  signalling=%s\n", value);
                 break;
         case TRANSPORT_FC:
-                printf("  transport=fc\n");
+        case TRANSPORT_FCOE:
+                printf("  transport=%s\n",
+                       transport_id == TRANSPORT_FC ? "fc:" : "fcoe:");
                 strcat(buff, "/device/fc_host/");
                 strcat(buff, cp);
 
@@ -1527,13 +1538,21 @@ transport_tport(const char * devname,
         len = strlen(buff);
         snprintf(buff + len, NAME_LEN_MAX - len, "host%d", hctl.h);
         if ((stat(buff, &a_stat) >= 0) && S_ISDIR(a_stat.st_mode)) {
-                transport_id = TRANSPORT_FC;
+                if (get_value(buff, "symbolic_name", wd, NAME_LEN_MAX)) {
+                        if (strstr(wd, " over ")) {
+                                transport_id = TRANSPORT_FCOE;
+                                snprintf(b, b_len, "fcoe:");
+                        }
+                }
+                if (transport_id != TRANSPORT_FCOE) {
+                        transport_id = TRANSPORT_FC;
+                        snprintf(b, b_len, "fc:");
+                }
                 strcpy(buff, sysfsroot);
                 strcat(buff, fc_transport);
                 len = strlen(buff);
                 snprintf(buff + len, NAME_LEN_MAX - len, "target%d:%d:%d",
                          hctl.h, hctl.c, hctl.t);
-                snprintf(b, b_len, "fc:");
                 off = strlen(b);
                 if (get_value(buff, "port_name", b + off, b_len - off)) {
                         strcat(b, ",");
@@ -1677,7 +1696,9 @@ transport_tport_longer(const char * devname,
                         printf("  width=%s\n", value);
                 break;
         case TRANSPORT_FC:
-                printf("  transport=fc\n");
+        case TRANSPORT_FCOE:
+                printf("  transport=%s\n",
+                       transport_id == TRANSPORT_FC ? "fc:" : "fcoe:");
                 if (! if_directory_chdir(path_name, "device"))
                         return;
                 if (NULL == getcwd(wd, NAME_LEN_MAX))

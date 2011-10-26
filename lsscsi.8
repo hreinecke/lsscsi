@@ -1,4 +1,4 @@
-.TH lsscsi "8" "March 2011" "lsscsi\-0.25" LSSCSI
+.TH lsscsi "8" "October 2011" "lsscsi\-0.26" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
@@ -170,6 +170,7 @@ option these ids will be for the target port associated with the
 device (logical unit) being listed. When the \fI\-\-hosts\fR option is
 given then the ids are for the initiator port used by the host. Output
 on the summary line specific to the FC transport is prefixed by "fc:".
+If FCoE (over ethernet) is detected the prefix is changed to "fcoe:".
 .PP
 For iSCSI the target port name is output when \fI\-\-transport\fR is given,
 in the absence of the \fI\-\-hosts\fR option. This is made up of the
