@@ -24,11 +24,12 @@ Rpms are also available. A lsscsi.spec file is included in the tarball
 to facilitate building rpms. One way of doing this on a RedHat system
 is to place the tarball in the /usr/src/redhat/SOURCE directory and
 the spec file in the /usr/src/redhat/SPEC directory. Then execute
-'rpmbuild -ba lsscsi.spec' from the "SPEC" directory. If successful then
-will deposit the binary rpm in the /usr/src/redhat/RPMS/i386 directory
-and the source rpm in the /usr/src/redhat/SRPMS directory. Building an
-rpm on Suse and Mandrake is similar (although they use their names
-rather than "redhat" in the above paths).
+'rpmbuild -ba lsscsi.spec' from the "SPEC" directory. [Specifying the
+target may help (e.g. 'rpmbuild --target=i386 -ba lsscsi.spec') . If
+successful that will deposit the binary rpm in the /usr/src/redhat/RPMS/i386
+directory and the source rpm in the /usr/src/redhat/SRPMS directory.
+Building an rpm on Suse and Mandrake is similar (although they use their
+names rather than "redhat" in the above paths).
 
 
 To build a Linux debian "deb" (binary) package, first untar the tarball,
@@ -37,6 +38,8 @@ then change directory to the top level within the lsscsi source. Then:
  # dpkg-buildpackage -b -rfakeroot
 The binary deb packages will be placed in the parent directory (of
 the lsscsi source directory) if all goes well.
+There is a build_debian.sh script in the tarball's top level directory
+that does the above.
 
 Douglas Gilbert
-24th December 2010
+8th November 2011

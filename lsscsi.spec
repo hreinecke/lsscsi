@@ -1,5 +1,5 @@
 %define name    lsscsi
-%define version 0.25
+%define version 0.26
 %define release 1
 
 Summary: 	List SCSI devices (or hosts) and associated information
