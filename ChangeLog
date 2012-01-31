@@ -1,6 +1,7 @@
 
-Version 0.26 2011/11/08 [svn: r94]
+Version 0.26 2011/11/08 [svn: r95]
   - add 'fcoe' transport indicator
+  - add '--wwn' option, datamine /dev/disk/by-id/wwn*
 
 Version 0.25 2011/05/09 [svn: r92]
   - add sas_port and fc_remote_ports transport information

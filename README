@@ -13,4 +13,4 @@ configuring:
 causes blocks device names (e.g. /dev/sda) not to be found.
 
 Douglas Gilbert
-8th November 2011
+30th January 2012

@@ -1,4 +1,4 @@
-.TH lsscsi "8" "October 2011" "lsscsi\-0.26" LSSCSI
+.TH lsscsi "8" "January 2012" "lsscsi\-0.26" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
@@ -7,7 +7,7 @@ lsscsi \- list SCSI devices (or hosts) and their attributes
 [\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-long\fR]
 [\fI\-\-protection\fR] [\fI\-\-protmode\fR] [\fI\-\-size\fR]
 [\fI\-\-sysfsroot=PATH\fR] [\fI\-\-transport\fR] [\fI\-\-verbose\fR]
-[\fI\-\-version\fR] [\fIH:C:T:L\fR]
+[\fI\-\-version\fR] [\fI\-\-wwn\fR] [\fIH:C:T:L\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
@@ -101,6 +101,12 @@ more output.
 .TP
 \fB\-V\fR, \fB\-\-version\fR
 outputs version information then exits.
+.TP
+\fB\-w\fR, \fB\-\-wwn\fR
+outputs the WWN for disks instead of manufacturer, model and revision (or
+instead of transport information). The World Wide Name (WWN) is typically
+64 bits long (16 hex digits) but could be up to 128 bits long. To indicate
+the WWN is hexadecimal, it is prefixed by "0x".
 .TP
 \fB\-y\fR, \fB\-\-sysfsroot\fR=\fIPATH\fR
 assumes sysfs is mounted at PATH instead of the default '/sys' . If this
@@ -208,7 +214,7 @@ Written by Doug Gilbert
 .SH "REPORTING BUGS"
 Report bugs to <dgilbert at interlog dot com>.
 .SH COPYRIGHT
-Copyright \(co 2003\-2011 Douglas Gilbert
+Copyright \(co 2003\-2012 Douglas Gilbert
 .br
 This software is distributed under the GPL version 2. There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.

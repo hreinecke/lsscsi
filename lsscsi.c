@@ -1,7 +1,7 @@
 /* This is a utility program for listing SCSI devices and hosts (HBAs)
  * in the Linux operating system. It is applicable to kernel versions
  * 2.6.1 and greater.
- *  Copyright (C) 2003-2011 D. Gilbert
+ *  Copyright (C) 2003-2012 D. Gilbert
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 2, or (at your option)
@@ -27,7 +27,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.26  2011/10/26 [svn: r93]";
+static const char * version_str = "0.26  2012/00/30 [svn: r95]";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -66,6 +66,7 @@ static const char * fc_remote_ports = "/class/fc_remote_ports/";
 static const char * iscsi_host = "/class/iscsi_host/";
 static const char * iscsi_session = "/class/iscsi_session/";
 static const char * dev_dir = "/dev";
+static const char * dev_disk_byid_dir = "/dev/disk/by-id";
 
 
 struct addr_hctl {
@@ -84,11 +85,12 @@ struct lsscsi_opt_coll {
         int generic;
         int dev_maj_min;        /* --device */
         int kname;
-        int transport;
-        int verbose;
         int protection;         /* data integrity */
         int protmode;           /* data integrity */
         int size;
+        int transport;
+        int verbose;
+        int wwn;
 };
 
 
@@ -148,10 +150,93 @@ static struct option long_options[] = {
         {"transport", 0, 0, 't'},
         {"verbose", 0, 0, 'v'},
         {"version", 0, 0, 'V'},
+        {"wwn", 0, 0, 'w'},
         {0, 0, 0, 0}
 };
 
 
+/* Device node list: contains the information needed to match a node with a
+   sysfs class device. */
+#define DEV_NODE_LIST_ENTRIES 16
+enum dev_type { BLK_DEV, CHR_DEV};
+
+struct dev_node_list {
+       struct dev_node_list *next;
+       unsigned int count;
+       struct dev_node_entry {
+               unsigned int maj, min;
+               enum dev_type type;
+               time_t mtime;
+               char name [ NAME_MAX + 1];
+       } nodes[DEV_NODE_LIST_ENTRIES];
+};
+static struct dev_node_list* dev_node_listhead = NULL;
+
+#define DISK_WWN_NODE_LIST_ENTRIES 16
+struct disk_wwn_node_list {
+       struct disk_wwn_node_list *next;
+       unsigned int count;
+       struct disk_wwn_node_entry {
+               char wwn[32];
+               char disk_bname[12];
+       } nodes[DISK_WWN_NODE_LIST_ENTRIES];
+};
+static struct disk_wwn_node_list * disk_wwn_node_listhead = NULL;
+
+struct item_t {
+        char name[NAME_LEN_MAX];
+        int ft;
+        int d_type;
+};
+
+static struct item_t non_sg;
+static struct item_t aa_sg;
+static struct item_t aa_first;
+static struct item_t enclosure_device;
+
+static char sas_low_phy[NAME_LEN_MAX];
+static char sas_hold_end_device[NAME_LEN_MAX];
+
+static const char * iscsi_dir_name;
+static const struct addr_hctl * iscsi_target_hct;
+static int iscsi_tsession_num;
+
+
+static const char * usage_message =
+"Usage: lsscsi   [--classic] [--device] [--generic] [--help] [--hosts]\n"
+            "\t\t[--kname] [--list] [--long] [--protection] [--size]\n"
+            "\t\t[--sysfsroot=PATH] [--transport] [--verbose] [--version]\n"
+            "\t\t[--wwn] [<h:c:t:l>]\n"
+"  where:\n"
+"    --classic|-c      alternate output similar to 'cat /proc/scsi/scsi'\n"
+"    --device|-d       show device node's major + minor numbers\n"
+"    --generic|-g      show scsi generic device name\n"
+"    --help|-h         this usage information\n"
+"    --hosts|-H        lists scsi hosts rather than scsi devices\n"
+"    --kname|-k        show kernel name instead of device node name\n"
+"    --list|-L         additional information output one\n"
+"                      attribute=value per line\n"
+"    --long|-l         additional information output\n"
+"    --protection|-p   show target and initiator protection information\n"
+"    --protmode|-P     show negotiated protection information mode\n"
+"    --size|-s         show disk size\n"
+"    --sysfsroot=PATH|-y PATH    set sysfs mount point to PATH (def: /sys)\n"
+"    --transport|-t    transport information for target or, if '--hosts'\n"
+"                      given, for initiator\n"
+"    --verbose|-v      output path names where data is found\n"
+"    --version|-V      output version string and exit\n"
+"    --wwn|-w          output WWN for disks (from /dev/disk/by-id/wwn*)\n"
+"    <h:c:t:l>         filter output list (def: '- - - -' (all))\n\n"
+"List SCSI devices or hosts, optionally with additional information\n";
+
+static void
+usage(void)
+{
+        fprintf(stderr, "%s", usage_message);
+}
+
+/* Returns remainder (*np % base) and replaces *np with (*np / base).
+ * base needs to be > 0 */
 static unsigned int
 do_div_rem(uint64_t * np, unsigned int base)
 {
@@ -179,8 +264,9 @@ enum string_size_units {
  * error on failure.  @buf is always zero terminated.
  *
  */
-int string_get_size(uint64_t size, const enum string_size_units units,
-                    char *buf, int len)
+static int
+string_get_size(uint64_t size, const enum string_size_units units, char *buf,
+                int len)
 {
         const char *units_10[] = { "B", "kB", "MB", "GB", "TB", "PB",
                                    "EB", "ZB", "YB", NULL};
@@ -227,74 +313,6 @@ int string_get_size(uint64_t size, const enum string_size_units units,
         return 0;
 }
 
-
-/* Device node list: contains the information needed to match a node with a
-   sysfs class device. */
-#define DEV_NODE_LIST_ENTRIES 16
-enum dev_type { BLK_DEV, CHR_DEV};
-
-struct dev_node_list {
-       struct dev_node_list *next;
-       unsigned int count;
-       struct dev_node_entry {
-               unsigned int maj, min;
-               enum dev_type type;
-               time_t mtime;
-               char name [ NAME_MAX + 1];
-       } nodes[DEV_NODE_LIST_ENTRIES];
-};
-static struct dev_node_list* dev_node_listhead = NULL;
-
-struct item_t {
-        char name[NAME_LEN_MAX];
-        int ft;
-        int d_type;
-};
-
-static struct item_t non_sg;
-static struct item_t aa_sg;
-static struct item_t aa_first;
-static struct item_t enclosure_device;
-
-static char sas_low_phy[NAME_LEN_MAX];
-static char sas_hold_end_device[NAME_LEN_MAX];
-
-static const char * iscsi_dir_name;
-static const struct addr_hctl * iscsi_target_hct;
-static int iscsi_tsession_num;
-
-
-static const char * usage_message =
-"Usage: lsscsi   [--classic] [--device] [--generic] [--help] [--hosts]\n"
-            "\t\t[--kname] [--list] [--long] [--protection] [--size]\n"
-            "\t\t[--sysfsroot=PATH] [--transport] [--verbose] [--version]\n"
-            "\t\t[<h:c:t:l>]\n"
-"  where:\n"
-"    --classic|-c      alternate output similar to 'cat /proc/scsi/scsi'\n"
-"    --device|-d       show device node's major + minor numbers\n"
-"    --generic|-g      show scsi generic device name\n"
-"    --help|-h         this usage information\n"
-"    --hosts|-H        lists scsi hosts rather than scsi devices\n"
-"    --kname|-k        show kernel name instead of device node name\n"
-"    --list|-L         additional information output one\n"
-"                      attribute=value per line\n"
-"    --long|-l         additional information output\n"
-"    --protection|-p   show target and initiator protection information\n"
-"    --protmode|-P     show negotiated protection information mode\n"
-"    --size|-s         show disk size\n"
-"    --sysfsroot=PATH|-y PATH    set sysfs mount point to PATH (def: /sys)\n"
-"    --transport|-t    transport information for target or, if '--hosts'\n"
-"                      given, for initiator\n"
-"    --verbose|-v      output path names where data is found\n"
-"    --version|-V      output version string and exit\n"
-"    <h:c:t:l>         filter output list (def: '- - - -' (all))\n\n"
-"List SCSI devices or hosts, optionally with additional information\n";
-
-static void
-usage()
-{
-        fprintf(stderr, "%s", usage_message);
-}
 
 /* Compare <host:controller:target:lun> tuples (aka <h:c:t:l> or hctl) */
 static int
@@ -461,7 +479,7 @@ enclosure_device_scandir_select(const struct dirent * s)
  * Else return 0.
  */
 static int
-enclosure_device_scan(const char * dir_name, const struct lsscsi_opt_coll * opts)
+enclosure_device_scan(const char * dir_name, const struct lsscsi_opt_coll * op)
 {
         char name[NAME_LEN_MAX];
         struct dirent ** namelist;
@@ -469,7 +487,7 @@ enclosure_device_scan(const char * dir_name, const struct lsscsi_opt_coll * opts
 
         num = scandir(dir_name, &namelist, enclosure_device_scandir_select, NULL);
         if (num < 0) {
-                if (opts->verbose > 0) {
+                if (op->verbose > 0) {
                         snprintf(name, NAME_LEN_MAX, "scandir: %s", dir_name);
                         perror(name);
                 }
@@ -483,7 +501,7 @@ enclosure_device_scan(const char * dir_name, const struct lsscsi_opt_coll * opts
 
 /* scan for directory entry that is either a symlink or a directory */
 static int
-scan_for_first(const char * dir_name, const struct lsscsi_opt_coll * opts)
+scan_for_first(const char * dir_name, const struct lsscsi_opt_coll * op)
 {
         char name[NAME_LEN_MAX];
         struct dirent ** namelist;
@@ -492,7 +510,7 @@ scan_for_first(const char * dir_name, const struct lsscsi_opt_coll * opts)
         aa_first.ft = FT_OTHER;
         num = scandir(dir_name, &namelist, first_scandir_select, NULL);
         if (num < 0) {
-                if (opts->verbose > 0) {
+                if (op->verbose > 0) {
                         snprintf(name, NAME_LEN_MAX, "scandir: %s", dir_name);
                         perror(name);
                 }
@@ -549,7 +567,7 @@ non_sg_scandir_select(const struct dirent * s)
 }
 
 static int
-non_sg_scan(const char * dir_name, const struct lsscsi_opt_coll * opts)
+non_sg_scan(const char * dir_name, const struct lsscsi_opt_coll * op)
 {
         char name[NAME_LEN_MAX];
         struct dirent ** namelist;
@@ -558,7 +576,7 @@ non_sg_scan(const char * dir_name, const struct lsscsi_opt_coll * opts)
         non_sg.ft = FT_OTHER;
         num = scandir(dir_name, &namelist, non_sg_scandir_select, NULL);
         if (num < 0) {
-                if (opts->verbose > 0) {
+                if (op->verbose > 0) {
                         snprintf(name, NAME_LEN_MAX, "scandir: %s", dir_name);
                         perror(name);
                 }
@@ -810,9 +828,9 @@ get_value(const char * dir_name, const char * base_name, char * value,
         return 1;
 }
 
-/* Allocate dev_node_list & collect info on every node in /dev. */
+/* Allocate dev_node_list and collect info on every node in /dev. */
 static void
-collect_dev_nodes ()
+collect_dev_nodes(void)
 {
         DIR *dirp;
         struct dirent *dep;
@@ -833,8 +851,7 @@ collect_dev_nodes ()
         dirp = opendir (dev_dir);
         if (dirp == NULL) return;
 
-        while (1)
-        {
+        while (1) {
                 dep = readdir (dirp);
                 if (dep == NULL) break;
 
@@ -850,8 +867,7 @@ collect_dev_nodes ()
                         continue;
 
                 /* Add to the list. */
-                if (cur_list->count >= DEV_NODE_LIST_ENTRIES)
-                {
+                if (cur_list->count >= DEV_NODE_LIST_ENTRIES) {
                         prev_list = cur_list;
                         cur_list = malloc (sizeof(struct dev_node_list));
                         if (!cur_list) break;
@@ -878,15 +894,13 @@ collect_dev_nodes ()
 
 /* Free dev_node_list. */
 static void
-free_dev_node_list ()
+free_dev_node_list(void)
 {
-        if (dev_node_listhead)
-        {
+        if (dev_node_listhead) {
                 struct dev_node_list *cur_list, *next_list;
 
                 cur_list = dev_node_listhead;
-                while (cur_list)
-                {
+                while (cur_list) {
                         next_list = cur_list->next;
                         free(cur_list);
                         cur_list = next_list;
@@ -897,9 +911,9 @@ free_dev_node_list ()
 }
 
 /* Given a path to a class device, find the most recent device node with
-   matching major/minor. */
+   matching major/minor. Returns 1 if match found, 0 otherwise. */
 static int
-get_dev_node (char *wd, char *node, enum dev_type type)
+get_dev_node(const char * wd, char *node, enum dev_type type)
 {
         struct dev_node_list *cur_list;
         struct dev_node_entry *cur_ent;
@@ -907,43 +921,40 @@ get_dev_node (char *wd, char *node, enum dev_type type)
         unsigned int maj, min;
         time_t newest_mtime = 0;
         int match_found = 0;
-        unsigned int i;
+        unsigned int k = 0;
 
         strcpy(node,"-");
 
-        if (dev_node_listhead == NULL)
-        {
+        if (dev_node_listhead == NULL) {
                 collect_dev_nodes();
-                if (dev_node_listhead == NULL) goto exit;
+                if (dev_node_listhead == NULL)
+                        goto exit;
         }
 
         /* Get the major/minor for this device. */
-        if (!get_value(wd, "dev", value, NAME_LEN_MAX)) goto exit;
+        if (!get_value(wd, "dev", value, NAME_LEN_MAX))
+                goto exit;
         sscanf(value, "%u:%u", &maj, &min);
 
         /* Search the node list for the newest match on this major/minor. */
         cur_list = dev_node_listhead;
-        i = 0;
 
-        while (1)
-        {
-                if (i >= cur_list->count)
-                {
+        while (1) {
+                if (k >= cur_list->count) {
                         cur_list = cur_list->next;
-                        if (!cur_list) break;
-                        i = 0;
+                        if (! cur_list)
+                                break;
+                        k = 0;
                 }
 
-                cur_ent = &cur_list->nodes[i];
-                i++;
+                cur_ent = &cur_list->nodes[k];
+                k++;
 
-                if ( (maj == cur_ent->maj) &&
-                     (min == cur_ent->min) &&
-                     (type == cur_ent->type) )
-                {
-                        if ( (!match_found) ||
-                             (difftime(cur_ent->mtime,newest_mtime) > 0) )
-                        {
+                if ((maj == cur_ent->maj) &&
+                    (min == cur_ent->min) &&
+                    (type == cur_ent->type)) {
+                        if ((!match_found) ||
+                            (difftime(cur_ent->mtime,newest_mtime) > 0)) {
                                 newest_mtime = cur_ent->mtime;
                                 strncpy(node, cur_ent->name, NAME_MAX);
                         }
@@ -953,6 +964,136 @@ get_dev_node (char *wd, char *node, enum dev_type type)
 
 exit:
         return match_found;
+}
+
+/* Allocate disk_wwn_node_list and collect info on every node in
+ * /dev/disk/by-id/wwn* that does not contain "part" . Returns
+ * number of wwn nodes collected, 0 for already collected and
+ * -1 for error. */
+static int
+collect_disk_wwn_nodes(void)
+{
+        int k;
+        int num = 0;
+        DIR *dirp;
+        struct dirent *dep;
+        char device_path[PATH_MAX + 1];
+        char symlink_path[PATH_MAX + 1];
+        struct stat stats;
+        struct disk_wwn_node_list *cur_list, *prev_list;
+        struct disk_wwn_node_entry *cur_ent;
+
+        if (disk_wwn_node_listhead)
+                return num; /* already collected nodes */
+
+        disk_wwn_node_listhead = malloc (sizeof(struct disk_wwn_node_list));
+        if (! disk_wwn_node_listhead)
+                return -1;
+
+        cur_list = disk_wwn_node_listhead;
+        memset(cur_list, 0, sizeof(struct disk_wwn_node_list));
+
+        dirp = opendir(dev_disk_byid_dir);
+        if (dirp == NULL)
+                return -1;
+
+        while (1) {
+                dep = readdir(dirp);
+                if (dep == NULL)
+                        break;
+                if (memcmp("wwn-", dep->d_name, 4))
+                        continue;       /* needs to start with "wwn-" */
+                if (strstr(dep->d_name, "part"))
+                        continue;       /* skip if contains "part" */
+                
+                snprintf(device_path, PATH_MAX, "%s/%s", dev_disk_byid_dir,
+                         dep->d_name);
+                device_path [PATH_MAX] = '\0';
+                if (lstat(device_path, &stats))
+                        continue;
+                if (! S_ISLNK(stats.st_mode))
+                        continue;       /* Skip non-symlinks */
+                if ((k = readlink(device_path, symlink_path, PATH_MAX)) < 1)
+                        continue;
+                symlink_path[k] = '\0';
+
+                /* Add to the list. */
+                if (cur_list->count >= DISK_WWN_NODE_LIST_ENTRIES) {
+                        prev_list = cur_list;
+                        cur_list = malloc(sizeof(struct disk_wwn_node_list));
+                        if (! cur_list)
+                                break;
+                        memset(cur_list, 0, sizeof(struct disk_wwn_node_list));
+                        prev_list->next = cur_list;
+                }
+
+                cur_ent = &cur_list->nodes[cur_list->count];
+                strncpy(cur_ent->wwn, dep->d_name + 4,
+                        sizeof(cur_ent->wwn) - 1);
+                strncpy(cur_ent->disk_bname, basename(symlink_path),
+                        sizeof(cur_ent->disk_bname) - 1);
+// xxxxx
+                cur_list->count++;
+                ++num;
+        }
+        closedir(dirp);
+        return num;
+}
+
+/* Free disk_wwn_node_list. */
+static void
+free_disk_wwn_node_list(void)
+{
+        if (disk_wwn_node_listhead) {
+                struct disk_wwn_node_list *cur_list, *next_list;
+
+                cur_list = disk_wwn_node_listhead;
+                while (cur_list) {
+                        next_list = cur_list->next;
+                        free(cur_list);
+                        cur_list = next_list;
+                }
+
+                disk_wwn_node_listhead = NULL;
+        }
+}
+
+/* Given a path to a class device, find the most recent device node with
+   matching major/minor. Returns 1 if match found, 0 otherwise. */
+static int
+get_disk_wwn(const char *wd, char * wwn_str, int max_wwn_str_len)
+{
+        struct disk_wwn_node_list *cur_list;
+        struct disk_wwn_node_entry *cur_ent;
+        char name[NAME_LEN_MAX + 1];
+        char * bn;
+        unsigned int k = 0;
+
+        strncpy(name, wd, NAME_LEN_MAX);
+        name[NAME_LEN_MAX] = '\0';
+        bn = basename(name);
+        if (disk_wwn_node_listhead == NULL) {
+                collect_disk_wwn_nodes();
+                if (disk_wwn_node_listhead == NULL)
+                        return 0;
+        }
+        cur_list = disk_wwn_node_listhead;
+        while (1) {
+                if (k >= cur_list->count) {
+                        cur_list = cur_list->next;
+                        if (! cur_list)
+                                break;
+                        k = 0;
+                }
+                cur_ent = &cur_list->nodes[k];
+                k++;
+                if (0 == strcmp(cur_ent->disk_bname, bn)) {
+                        strncpy(wwn_str, cur_ent->wwn, max_wwn_str_len - 1);
+                        wwn_str[max_wwn_str_len - 1] = '\0';
+                        return 1;
+                }
+        }
+        return 0;
 }
 
 /* Fetch USB device name string (form "<b>-<p1>[.<p2>]+:<c>.<i>") given
@@ -1028,7 +1169,7 @@ parse_colon_list(const char * colon_list, struct addr_hctl * outp)
 /* Print enclosure device link from the rport- or end_device- */
 static void
 print_enclosure_device(const char *devname, const char *path,
-                        const struct lsscsi_opt_coll * opts)
+                        const struct lsscsi_opt_coll * op)
 {
         struct addr_hctl hctl;
         char buff[NAME_LEN_MAX];
@@ -1040,7 +1181,7 @@ print_enclosure_device(const char *devname, const char *path,
                 snprintf(buff + len, NAME_LEN_MAX - len, "/device/target%d:%d:%d/%d:%d:%d:%d",
                          hctl.h, hctl.c, hctl.t,
                          hctl.h, hctl.c, hctl.t, hctl.l);
-                if (enclosure_device_scan(buff, opts) > 0)
+                if (enclosure_device_scan(buff, op) > 0)
                         printf("  %s\n",enclosure_device.name);
         }
 }
@@ -1049,7 +1190,7 @@ print_enclosure_device(const char *devname, const char *path,
 /* Check host associated with 'devname' for known transport types. If so set
    transport_id, place a string in 'b' and return 1. Otherwise return 0. */
 static int
-transport_init(const char * devname, /* const struct lsscsi_opt_coll * opts, */
+transport_init(const char * devname, /* const struct lsscsi_opt_coll * op, */
                int b_len, char * b)
 {
         char buff[NAME_LEN_MAX];
@@ -1217,7 +1358,7 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * opts, */
  */
 static void
 transport_init_longer(const char * path_name,
-                      const struct lsscsi_opt_coll * opts)
+                      const struct lsscsi_opt_coll * op)
 {
         char buff[NAME_LEN_MAX];
         char wd[NAME_LEN_MAX];
@@ -1255,7 +1396,7 @@ transport_init_longer(const char * path_name,
                         strcat(buff, "/device/fc_host/");
                         strcat(buff, cp);
                         if (stat(buff, &a_stat) < 0) {
-                                if (opts->verbose > 2)
+                                if (op->verbose > 2)
                                         printf("no fc_host directory\n");
                                 break;
                         }
@@ -1290,7 +1431,7 @@ transport_init_longer(const char * path_name,
                         printf("  supported_classes=%s\n", value);
                 if (get_value(buff, "tgtid_bind_type", value, NAME_LEN_MAX))
                         printf("  tgtid_bind_type=%s\n", value);
-                if (opts->verbose > 2)
+                if (op->verbose > 2)
                         printf("fetched from directory: %s\n", buff);
                 break;
         case TRANSPORT_SAS:
@@ -1349,7 +1490,7 @@ transport_init_longer(const char * path_name,
                                         free(phylist[j]);
                                 }
                                 printf("\n");
-                                if (opts->verbose > 2)
+                                if (op->verbose > 2)
                                         printf("  fetched from directory: %s\n", buff);
                                 free(phylist);
                         }
@@ -1393,7 +1534,7 @@ transport_init_longer(const char * path_name,
                         if (get_value(buff, "target_port_protocols", value,
                                       NAME_LEN_MAX))
                                 printf("    target_port_protocols=%s\n", value);
-                        if (opts->verbose > 2)
+                        if (op->verbose > 2)
                                 printf("  fetched from directory: %s\n", buff);
 
                         free(portlist[i]);
@@ -1434,7 +1575,7 @@ transport_init_longer(const char * path_name,
                         printf("    tproto=%s\n", value);
                 if (get_value(buff, "type", value, NAME_LEN_MAX))
                         printf("    type=%s\n", value);
-                if (opts->verbose > 2)
+                if (op->verbose > 2)
                         printf("fetched from directory: %s\n", buff);
                 break;
         case TRANSPORT_ISCSI:
@@ -1458,7 +1599,7 @@ transport_init_longer(const char * path_name,
                 printf("  transport=sata\n");
                 break;
         default:
-                if (opts->verbose > 1)
+                if (op->verbose > 1)
                         fprintf(stderr, "No transport information\n");
                 break;
         }
@@ -1469,7 +1610,7 @@ transport_init_longer(const char * path_name,
    1. Otherwise return 0. */
 static int
 transport_tport(const char * devname,
-                /* const struct lsscsi_opt_coll * opts, */ int b_len, char * b)
+                /* const struct lsscsi_opt_coll * op, */ int b_len, char * b)
 {
         char buff[NAME_LEN_MAX];
         char wd[NAME_LEN_MAX];
@@ -1644,7 +1785,7 @@ transport_tport(const char * devname,
    output additional information. */
 static void
 transport_tport_longer(const char * devname,
-                       const struct lsscsi_opt_coll * opts)
+                       const struct lsscsi_opt_coll * op)
 {
         char path_name[NAME_LEN_MAX];
         char buff[NAME_LEN_MAX];
@@ -1741,7 +1882,7 @@ transport_tport_longer(const char * devname,
                         printf("  port_state=%s\n", value);
                 if (get_value(buff, "roles", value, NAME_LEN_MAX))
                         printf("  roles=%s\n", value);
-                print_enclosure_device(devname, b2, opts);
+                print_enclosure_device(devname, b2, op);
                 if (get_value(buff, "scsi_target_id", value, NAME_LEN_MAX))
                         printf("  scsi_target_id=%s\n", value);
                 if (get_value(buff, "supported_classes", value, NAME_LEN_MAX))
@@ -1750,7 +1891,7 @@ transport_tport_longer(const char * devname,
                         printf("  fast_io_fail_tmo=%s\n", value);
                 if (get_value(buff, "dev_loss_tmo", value, NAME_LEN_MAX))
                         printf("  dev_loss_tmo=%s\n", value);
-                if (opts->verbose > 2) {
+                if (op->verbose > 2) {
                         printf("  fetched from directory: %s\n", buff);
                         printf("  fetched from directory: %s\n", b2);
                 }
@@ -1774,7 +1915,7 @@ transport_tport_longer(const char * devname,
                 if (get_value(buff, "bay_identifier", value,
                               NAME_LEN_MAX))
                         printf("  bay_identifier=%s\n", value);
-                print_enclosure_device(devname, b2, opts);
+                print_enclosure_device(devname, b2, op);
                 if (get_value(buff, "enclosure_identifier", value,
                               NAME_LEN_MAX))
                         printf("  enclosure_identifier=%s\n", value);
@@ -1800,7 +1941,7 @@ transport_tport_longer(const char * devname,
                         printf("  tlr_enabled=%s\n", value);
                 if (get_value(b2, "tlr_supported", value, NAME_LEN_MAX))
                         printf("  tlr_supported=%s\n", value);
-                if (opts->verbose > 2) {
+                if (op->verbose > 2) {
                         printf("fetched from directory: %s\n", buff);
                         printf("fetched from directory: %s\n", b2);
                 }
@@ -1841,7 +1982,7 @@ transport_tport_longer(const char * devname,
                 if (get_value(buff, "transport_layer_retries", value,
                               NAME_LEN_MAX))
                         printf("  transport_layer_retries=%s\n", value);
-                if (opts->verbose > 2)
+                if (op->verbose > 2)
                         printf("fetched from directory: %s\n", buff);
                 break;
         case TRANSPORT_ISCSI:
@@ -1875,7 +2016,7 @@ transport_tport_longer(const char * devname,
 //           Ignoring connections for the time being. Could add with an entry
 //           for connection=<n> with normal two space indent followed by attributes
 //           for that connection indented 4 spaces
-                if (opts->verbose > 2)
+                if (op->verbose > 2)
                         printf("fetched from directory: %s\n", buff);
                 break;
         case TRANSPORT_SBP:
@@ -1886,7 +2027,7 @@ transport_tport_longer(const char * devname,
                         return;
                 if (get_value(buff, "ieee1394_id", value, NAME_LEN_MAX))
                         printf("  ieee1394_id=%s\n", value);
-                if (opts->verbose > 2)
+                if (op->verbose > 2)
                         printf("fetched from directory: %s\n", buff);
                 break;
         case TRANSPORT_USB:
@@ -1901,7 +2042,7 @@ transport_tport_longer(const char * devname,
                 printf("  transport=sata\n");
                 break;
         default:
-                if (opts->verbose > 1)
+                if (op->verbose > 1)
                         fprintf(stderr, "No transport information\n");
                 break;
         }
@@ -1909,67 +2050,67 @@ transport_tport_longer(const char * devname,
 
 static void
 longer_d_entry(const char * path_name, const char * devname,
-               const struct lsscsi_opt_coll * opts)
+               const struct lsscsi_opt_coll * op)
 {
         char value[NAME_LEN_MAX];
 
-        if (opts->transport > 0) {
-                transport_tport_longer(devname, opts);
+        if (op->transport > 0) {
+                transport_tport_longer(devname, op);
                 return;
         }
-        if (opts->long_opt >= 3) {
+        if (op->long_opt >= 3) {
                 if (get_value(path_name, "device_blocked", value,
                               NAME_LEN_MAX))
                         printf("  device_blocked=%s\n", value);
-                else if (opts->verbose > 0)
+                else if (op->verbose > 0)
                         printf("  device_blocked=?\n");
                 if (get_value(path_name, "iocounterbits", value,
                               NAME_LEN_MAX))
                         printf("  iocounterbits=%s\n", value);
-                else if (opts->verbose > 0)
+                else if (op->verbose > 0)
                         printf("  iocounterbits=?\n");
                 if (get_value(path_name, "iodone_cnt", value, NAME_LEN_MAX))
                         printf("  iodone_cnt=%s\n", value);
-                else if (opts->verbose > 0)
+                else if (op->verbose > 0)
                         printf("  iodone_cnt=?\n");
                 if (get_value(path_name, "ioerr_cnt", value, NAME_LEN_MAX))
                         printf("  ioerr_cnt=%s\n", value);
-                else if (opts->verbose > 0)
+                else if (op->verbose > 0)
                         printf("  ioerr_cnt=?\n");
                 if (get_value(path_name, "iorequest_cnt", value,
                               NAME_LEN_MAX))
                         printf("  iorequest_cnt=%s\n", value);
-                else if (opts->verbose > 0)
+                else if (op->verbose > 0)
                         printf("  iorequest_cnt=?\n");
                 if (get_value(path_name, "queue_depth", value,
                               NAME_LEN_MAX))
                         printf("  queue_depth=%s\n", value);
-                else if (opts->verbose > 0)
+                else if (op->verbose > 0)
                         printf("  queue_depth=?\n");
                 if (get_value(path_name, "queue_type", value,
                               NAME_LEN_MAX))
                         printf("  queue_type=%s\n", value);
-                else if (opts->verbose > 0)
+                else if (op->verbose > 0)
                         printf("  queue_type=?\n");
                 if (get_value(path_name, "scsi_level", value,
                               NAME_LEN_MAX))
                         printf("  scsi_level=%s\n", value);
-                else if (opts->verbose > 0)
+                else if (op->verbose > 0)
                         printf("  scsi_level=?\n");
                 if (get_value(path_name, "state", value,
                               NAME_LEN_MAX))
                         printf("  state=%s\n", value);
-                else if (opts->verbose > 0)
+                else if (op->verbose > 0)
                         printf("  state=?\n");
                 if (get_value(path_name, "timeout", value,
                               NAME_LEN_MAX))
                         printf("  timeout=%s\n", value);
-                else if (opts->verbose > 0)
+                else if (op->verbose > 0)
                         printf("  timeout=?\n");
                 if (get_value(path_name, "type", value,
                               NAME_LEN_MAX))
                         printf("  type=%s\n", value);
-                else if (opts->verbose > 0)
+                else if (op->verbose > 0)
                         printf("  type=?\n");
                 return;
         }
@@ -1999,7 +2140,7 @@ longer_d_entry(const char * path_name, const char * devname,
         else
                 printf(" timeout=?");
         printf("\n");
-        if (opts->long_opt == 2) {
+        if (op->long_opt == 2) {
                 if (get_value(path_name, "iocounterbits", value,
                               NAME_LEN_MAX))
                         printf("  iocounterbits=%s", value);
@@ -2032,7 +2173,7 @@ longer_d_entry(const char * path_name, const char * devname,
 
 static void
 one_classic_sdev_entry(const char * dir_name, const char * devname,
-                       const struct lsscsi_opt_coll * opts)
+                       const struct lsscsi_opt_coll * op)
 {
         struct addr_hctl hctl;
         char buff[NAME_LEN_MAX];
@@ -2075,7 +2216,7 @@ one_classic_sdev_entry(const char * dir_name, const char * devname,
         } else
                 printf("ANSI SCSI revision: %02x\n", (scsi_level - 1) ?
                                             scsi_level - 1 : 1);
-        if (opts->generic) {
+        if (op->generic) {
                 if (if_directory_ch2generic(buff)) {
                         char wd[NAME_LEN_MAX];
 
@@ -2084,10 +2225,10 @@ one_classic_sdev_entry(const char * dir_name, const char * devname,
                         else {
                                 char dev_node[NAME_MAX + 1];
 
-                                if (opts->kname)
+                                if (op->kname)
                                         snprintf(dev_node, NAME_MAX, "%s/%s",
                                                  dev_dir, basename(wd));
-                                else if (!get_dev_node(wd, dev_node, CHR_DEV))
+                                else if (! get_dev_node(wd, dev_node, CHR_DEV))
                                         snprintf(dev_node, NAME_MAX, "-");
 
                                 printf("%s\n", dev_node);
@@ -2096,22 +2237,24 @@ one_classic_sdev_entry(const char * dir_name, const char * devname,
                 else
                         printf("-\n");
         }
-        if (opts->long_opt > 0)
-                longer_d_entry(buff, devname, opts);
-        if (opts->verbose)
+        if (op->long_opt > 0)
+                longer_d_entry(buff, devname, op);
+        if (op->verbose)
                 printf("  dir: %s\n", buff);
 }
 
+/* List one SCSI device (LU) on a line. */
 static void
 one_sdev_entry(const char * dir_name, const char * devname,
-               const struct lsscsi_opt_coll * opts)
+               const struct lsscsi_opt_coll * op)
 {
         char buff[NAME_LEN_MAX];
         char value[NAME_LEN_MAX];
         int type;
+        int get_wwn = 0;
 
-        if (opts->classic) {
-                one_classic_sdev_entry(dir_name, devname, opts);
+        if (op->classic) {
+                one_classic_sdev_entry(dir_name, devname, op);
                 return;
         }
         strcpy(buff, dir_name);
@@ -2128,7 +2271,9 @@ one_sdev_entry(const char * dir_name, const char * devname,
         } else
                 printf("%s ", scsi_short_device_types[type]);
 
-        if (0 == opts->transport) {
+        if (op->wwn)
+                ++get_wwn;
+        else if (0 == op->transport) {
                 if (get_value(buff, "vendor", value, NAME_LEN_MAX))
                         printf("%-8s ", value);
                 else
@@ -2144,14 +2289,14 @@ one_sdev_entry(const char * dir_name, const char * devname,
                 else
                         printf("rev?  ");
         } else {
-                if (transport_tport(devname, /* opts, */
+                if (transport_tport(devname, /* op, */
                                     sizeof(value), value))
                         printf("%-30s  ", value);
                 else
                         printf("                                ");
         }
 
-        if (1 == non_sg_scan(buff, opts)) {
+        if (1 == non_sg_scan(buff, op)) {
                 char wd[NAME_LEN_MAX];
                 char extra[NAME_LEN_MAX];
 
@@ -2159,7 +2304,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         strcpy(wd, buff);
                         strcat(wd, "/");
                         strcat(wd, non_sg.name);
-                        if (1 == scan_for_first(wd, opts))
+                        if (1 == scan_for_first(wd, op))
                                 strcpy(extra, aa_first.name);
                         else {
                                 printf("unexpected scan_for_first error");
@@ -2177,17 +2322,27 @@ one_sdev_entry(const char * dir_name, const char * devname,
                 }
                 if (wd[0]) {
                         char dev_node[NAME_MAX + 1] = "";
+                        char wwn_str[34];
                         enum dev_type typ;
 
                         typ = (FT_BLOCK == non_sg.ft) ? BLK_DEV : CHR_DEV;
-                        if (opts->kname)
+                        if (get_wwn) {
+                                if ((BLK_DEV == typ) &&
+                                    get_disk_wwn(wd, wwn_str, sizeof(wwn_str)))
+                                        printf("%-30s  ", wwn_str);
+                                else
+                                        printf("%-30s  ", "");
+
+                        }
+// xxxxxxxx
+                        if (op->kname)
                                 snprintf(dev_node, NAME_MAX, "%s/%s",
                                         dev_dir, basename(wd));
-                        else if (!get_dev_node(wd, dev_node, typ))
+                        else if (! get_dev_node(wd, dev_node, typ))
                                 snprintf(dev_node, NAME_MAX, "-       ");
 
                         printf("%-9s", dev_node);
-                        if (opts->dev_maj_min) {
+                        if (op->dev_maj_min) {
                                 if (get_value(wd, "dev", value, NAME_LEN_MAX))
                                         printf("[%s]", value);
                                 else
@@ -2197,7 +2352,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
         } else
                 printf("%-9s", "-");
 
-        if (opts->generic) {
+        if (op->generic) {
                 if (if_directory_ch2generic(buff)) {
                         char wd[NAME_LEN_MAX];
 
@@ -2206,14 +2361,14 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         else {
                                 char dev_node[NAME_MAX + 1] = "";
 
-                                if (opts->kname)
+                                if (op->kname)
                                         snprintf(dev_node, NAME_MAX, "%s/%s",
                                                  dev_dir, basename(wd));
-                                else if (!get_dev_node(wd, dev_node, CHR_DEV))
+                                else if (! get_dev_node(wd, dev_node, CHR_DEV))
                                         snprintf(dev_node, NAME_MAX, "-");
 
                                 printf("  %-9s", dev_node);
-                                if (opts->dev_maj_min) {
+                                if (op->dev_maj_min) {
                                         if (get_value(wd, "dev", value,
                                                       NAME_LEN_MAX))
                                                 printf("[%s]", value);
@@ -2226,7 +2381,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         printf("  %-9s", "-");
         }
 
-        if (opts->protection) {
+        if (op->protection) {
                 char sddir[NAME_LEN_MAX];
                 char blkdir[NAME_LEN_MAX];
 
@@ -2253,7 +2408,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         printf("  %-16s", "-");
         }
 
-        if (opts->protmode) {
+        if (op->protmode) {
                 char sddir[NAME_LEN_MAX];
 
                 strncpy(sddir, buff, NAME_LEN_MAX);
@@ -2270,7 +2425,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         printf("  %-4s", "-");
         }
 
-        if (opts->size) {
+        if (op->size) {
                 char blkdir[NAME_LEN_MAX];
 
                 strncpy(blkdir, buff, NAME_LEN_MAX);
@@ -2294,9 +2449,9 @@ one_sdev_entry(const char * dir_name, const char * devname,
         }
 
         printf("\n");
-        if (opts->long_opt > 0)
-                longer_d_entry(buff, devname, opts);
-        if (opts->verbose > 0) {
+        if (op->long_opt > 0)
+                longer_d_entry(buff, devname, op);
+        if (op->verbose > 0) {
                 printf("  dir: %s  [", buff);
                 if (if_directory_chdir(buff, "")) {
                         char wd[NAME_LEN_MAX];
@@ -2374,7 +2529,7 @@ sdev_scandir_sort(const struct dirent ** a, const struct dirent ** b)
 
 /* List SCSI devices (LUs). */
 static void
-list_sdevices(const struct lsscsi_opt_coll * opts)
+list_sdevices(const struct lsscsi_opt_coll * op)
 {
         char buff[NAME_LEN_MAX];
         char name[NAME_LEN_MAX];
@@ -2387,68 +2542,70 @@ list_sdevices(const struct lsscsi_opt_coll * opts)
         num = scandir(buff, &namelist, sdev_scandir_select,
                       sdev_scandir_sort);
         if (num < 0) {  /* scsi mid level may not be loaded */
-                if (opts->verbose > 0) {
+                if (op->verbose > 0) {
                         snprintf(name, NAME_LEN_MAX, "scandir: %s", buff);
                         perror(name);
                         printf("SCSI mid level module may not be loaded\n");
                 }
-                if (opts->classic)
+                if (op->classic)
                         printf("Attached devices: none\n");
                 return;
         }
-        if (opts->classic)
+        if (op->classic)
                 printf("Attached devices: %s\n", (num ? "" : "none"));
 
         for (k = 0; k < num; ++k) {
                 strncpy(name, namelist[k]->d_name, NAME_LEN_MAX);
                 transport_id = TRANSPORT_UNKNOWN;
-                one_sdev_entry(buff, name, opts);
+                one_sdev_entry(buff, name, op);
                 free(namelist[k]);
         }
         free(namelist);
+        if (op->wwn)
+                free_disk_wwn_node_list();
 }
 
 /* List host (initiator) attributes when --long given (one or more times). */
 static void
-longer_h_entry(const char * path_name, const struct lsscsi_opt_coll * opts)
+longer_h_entry(const char * path_name, const struct lsscsi_opt_coll * op)
 {
         char value[NAME_LEN_MAX];
 
-        if (opts->transport > 0) {
-                transport_init_longer(path_name, opts);
+        if (op->transport > 0) {
+                transport_init_longer(path_name, op);
                 return;
         }
-        if (opts->long_opt >= 3) {
+        if (op->long_opt >= 3) {
                 if (get_value(path_name, "can_queue", value, NAME_LEN_MAX))
                         printf("  can_queue=%s\n", value);
-                else if (opts->verbose)
+                else if (op->verbose)
                         printf("  can_queue=?\n");
                 if (get_value(path_name, "cmd_per_lun", value, NAME_LEN_MAX))
                         printf("  cmd_per_lun=%s\n", value);
-                else if (opts->verbose)
+                else if (op->verbose)
                         printf("  cmd_per_lun=?\n");
                 if (get_value(path_name, "host_busy", value, NAME_LEN_MAX))
                         printf("  host_busy=%s\n", value);
-                else if (opts->verbose)
+                else if (op->verbose)
                         printf("  host_busy=?\n");
                 if (get_value(path_name, "sg_tablesize", value, NAME_LEN_MAX))
                         printf("  sg_tablesize=%s\n", value);
-                else if (opts->verbose)
+                else if (op->verbose)
                         printf("  sg_tablesize=?\n");
                 if (get_value(path_name, "state", value, NAME_LEN_MAX))
                         printf("  state=%s\n", value);
-                else if (opts->verbose)
+                else if (op->verbose)
                         printf("  state=?\n");
                 if (get_value(path_name, "unchecked_isa_dma", value,
                               NAME_LEN_MAX))
                         printf("  unchecked_isa_dma=%s\n", value);
-                else if (opts->verbose)
+                else if (op->verbose)
                         printf("  unchecked_isa_dma=?\n");
                 if (get_value(path_name, "unique_id", value, NAME_LEN_MAX))
                         printf("  unique_id=%s\n", value);
-                else if (opts->verbose)
+                else if (op->verbose)
                         printf("  unique_id=?\n");
-        } else if (opts->long_opt > 0) {
+        } else if (op->long_opt > 0) {
                 if (get_value(path_name, "cmd_per_lun", value, NAME_LEN_MAX))
                         printf("  cmd_per_lun=%-4s ", value);
                 else
@@ -2470,7 +2627,7 @@ longer_h_entry(const char * path_name, const struct lsscsi_opt_coll * opts)
                 else
                         printf("unchecked_isa_dma=?? ");
                 printf("\n");
-                if (2 == opts->long_opt) {
+                if (2 == op->long_opt) {
                         if (get_value(path_name, "can_queue", value,
                                       NAME_LEN_MAX))
                                 printf("  can_queue=%-4s ", value);
@@ -2486,7 +2643,7 @@ longer_h_entry(const char * path_name, const struct lsscsi_opt_coll * opts)
 
 static void
 one_host_entry(const char * dir_name, const char * devname,
-               const struct lsscsi_opt_coll * opts)
+               const struct lsscsi_opt_coll * op)
 {
         char buff[NAME_LEN_MAX];
         char value[NAME_LEN_MAX];
@@ -2494,8 +2651,8 @@ one_host_entry(const char * dir_name, const char * devname,
         char * nullname2 = "(null)";
         unsigned int host_id;
 
-        if (opts->classic) {
-                // one_classic_host_entry(dir_name, devname, opts);
+        if (op->classic) {
+                // one_classic_host_entry(dir_name, devname, op);
                 printf("  <'--classic' not supported for hosts>\n");
                 return;
         }
@@ -2519,18 +2676,18 @@ one_host_entry(const char * dir_name, const char * devname,
 
         } else
                 printf("  proc_name=????  ");
-        if (opts->transport > 0) {
-                if (transport_init(devname, /* opts, */ sizeof(value), value))
+        if (op->transport > 0) {
+                if (transport_init(devname, /* op, */ sizeof(value), value))
                         printf("%s\n", value);
                 else
                         printf("\n");
         } else
                 printf("\n");
 
-        if (opts->long_opt > 0)
-                longer_h_entry(buff, opts);
+        if (op->long_opt > 0)
+                longer_h_entry(buff, op);
 
-        if (opts->verbose > 0) {
+        if (op->verbose > 0) {
                 printf("  dir: %s\n  device dir: ", buff);
                 if (if_directory_chdir(buff, "device")) {
                         char wd[NAME_LEN_MAX];
@@ -2588,7 +2745,7 @@ host_scandir_sort(const struct dirent ** a, const struct dirent ** b)
 }
 
 static void
-list_hosts(const struct lsscsi_opt_coll * opts)
+list_hosts(const struct lsscsi_opt_coll * op)
 {
         char buff[NAME_LEN_MAX];
         char name[NAME_LEN_MAX];
@@ -2605,13 +2762,13 @@ list_hosts(const struct lsscsi_opt_coll * opts)
                 perror(name);
                 return;
         }
-        if (opts->classic)
+        if (op->classic)
                 printf("Attached hosts: %s\n", (num ? "" : "none"));
 
         for (k = 0; k < num; ++k) {
                 strncpy(name, namelist[k]->d_name, NAME_LEN_MAX);
                 transport_id = TRANSPORT_UNKNOWN;
-                one_host_entry(buff, name, opts);
+                one_host_entry(buff, name, op);
                 free(namelist[k]);
         }
         free(namelist);
@@ -2744,7 +2901,7 @@ main(int argc, char **argv)
         while (1) {
                 int option_index = 0;
 
-                c = getopt_long(argc, argv, "cdghHklLpPstvVy:", long_options,
+                c = getopt_long(argc, argv, "cdghHklLpPstvVy:w", long_options,
                                 &option_index);
                 if (c == -1)
                         break;
@@ -2792,6 +2949,9 @@ main(int argc, char **argv)
                 case 'V':
                         fprintf(stderr, "version: %s\n", version_str);
                         return 0;
+                case 'w':
+                        ++opts.wwn;
+                        break;
                 case 'y':       /* sysfsroot <dir> */
                         sysfsroot = optarg;
                         break;
@@ -2843,6 +3003,8 @@ main(int argc, char **argv)
         if (opts.verbose > 1) {
                 printf(" sysfsroot: %s\n", sysfsroot);
         }
+        if (opts.wwn)
+                printf("wwn collects %d nodes\n", collect_disk_wwn_nodes());
         if (do_hosts)
                 list_hosts(&opts);
         else if (do_sdevices)
