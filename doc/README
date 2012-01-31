@@ -1,6 +1,3 @@
-The man page that would normally reside in this directory (called
-lsscsi.8) is currently in the main directory.
-
 A web page for this utility can be found at:
     http://sg.danny.cz/scsi/lsscsi.html
 
@@ -8,4 +5,4 @@ It includes many examples and a Download section.
 
 
 Doug Gilbert
-24th December 2010
+30th January 2012

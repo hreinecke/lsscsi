@@ -1032,7 +1032,6 @@ collect_disk_wwn_nodes(void)
                         sizeof(cur_ent->wwn) - 1);
                 strncpy(cur_ent->disk_bname, basename(symlink_path),
                         sizeof(cur_ent->disk_bname) - 1);
-// xxxxx
                 cur_list->count++;
                 ++num;
         }
@@ -2334,7 +2333,6 @@ one_sdev_entry(const char * dir_name, const char * devname,
                                         printf("%-30s  ", "");
 
                         }
-// xxxxxxxx
                         if (op->kname)
                                 snprintf(dev_node, NAME_MAX, "%s/%s",
                                         dev_dir, basename(wd));
@@ -2881,7 +2879,6 @@ decode_filter_arg(const char * a1p, const char * a2p, const char * a3p,
 
         }
 err_out:
-
         fprintf(stderr, "filter arguments exceed internal buffer size "
                 "(%d)\n", (int)sizeof(b1));
         return 1;
@@ -3003,8 +3000,6 @@ main(int argc, char **argv)
         if (opts.verbose > 1) {
                 printf(" sysfsroot: %s\n", sysfsroot);
         }
-        if (opts.wwn)
-                printf("wwn collects %d nodes\n", collect_disk_wwn_nodes());
         if (do_hosts)
                 list_hosts(&opts);
         else if (do_sdevices)

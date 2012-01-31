@@ -15,7 +15,7 @@ Packager:	dgilbert at interlog dot com
 
 %description
 Uses information provided by the sysfs pseudo file system in Linux kernel
-2.6 series to list SCSI devices or all SCSI hosts. Includes a "classic"
+2.6 and 3 series to list SCSI devices or all SCSI hosts. Includes a "classic"
 option to mimic the output of "cat /proc/scsi/scsi" that has been widely
 used prior to the lk 2.6 series.
 
