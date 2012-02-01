@@ -27,7 +27,7 @@
 #include <linux/major.h>
 #include <time.h>
 
-static const char * version_str = "0.26  2012/00/30 [svn: r95]";
+static const char * version_str = "0.26  2012/01/31 [svn: r97]";
 
 #define NAME_LEN_MAX 260
 #define FT_OTHER 0
@@ -2330,7 +2330,8 @@ one_sdev_entry(const char * dir_name, const char * devname,
                                     get_disk_wwn(wd, wwn_str, sizeof(wwn_str)))
                                         printf("%-30s  ", wwn_str);
                                 else
-                                        printf("%-30s  ", "");
+                                        printf("                          "
+                                               "      ");
 
                         }
                         if (op->kname)
@@ -2347,8 +2348,11 @@ one_sdev_entry(const char * dir_name, const char * devname,
                                         printf("[dev?]");
                         }
                 }
-        } else
+        } else {
+                if (get_wwn)
+                        printf("                                ");
                 printf("%-9s", "-");
+        }
 
         if (op->generic) {
                 if (if_directory_ch2generic(buff)) {

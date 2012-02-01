@@ -1,5 +1,5 @@
 
-Version 0.26 2011/11/08 [svn: r96]
+Version 0.26 2012/01/31 [svn: r97]
   - add 'fcoe' transport indicator
   - add '--wwn' option, datamine /dev/disk/by-id/wwn*
   - move lsscsi.c into src directory

@@ -51,7 +51,7 @@ fi
 
 
 %changelog
-* Mon Jan 30 2012 - dgilbert at interlog dot com
+* Tue Jan 31 2012 - dgilbert at interlog dot com
 - add fcoe transport indicator; add --wwn option
   * lsscsi-0.26
 * Mon May 09 2011 - dgilbert at interlog dot com
