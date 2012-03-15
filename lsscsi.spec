@@ -51,8 +51,8 @@ fi
 
 
 %changelog
-* Fri Mar 02 2012 - dgilbert at interlog dot com
-- xxxxxxxxxx
+* Thu Mar 15 2012 - dgilbert at interlog dot com
+- rework buffers for large systems
   * lsscsi-0.27
 * Tue Jan 31 2012 - dgilbert at interlog dot com
 - add fcoe transport indicator; add --wwn option
