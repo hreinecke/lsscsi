@@ -1,7 +1,7 @@
 Linux utility for listing SCSI devices.
 
-Version 0.27 2012/03/15 [svn: r99]
-  - rework buffers for systems withh many disks
+Version 0.27 2012/03/19 [svn: r100]
+  - rework buffers for systems with many disks
 
 Version 0.26 2012/01/31 [svn: r97]
   - add 'fcoe' transport indicator

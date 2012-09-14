@@ -28,7 +28,7 @@
 #include <linux/limits.h>
 #include <time.h>
 
-static const char * version_str = "0.27  2012/03/15 [svn: r99]";
+static const char * version_str = "0.27  2012/03/19 [svn: r100]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -932,8 +932,8 @@ get_dev_node(const char * wd, char *node, enum dev_type type)
         int match_found = 0;
         unsigned int k = 0;
 
-        strcpy(node,"-");
-
+        /* assume 'node' is at least 2 bytes long */
+        strcpy(node, "-");
         if (dev_node_listhead == NULL) {
                 collect_dev_nodes();
                 if (dev_node_listhead == NULL)
@@ -1242,12 +1242,12 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * op, */
         snprintf(buff, sizeof(buff), "%s%s%s", sysfsroot, sas_host, devname);
         if ((stat(buff, &a_stat) >= 0) && S_ISDIR(a_stat.st_mode)) {
                 transport_id = TRANSPORT_SAS;
-                strcat(buff, "/device");
+                off = strlen(buff);
+                snprintf(buff + off, sizeof(buff) - off, "/device");
                 if (sas_low_phy_scan(buff, NULL) < 1)
                         return 0;
-                strcpy(buff, sysfsroot);
-                strcat(buff, sas_phy);
-                strcat(buff, sas_low_phy);
+                snprintf(buff, sizeof(buff), "%s%s%s", sysfsroot, sas_phy,
+                         sas_low_phy);
                 snprintf(b, b_len, "sas:");
                 off = strlen(b);
                 if (get_value(buff, "sas_address", b + off, b_len - off))
@@ -1655,7 +1655,8 @@ transport_tport(const char * devname,
                                 return 0;
                         *cp = '\0';
                         cp = basename(wd);
-                        strcpy(sas_hold_end_device, cp);
+                        strncpy(sas_hold_end_device, cp,
+                                sizeof(sas_hold_end_device));
                         snprintf(buff, sizeof(buff), "%s%s%s", sysfsroot,
                                  sas_device, cp);
                         
@@ -2283,7 +2284,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                 if (DT_DIR == non_sg.d_type) {
                         snprintf(wd, sizeof(wd), "%s/%s", buff, non_sg.name);
                         if (1 == scan_for_first(wd, op))
-                                strcpy(extra, aa_first.name);
+                                strncpy(extra, aa_first.name, sizeof(extra));
                         else {
                                 printf("unexpected scan_for_first error");
                                 wd[0] = '\0';
@@ -2831,27 +2832,27 @@ decode_filter_arg(const char * a1p, const char * a2p, const char * a3p,
                 b1p = b1;
                 if ((n = strlen(a1p)) > rem)
                         goto err_out;
-                strcpy(b1p, a1p);
+                strncpy(b1p, a1p, rem);
                 b1p += n;
                 *b1p++ = ':';
                 rem -= (n + 1);
                 if ((n = strlen(a2p)) > rem)
                         goto err_out;
-                strcpy(b1p, a2p);
+                strncpy(b1p, a2p, rem);
                 if (a3p) {
                         b1p += n;
                         *b1p++ = ':';
                         rem -= (n + 1);
                         if ((n = strlen(a3p)) > rem)
                                 goto err_out;
-                        strcpy(b1p, a3p);
+                        strncpy(b1p, a3p, rem);
                         if (a4p) {
                                 b1p += n;
                                 *b1p++ = ':';
                                 rem -= (n + 1);
                                 if ((n = strlen(a4p)) > rem)
                                         goto err_out;
-                                strcpy(b1p, a4p);
+                                strncpy(b1p, a4p, rem);
                         }
                 }
                 return one_filter_arg(b1, filtp);
