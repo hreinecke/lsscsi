@@ -1,4 +1,4 @@
-.TH lsscsi "8" "January 2012" "lsscsi\-0.26" LSSCSI
+.TH lsscsi "8" "September 2012" "lsscsi\-0.27" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
@@ -11,7 +11,7 @@ lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
-Uses information in sysfs (Linux kernel series 2.6 and later) to list scsi
+Uses information in sysfs (Linux kernel series 2.6 and later) to list SCSI
 devices (or hosts) currently attached to the system. Options can be used to
 control the amount and form of information provided for each device.
 .PP
@@ -49,11 +49,11 @@ option name.
 The output is similar to that obtained from 'cat /proc/scsi/scsi'
 .TP
 \fB\-d\fR, \fB\-\-device\fR
-After outputting the (probable) scsi device name the device node
+After outputting the (probable) SCSI device name the device node
 major and minor numbers are shown in brackets (e.g. "/dev/sda[8:0]").
 .TP
 \fB\-g\fR, \fB\-\-generic\fR
-Output the scsi generic device file name. Note that if the sg driver
+Output the SCSI generic device file name. Note that if the sg driver
 is a module it may need to be loaded otherwise '\-' may appear.
 .TP
 \fB\-h\fR, \fB\-\-help\fR
@@ -124,7 +124,14 @@ st, osst or ch) have not been loaded. If the appropriate upper level
 driver has not been loaded then the device file name will appear
 as '\-' rather than something like '/dev/st0'. Note that some
 devices (e.g. scanners and medium changers) do not have a primary upper
-level driver and can only be accessed via a scsi generic (sg) device
+level driver and can only be accessed via a SCSI generic (sg) device
+name.
+.PP
+Generic SCSI devices can also be accessed via the bsg driver in Linux.
+By default, the bsg driver's device node names are of the
+form '/dev/bsg/\fIH:C:T:L\fR'. So, for example, the SCSI device shown
+by this utility on a line starting with the tuple '6:0:1:2' could be
+accessed via the bsg driver with the '/dev/bsg/6:0:1:2' device node
 name.
 .PP
 lsscsi version 0.21 or later is required to correctly display SCSI devices
