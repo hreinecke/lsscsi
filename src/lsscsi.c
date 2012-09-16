@@ -28,7 +28,7 @@
 #include <linux/limits.h>
 #include <time.h>
 
-static const char * version_str = "0.27  2012/03/19 [svn: r100]";
+static const char * version_str = "0.27  2012/09/16 [svn: r103]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
