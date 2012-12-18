@@ -28,7 +28,7 @@
 #include <linux/limits.h>
 #include <time.h>
 
-static const char * version_str = "0.27  2012/09/16 [svn: r103]";
+static const char * version_str = "0.27  2012/12/19 [svn: r104]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -1014,7 +1014,7 @@ collect_disk_wwn_nodes(void)
                         continue;       /* needs to start with "wwn-" */
                 if (strstr(dep->d_name, "part"))
                         continue;       /* skip if contains "part" */
-                
+
                 snprintf(device_path, PATH_MAX, "%s/%s", dev_disk_byid_dir,
                          dep->d_name);
                 device_path [PATH_MAX] = '\0';
@@ -1659,7 +1659,7 @@ transport_tport(const char * devname,
                                 sizeof(sas_hold_end_device));
                         snprintf(buff, sizeof(buff), "%s%s%s", sysfsroot,
                                  sas_device, cp);
-                        
+
                         snprintf(b, b_len, "sas:");
                         off = strlen(b);
                         if (get_value(buff, "sas_address", b + off,
@@ -2000,8 +2000,8 @@ transport_tport_longer(const char * devname,
                         printf("  recovery_tmo=%s\n", value);
 // >>>       Would like to see what are readable attributes in this directory.
 //           Ignoring connections for the time being. Could add with an entry
-//           for connection=<n> with normal two space indent followed by attributes
-//           for that connection indented 4 spaces
+//           for connection=<n> with normal two space indent followed by
+//           attributes for that connection indented 4 spaces
                 if (op->verbose > 2)
                         printf("fetched from directory: %s\n", buff);
                 break;
@@ -2300,7 +2300,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         }
                 }
                 if (wd[0]) {
-                        char dev_node[LMAX_NAME] = ""; 
+                        char dev_node[LMAX_NAME] = "";
                         char wwn_str[34];
                         enum dev_type typ;
 
@@ -2318,7 +2318,8 @@ one_sdev_entry(const char * dir_name, const char * devname,
                                 snprintf(dev_node, sizeof(dev_node), "%s/%s",
                                         dev_dir, basename(wd));
                         else if (! get_dev_node(wd, dev_node, typ))
-                                snprintf(dev_node, sizeof(dev_node), "-       ");
+                                snprintf(dev_node, sizeof(dev_node),
+                                         "-       ");
 
                         printf("%-9s", dev_node);
                         if (op->dev_maj_min) {
@@ -2796,7 +2797,8 @@ one_filter_arg(const char * arg, struct addr_hctl * filtp)
                 case 2: filtp->t = val; break;
                 case 3: filtp->l = val; break;
                 default:
-                        fprintf(stderr, "expect three colons at most in %s\n", arg);
+                        fprintf(stderr, "expect three colons at most in %s\n",
+                                arg);
                         return 1;
                 }
         }

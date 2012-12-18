@@ -51,7 +51,7 @@ fi
 
 
 %changelog
-* Sun Sep 16 2012 - dgilbert at interlog dot com
+* Wed Dec 19 2012 - dgilbert at interlog dot com
 - rework buffers for large systems
   * lsscsi-0.27
 * Tue Jan 31 2012 - dgilbert at interlog dot com
