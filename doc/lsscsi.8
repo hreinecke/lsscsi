@@ -1,11 +1,11 @@
-.TH lsscsi "8" "September 2012" "lsscsi\-0.27" LSSCSI
+.TH lsscsi "8" "February 2013" "lsscsi\-0.27" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
 .B lsscsi
 [\fI\-\-classic\fR] [\fI\-\-device\fR] [\fI\-\-generic\fR] [\fI\-\-help\fR]
-[\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-long\fR]
-[\fI\-\-protection\fR] [\fI\-\-protmode\fR] [\fI\-\-size\fR]
+[\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-lunhex\fR]
+[\fI\-\-long\fR] [\fI\-\-protection\fR] [\fI\-\-protmode\fR] [\fI\-\-size\fR]
 [\fI\-\-sysfsroot=PATH\fR] [\fI\-\-transport\fR] [\fI\-\-verbose\fR]
 [\fI\-\-version\fR] [\fI\-\-wwn\fR] [\fIH:C:T:L\fR]
 .SH DESCRIPTION
@@ -18,9 +18,12 @@ control the amount and form of information provided for each device.
 If a \fIH:C:T:L\fR argument is given then it acts as a filter and only
 devices that match it are listed. The colons don't have to be present,
 and '\-', '*', '?' or missing arguments at the end are interpreted as
-wildcards. '\-' needs to stand alone or else it is taken as the beginning of
-an option (e.g. '\-:\-:\-:\-' is illegal). '*' needs to be escaped from the
-shell. A leading '[' and trailing ']' are permitted (e.g. '[1:0:0]'
+wildcards. The default is '*:*:*:*' which means to match everything. Any
+filter string using '*' of '?' should be surrounded by single or double
+quotes to stop shell expansions. If '\-' is used as a wildcard then the
+whole filter argument should be prefixed by '\-\- ' to tell this utility
+their are no more options on the command line to be interpreted.
+A leading '[' and trailing ']' are permitted (e.g. '[1:0:0]'
 matches all luns on 1:0:0). May also be used to filter \fI\-\-hosts\fR
 in which case only the \fIH\fR is active and may be either a number
 or in the form "host<n>" where <n> is a host number.
@@ -79,6 +82,16 @@ form is more convenient (e.g. '\-lll'). When used three times (i.e. '\-lll')
 outputs SCSI device (host) attributes one per line; preceded by
 two spaces; in the form "<attribute_name>=<value>".
 .TP
+\fB\-x\fR, \fB\-\-lunhex\fR
+when this option is used once the lun in the tuple (at the start of each
+device line) is shown in "T10" format which is up to 16 hexadecimal
+digits. It is prefixed by "0x" to distinguish the lun from the decimal
+value shown in the absence of this option. Also hierarchial luns are
+shown with a "_" character separating the levels. For example the
+two level lun: 0x0355006600000000 will appear as 0x0355_0066. If this
+option is given twice (e.g. using the short form: '\-xx') then the full
+16 hexadecimal digits are shown for each lun, prefixed by "0x"
+.TP
 \fB\-p\fR, \fB\-\-protection\fR
 Output target (DIF) and initiator (DIX) protection types.
 .TP
@@ -114,29 +127,6 @@ the WWN is hexadecimal, it is prefixed by "0x".
 \fB\-y\fR, \fB\-\-sysfsroot\fR=\fIPATH\fR
 assumes sysfs is mounted at PATH instead of the default '/sys' . If this
 option is given PATH should be an absolute path (i.e. start with '/').
-.SH NOTES
-Information for this command is derived from the sysfs file system,
-which is assumed to be mounted at /sys unless specified otherwise
-by the user.
-SCSI (pseudo) devices that have been detected by the SCSI mid level
-will be listed even if the required upper level drivers (i.e. sd, sr,
-st, osst or ch) have not been loaded. If the appropriate upper level
-driver has not been loaded then the device file name will appear
-as '\-' rather than something like '/dev/st0'. Note that some
-devices (e.g. scanners and medium changers) do not have a primary upper
-level driver and can only be accessed via a SCSI generic (sg) device
-name.
-.PP
-Generic SCSI devices can also be accessed via the bsg driver in Linux.
-By default, the bsg driver's device node names are of the
-form '/dev/bsg/\fIH:C:T:L\fR'. So, for example, the SCSI device shown
-by this utility on a line starting with the tuple '6:0:1:2' could be
-accessed via the bsg driver with the '/dev/bsg/6:0:1:2' device node
-name.
-.PP
-lsscsi version 0.21 or later is required to correctly display SCSI devices
-in Linux kernel 2.6.26 (and possibly later) when the
-CONFIG_SYSFS_DEPRECATED_V2 kernel option is not defined.
 .SH TRANSPORTS
 This utility lists SCSI devices which are known as logical units (lu) in
 the SCSI Architecture Model (ref: SAM\-4 at http://www.t10.org) or hosts
@@ -219,12 +209,44 @@ is a separate SCSI host for each USB (SCSI) target. A USB SCSI target may
 contain multiple logical units. Thus the same "usb: <device_name>" string
 appears for a USB SCSI host and all logical units that belong to the USB
 SCSI target associated with that USB SCSI host.
+.SH LUNS
+TBA
+.PP
+If the \fI\-\-lunhex\fR option is not given on the command line then the
+environment variable LSSCSI_LUNHEX_OPT is checked if the \fI\-\-lunhex\fR
+option is not given. If LSSCSI_LUNHEX_OPT is present then its associated
+value becomes the number of times the \fI\-\-lunhex\fR is set internally.
+So, for example, 'LSSCSI_LUNHEX_OPT=2  lsscsi' and 'lsscsi \-xx' are
+equivalent.
+.SH NOTES
+Information for this command is derived from the sysfs file system,
+which is assumed to be mounted at /sys unless specified otherwise
+by the user.
+SCSI (pseudo) devices that have been detected by the SCSI mid level
+will be listed even if the required upper level drivers (i.e. sd, sr,
+st, osst or ch) have not been loaded. If the appropriate upper level
+driver has not been loaded then the device file name will appear
+as '\-' rather than something like '/dev/st0'. Note that some
+devices (e.g. scanners and medium changers) do not have a primary upper
+level driver and can only be accessed via a SCSI generic (sg) device
+name.
+.PP
+Generic SCSI devices can also be accessed via the bsg driver in Linux.
+By default, the bsg driver's device node names are of the
+form '/dev/bsg/\fIH:C:T:L\fR'. So, for example, the SCSI device shown
+by this utility on a line starting with the tuple '6:0:1:2' could be
+accessed via the bsg driver with the '/dev/bsg/6:0:1:2' device node
+name.
+.PP
+lsscsi version 0.21 or later is required to correctly display SCSI devices
+in Linux kernel 2.6.26 (and possibly later) when the
+CONFIG_SYSFS_DEPRECATED_V2 kernel option is not defined.
 .SH AUTHOR
 Written by Doug Gilbert
 .SH "REPORTING BUGS"
 Report bugs to <dgilbert at interlog dot com>.
 .SH COPYRIGHT
-Copyright \(co 2003\-2012 Douglas Gilbert
+Copyright \(co 2003\-2013 Douglas Gilbert
 .br
 This software is distributed under the GPL version 2. There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.

@@ -51,8 +51,8 @@ fi
 
 
 %changelog
-* Wed Dec 19 2012 - dgilbert at interlog dot com
-- rework buffers for large systems
+* Mon Feb 25 2013 - dgilbert at interlog dot com
+- rework buffers for large systems, add --lunhex
   * lsscsi-0.27
 * Tue Jan 31 2012 - dgilbert at interlog dot com
 - add fcoe transport indicator; add --wwn option

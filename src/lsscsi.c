@@ -1,7 +1,7 @@
 /* This is a utility program for listing SCSI devices and hosts (HBAs)
  * in the Linux operating system. It is applicable to kernel versions
  * 2.6.1 and greater.
- *  Copyright (C) 2003-2012 D. Gilbert
+ *  Copyright (C) 2003-2013 D. Gilbert
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 2, or (at your option)
@@ -27,8 +27,10 @@
 #include <linux/major.h>
 #include <linux/limits.h>
 #include <time.h>
+#define __STDC_FORMAT_MACROS 1
+#include <inttypes.h>
 
-static const char * version_str = "0.27  2012/12/19 [svn: r104]";
+static const char * version_str = "0.27  2013/02/25 [svn: r105]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -87,7 +89,8 @@ struct addr_hctl {
         int h;
         int c;
         int t;
-        int l;
+        uint64_t l;                     /* Linux word flipped */
+        unsigned char lun_arr[8];       /* T10, SAM-5 order */
 };
 
 struct addr_hctl filter;
@@ -99,6 +102,7 @@ struct lsscsi_opt_coll {
         int generic;
         int dev_maj_min;        /* --device */
         int kname;
+        int lunhex;
         int protection;         /* data integrity */
         int protmode;           /* data integrity */
         int size;
@@ -157,6 +161,7 @@ static struct option long_options[] = {
         {"kname", 0, 0, 'k'},
         {"long", 0, 0, 'l'},
         {"list", 0, 0, 'L'},
+        {"lunhex", 0, 0, 'x'},
         {"protection", 0, 0, 'p'},
         {"protmode", 0, 0, 'P'},
         {"size", 0, 0, 's'},
@@ -220,9 +225,9 @@ static char errpath[LMAX_PATH];
 
 static const char * usage_message =
 "Usage: lsscsi   [--classic] [--device] [--generic] [--help] [--hosts]\n"
-            "\t\t[--kname] [--list] [--long] [--protection] [--size]\n"
-            "\t\t[--sysfsroot=PATH] [--transport] [--verbose] [--version]\n"
-            "\t\t[--wwn] [<h:c:t:l>]\n"
+            "\t\t[--kname] [--list] [--lunhex] [--long] [--protection]\n"
+            "\t\t[--size] [--sysfsroot=PATH] [--transport] [--verbose]\n"
+            "\t\t[--version] [--wwn] [<h:c:t:l>]\n"
 "  where:\n"
 "    --classic|-c      alternate output similar to 'cat /proc/scsi/scsi'\n"
 "    --device|-d       show device node's major + minor numbers\n"
@@ -233,6 +238,7 @@ static const char * usage_message =
 "    --list|-L         additional information output one\n"
 "                      attribute=value per line\n"
 "    --long|-l         additional information output\n"
+"    --lunhex|-x       TBA\n"
 "    --protection|-p   show target and initiator protection information\n"
 "    --protmode|-P     show negotiated protection information mode\n"
 "    --size|-s         show disk size\n"
@@ -242,7 +248,7 @@ static const char * usage_message =
 "    --verbose|-v      output path names where data is found\n"
 "    --version|-V      output version string and exit\n"
 "    --wwn|-w          output WWN for disks (from /dev/disk/by-id/wwn*)\n"
-"    <h:c:t:l>         filter output list (def: '- - - -' (all))\n\n"
+"    <h:c:t:l>         filter output list (def: '*:*:*:*' (all))\n\n"
 "List SCSI devices or hosts, optionally with additional information\n";
 
 static void
@@ -350,11 +356,15 @@ cmp_hctl(const struct addr_hctl * le, const struct addr_hctl * ri)
 static void
 invalidate_hctl(struct addr_hctl * p)
 {
+        int k;
+
         if (p) {
                 p->h = -1;
                 p->c = -1;
                 p->t = -1;
-                p->l = -1;
+                p->l = (uint64_t)~0;
+                for (k = 0; k < 8; ++k)
+                        p->lun_arr[k] = 0xff;
         }
 }
 
@@ -1150,6 +1160,9 @@ get_usb_devname(const char * hname, const char * devname, char * b, int b_len)
 static int
 parse_colon_list(const char * colon_list, struct addr_hctl * outp)
 {
+        int k;
+        unsigned short u;
+        uint64_t z;
         const char * elem_end;
 
         if ((! colon_list) || (! outp))
@@ -1169,8 +1182,14 @@ parse_colon_list(const char * colon_list, struct addr_hctl * outp)
         if (NULL == (elem_end = strchr(colon_list, ':')))
                 return 0;
         colon_list = elem_end + 1;
-        if (1 != sscanf(colon_list, "%d", &outp->l))
+        if (1 != sscanf(colon_list, "%" SCNu64 , &outp->l))
                 return 0;
+        z = outp->l;
+        for (k = 0; k < 4; ++k, z >>= 16) {
+                u = z & 0xffff;
+                outp->lun_arr[(2 * k) + 1] = u & 0xff;
+                outp->lun_arr[2 * k] = (u >> 8) & 0xff;
+        }
         return 1;
 }
 
@@ -1183,7 +1202,8 @@ print_enclosure_device(const char *devname, const char *path,
         char b[LMAX_PATH];
 
         if (parse_colon_list(devname, &hctl)) {
-                snprintf(b, sizeof(b), "%s/device/target%d:%d:%d/%d:%d:%d:%d",
+                snprintf(b, sizeof(b),
+                         "%s/device/target%d:%d:%d/%d:%d:%d:%" PRIu64,
                          path, hctl.h, hctl.c, hctl.t,
                          hctl.h, hctl.c, hctl.t, hctl.l);
                 if (enclosure_device_scan(b, op) > 0)
@@ -2171,7 +2191,7 @@ one_classic_sdev_entry(const char * dir_name, const char * devname,
         snprintf(buff, sizeof(buff), "%s/%s", dir_name, devname);
         if (! parse_colon_list(devname, &hctl))
                 invalidate_hctl(&hctl);
-        printf("Host: scsi%d Channel: %02d Target: %02d Lun: %02d\n",
+        printf("Host: scsi%d Channel: %02d Target: %02d Lun: %02" PRIu64 "\n",
                hctl.h, hctl.c, hctl.t, hctl.l);
 
         if (get_value(buff, "vendor", value, sizeof(value)))
@@ -2227,6 +2247,113 @@ one_classic_sdev_entry(const char * dir_name, const char * devname,
                 printf("  dir: %s\n", buff);
 }
 
+/* Tag lun bytes according to SAM-5 rev 10. Write output to tag_arr assumed
+ * to have at least 8 ints. 0 in tag_arr means this position and higher can
+ * be ignored; 1 means print as is; 2 means print with separator
+ * prefixed. Example: lunp: 01 22 00 33 00 00 00 00 generates tag_arr
+ * of 1, 1, 2, 1, 0 ... 0 and might be printed as 0x0122_0033 . */
+static void
+tag_lun(const unsigned char * lunp, int * tag_arr)
+{
+    int k, a_method, bus_id, len_fld, e_a_method, next_level;
+    unsigned char not_spec[2] = {0xff, 0xff};
+
+    if (NULL == tag_arr)
+        return;
+    for (k = 0; k < 8; ++k)
+        tag_arr[k] = 0;
+    if (NULL == lunp)
+        return;
+    if (0 == memcmp(lunp, not_spec, sizeof(not_spec))) {
+        for (k = 0; k < 2; ++k)
+            tag_arr[k] = 1;
+        return;
+    }
+    for (k = 0; k < 4; ++k, lunp += 2) {
+        next_level = 0;
+        a_method = (lunp[0] >> 6) & 0x3;
+        switch (a_method) {
+        case 0:         /* peripheral device addressing method */
+            bus_id = lunp[0] & 0x3f;
+            if (bus_id)
+                next_level = 1;
+            tag_arr[2 * k] = (k > 0) ? 2 : 1;
+            tag_arr[(2 * k) + 1] = 1;
+            break;
+        case 1:         /* flat space addressing method */
+            tag_arr[2 * k] = (k > 0) ? 2 : 1;
+            tag_arr[(2 * k) + 1] = 1;
+            break;
+        case 2:         /* logical unit addressing method */
+            tag_arr[2 * k] = (k > 0) ? 2 : 1;
+            tag_arr[(2 * k) + 1] = 1;
+        case 3:         /* extended logical unit addressing method */
+            len_fld = (lunp[0] & 0x30) >> 4;
+            e_a_method = lunp[0] & 0xf;
+            if ((0 == len_fld) && (1 == e_a_method)) {
+                tag_arr[2 * k] = (k > 0) ? 2 : 1;
+                tag_arr[(2 * k) + 1] = 1;
+            } else if ((1 == len_fld) && (2 == e_a_method)) {
+                tag_arr[2 * k] = (k > 0) ? 2 : 1;
+                tag_arr[(2 * k) + 1] = 1;
+                tag_arr[(2 * k) + 2] = 1;
+                tag_arr[(2 * k) + 3] = 1;
+            } else if ((2 == len_fld) && (2 == e_a_method)) {
+                tag_arr[2 * k] = (k > 0) ? 2 : 1;
+                tag_arr[(2 * k) + 1] = 1;
+                tag_arr[(2 * k) + 2] = 1;
+                tag_arr[(2 * k) + 3] = 1;
+                tag_arr[(2 * k) + 4] = 1;
+                tag_arr[(2 * k) + 5] = 1;
+            } else if ((3 == len_fld) && (0xf == e_a_method))
+                tag_arr[2 * k] = (k > 0) ? 2 : 1;
+            else {
+                if (len_fld < 2) {
+                    tag_arr[2 * k] = (k > 0) ? 2 : 1;
+                    tag_arr[(2 * k) + 1] = 1;
+                    tag_arr[(2 * k) + 2] = 1;
+                    tag_arr[(2 * k) + 3] = 1;
+                } else {
+                    tag_arr[2 * k] = (k > 0) ? 2 : 1;
+                    tag_arr[(2 * k) + 1] = 1;
+                    tag_arr[(2 * k) + 2] = 1;
+                    tag_arr[(2 * k) + 3] = 1;
+                    tag_arr[(2 * k) + 4] = 1;
+                    tag_arr[(2 * k) + 5] = 1;
+                    if (3 == len_fld) {
+                        tag_arr[(2 * k) + 6] = 1;
+                        tag_arr[(2 * k) + 7] = 1;
+                    }
+                }
+            }
+            break;
+        default:
+            tag_arr[2 * k] = (k > 0) ? 2 : 1;
+            tag_arr[(2 * k) + 1] = 1;
+            break;
+        }
+        if (next_level)
+            continue;
+        break;
+    }
+}
+
+static uint64_t
+lun_word_flip(uint64_t in)
+{
+        uint64_t res = 0;
+        int k;
+
+        for (k = 0; ; ++k) {
+                res |= (in & 0xffff);
+                if (k > 2)
+                        break;
+                res <<= 16;
+                in >>= 16;
+        }
+        return res;
+}
+
 /* List one SCSI device (LU) on a line. */
 static void
 one_sdev_entry(const char * dir_name, const char * devname,
@@ -2236,16 +2363,44 @@ one_sdev_entry(const char * dir_name, const char * devname,
         char wd[LMAX_PATH];
         char extra[LMAX_DEVPATH];
         char value[LMAX_NAME];
-        int type;
+        int type, k, n, len, ta;
+        int devname_len = 13;
         int get_wwn = 0;
+        struct addr_hctl hctl;
+        int tag_arr[16];
 
         if (op->classic) {
                 one_classic_sdev_entry(dir_name, devname, op);
                 return;
         }
+        len = sizeof(value);
         snprintf(buff, sizeof(buff), "%s/%s", dir_name, devname);
-        snprintf(value, sizeof(value), "[%s]", devname);
-        printf("%-13s", value);
+        if (op->lunhex && parse_colon_list(devname, &hctl)) {
+                snprintf(value, len, "[%d:%d:%d:0x",
+                         hctl.h, hctl.c, hctl.t);
+                if (1 == op->lunhex) {
+                        tag_lun(hctl.lun_arr, tag_arr);
+                        for (k = 0; k < 8; ++k) {
+                                ta = tag_arr[k];
+                                if (ta <= 0)
+                                        break;
+                                n = strlen(value);
+                                snprintf(value + n, len - n, "%s%02x",
+                                         ((ta > 1) ? "_" : ""),
+                                         hctl.lun_arr[k]);
+                        }
+                        n = strlen(value);
+                        snprintf(value + n, len - n, "]");
+                } else {
+                        n = strlen(value);
+                        snprintf(value + n, len - n, "%016" PRIx64 "]",
+                                 lun_word_flip(hctl.l));
+                }
+                devname_len = 28;
+        } else
+                snprintf(value, sizeof(value), "[%s]", devname);
+
+        printf("%-*s", devname_len, value);
         if (! get_value(buff, "type", value, sizeof(value))) {
                 printf("type?   ");
         } else if (1 != sscanf(value, "%d", &type)) {
@@ -2475,7 +2630,8 @@ sdev_scandir_select(const struct dirent * s)
                         if (((-1 == filter.h) || (s_hctl.h == filter.h)) &&
                             ((-1 == filter.c) || (s_hctl.c == filter.c)) &&
                             ((-1 == filter.t) || (s_hctl.t == filter.t)) &&
-                            ((-1 == filter.l) || (s_hctl.l == filter.l)))
+                            (((uint64_t)~0 == filter.l) ||
+                             (s_hctl.l == filter.l)))
                                 return 1;
                         else
                                 return 0;
@@ -2761,6 +2917,7 @@ one_filter_arg(const char * arg, struct addr_hctl * filtp)
         const char * cpe;
         char buff[64];
         int val, k, n, res;
+        uint64_t val64;
 
         cp = arg;
         while ((*cp == ' ') || (*cp == '\t') || (*cp == '['))
@@ -2776,6 +2933,7 @@ one_filter_arg(const char * arg, struct addr_hctl * filtp)
                         cpe = cp + n - 1;
                 }
                 val = -1;
+                val64 = (uint64_t)~0;
                 if (n > ((int)sizeof(buff) - 1)) {
                         fprintf(stderr, "intermediate sting in %s too long "
                                 "(n=%d)\n", arg, n);
@@ -2784,7 +2942,10 @@ one_filter_arg(const char * arg, struct addr_hctl * filtp)
                 if ((n > 0) && ('-' != *cp) && ('*' != *cp) && ('?' != *cp)) {
                         strncpy(buff, cp, n);
                         buff[n] = '\0';
-                        res = sscanf(buff, "%d", &val);
+                        if (3 == k)
+                                res = sscanf(buff, "%" SCNu64 , &val64);
+                        else
+                                res = sscanf(buff, "%d", &val);
                         if (1 != res) {
                                 fprintf(stderr, "cannot decode %s as an "
                                         "integer\n", buff);
@@ -2795,7 +2956,7 @@ one_filter_arg(const char * arg, struct addr_hctl * filtp)
                 case 0: filtp->h = val; break;
                 case 1: filtp->c = val; break;
                 case 2: filtp->t = val; break;
-                case 3: filtp->l = val; break;
+                case 3: filtp->l = val64; break;
                 default:
                         fprintf(stderr, "expect three colons at most in %s\n",
                                 arg);
@@ -2821,7 +2982,7 @@ decode_filter_arg(const char * a1p, const char * a2p, const char * a3p,
         filtp->h = -1;
         filtp->c = -1;
         filtp->t = -1;
-        filtp->l = -1;
+        filtp->l = (uint64_t)~0;
         if ((0 == strncmp("host", a1p, 4)) &&
             (1 == sscanf(a1p, "host%d", &n)) && ( n >= 0)) {
                 filtp->h = n;
@@ -2858,7 +3019,6 @@ decode_filter_arg(const char * a1p, const char * a2p, const char * a3p,
                         }
                 }
                 return one_filter_arg(b1, filtp);
-
         }
 err_out:
         fprintf(stderr, "filter arguments exceed internal buffer size "
@@ -2874,13 +3034,15 @@ main(int argc, char **argv)
         int do_sdevices = 1;
         int do_hosts = 0;
         struct lsscsi_opt_coll opts;
+        const char * cp;
 
+        cp = getenv("LSSCSI_LUNHEX_OPT");
         invalidate_hctl(&filter);
         memset(&opts, 0, sizeof(opts));
         while (1) {
                 int option_index = 0;
 
-                c = getopt_long(argc, argv, "cdghHklLpPstvVy:w", long_options,
+                c = getopt_long(argc, argv, "cdghHklLpPstvVwxy:", long_options,
                                 &option_index);
                 if (c == -1)
                         break;
@@ -2931,6 +3093,9 @@ main(int argc, char **argv)
                 case 'w':
                         ++opts.wwn;
                         break;
+                case 'x':
+                        ++opts.lunhex;
+                        break;
                 case 'y':       /* sysfsroot <dir> */
                         sysfsroot = optarg;
                         break;
@@ -2970,8 +3135,12 @@ main(int argc, char **argv)
                 if (decode_filter_arg(a1p, a2p, a3p, a4p, &filter))
                         return 1;
                 if ((filter.h != -1) || (filter.c != -1) ||
-                    (filter.t != -1) || (filter.l != -1))
+                    (filter.t != -1) || (filter.l != (uint64_t)~0))
                         filter_active = 1;
+        }
+        if ((0 == opts.lunhex) && cp) {
+                if (1 == sscanf(cp, "%d", &c))
+                        opts.lunhex = c;
         }
         if ((opts.transport > 0) &&
             ((1 == opts.long_opt) || (2 == opts.long_opt))) {
