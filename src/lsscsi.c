@@ -30,7 +30,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.27  2013/02/25 [svn: r105]";
+static const char * version_str = "0.27  2013/02/27 [svn: r106]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -238,7 +238,9 @@ static const char * usage_message =
 "    --list|-L         additional information output one\n"
 "                      attribute=value per line\n"
 "    --long|-l         additional information output\n"
-"    --lunhex|-x       TBA\n"
+"    --lunhex|-x       show LUN part of tuple as hex number in T10 "
+"format;\n"
+"                      use twice to get full 16 digit hexadecimal LUN\n"
 "    --protection|-p   show target and initiator protection information\n"
 "    --protmode|-P     show negotiated protection information mode\n"
 "    --size|-s         show disk size\n"
@@ -2247,6 +2249,15 @@ one_classic_sdev_entry(const char * dir_name, const char * devname,
                 printf("  dir: %s\n", buff);
 }
 
+static void
+tag_lun_helper(int * tag_arr, int kk, int num)
+{
+        int j;
+
+        for (j = 0; j < num; ++j)
+                tag_arr[(2 * kk) + j] = ((kk > 0) && (0 == j)) ? 2 : 1;
+}
+
 /* Tag lun bytes according to SAM-5 rev 10. Write output to tag_arr assumed
  * to have at least 8 ints. 0 in tag_arr means this position and higher can
  * be ignored; 1 means print as is; 2 means print with separator
@@ -2255,87 +2266,66 @@ one_classic_sdev_entry(const char * dir_name, const char * devname,
 static void
 tag_lun(const unsigned char * lunp, int * tag_arr)
 {
-    int k, a_method, bus_id, len_fld, e_a_method, next_level;
-    unsigned char not_spec[2] = {0xff, 0xff};
+        int k, a_method, bus_id, len_fld, e_a_method, next_level;
+        unsigned char not_spec[2] = {0xff, 0xff};
 
-    if (NULL == tag_arr)
-        return;
-    for (k = 0; k < 8; ++k)
-        tag_arr[k] = 0;
-    if (NULL == lunp)
-        return;
-    if (0 == memcmp(lunp, not_spec, sizeof(not_spec))) {
-        for (k = 0; k < 2; ++k)
-            tag_arr[k] = 1;
-        return;
-    }
-    for (k = 0; k < 4; ++k, lunp += 2) {
-        next_level = 0;
-        a_method = (lunp[0] >> 6) & 0x3;
-        switch (a_method) {
-        case 0:         /* peripheral device addressing method */
-            bus_id = lunp[0] & 0x3f;
-            if (bus_id)
-                next_level = 1;
-            tag_arr[2 * k] = (k > 0) ? 2 : 1;
-            tag_arr[(2 * k) + 1] = 1;
-            break;
-        case 1:         /* flat space addressing method */
-            tag_arr[2 * k] = (k > 0) ? 2 : 1;
-            tag_arr[(2 * k) + 1] = 1;
-            break;
-        case 2:         /* logical unit addressing method */
-            tag_arr[2 * k] = (k > 0) ? 2 : 1;
-            tag_arr[(2 * k) + 1] = 1;
-        case 3:         /* extended logical unit addressing method */
-            len_fld = (lunp[0] & 0x30) >> 4;
-            e_a_method = lunp[0] & 0xf;
-            if ((0 == len_fld) && (1 == e_a_method)) {
-                tag_arr[2 * k] = (k > 0) ? 2 : 1;
-                tag_arr[(2 * k) + 1] = 1;
-            } else if ((1 == len_fld) && (2 == e_a_method)) {
-                tag_arr[2 * k] = (k > 0) ? 2 : 1;
-                tag_arr[(2 * k) + 1] = 1;
-                tag_arr[(2 * k) + 2] = 1;
-                tag_arr[(2 * k) + 3] = 1;
-            } else if ((2 == len_fld) && (2 == e_a_method)) {
-                tag_arr[2 * k] = (k > 0) ? 2 : 1;
-                tag_arr[(2 * k) + 1] = 1;
-                tag_arr[(2 * k) + 2] = 1;
-                tag_arr[(2 * k) + 3] = 1;
-                tag_arr[(2 * k) + 4] = 1;
-                tag_arr[(2 * k) + 5] = 1;
-            } else if ((3 == len_fld) && (0xf == e_a_method))
-                tag_arr[2 * k] = (k > 0) ? 2 : 1;
-            else {
-                if (len_fld < 2) {
-                    tag_arr[2 * k] = (k > 0) ? 2 : 1;
-                    tag_arr[(2 * k) + 1] = 1;
-                    tag_arr[(2 * k) + 2] = 1;
-                    tag_arr[(2 * k) + 3] = 1;
-                } else {
-                    tag_arr[2 * k] = (k > 0) ? 2 : 1;
-                    tag_arr[(2 * k) + 1] = 1;
-                    tag_arr[(2 * k) + 2] = 1;
-                    tag_arr[(2 * k) + 3] = 1;
-                    tag_arr[(2 * k) + 4] = 1;
-                    tag_arr[(2 * k) + 5] = 1;
-                    if (3 == len_fld) {
-                        tag_arr[(2 * k) + 6] = 1;
-                        tag_arr[(2 * k) + 7] = 1;
-                    }
-                }
-            }
-            break;
-        default:
-            tag_arr[2 * k] = (k > 0) ? 2 : 1;
-            tag_arr[(2 * k) + 1] = 1;
-            break;
+        if (NULL == tag_arr)
+                return;
+        for (k = 0; k < 8; ++k)
+                tag_arr[k] = 0;
+        if (NULL == lunp)
+                return;
+        if (0 == memcmp(lunp, not_spec, sizeof(not_spec))) {
+                for (k = 0; k < 2; ++k)
+                        tag_arr[k] = 1;
+                return;
         }
-        if (next_level)
-            continue;
-        break;
-    }
+        for (k = 0; k < 4; ++k, lunp += 2) {
+                next_level = 0;
+                a_method = (lunp[0] >> 6) & 0x3;
+                switch (a_method) {
+                case 0:         /* peripheral device addressing method */
+                        bus_id = lunp[0] & 0x3f;
+                        if (bus_id)
+                            next_level = 1;
+                        tag_lun_helper(tag_arr, k, 2);
+                        break;
+                case 1:         /* flat space addressing method */
+                        tag_lun_helper(tag_arr, k, 2);
+                        break;
+                case 2:         /* logical unit addressing method */
+                        tag_lun_helper(tag_arr, k, 2);
+                        break;
+                case 3:         /* extended logical unit addressing method */
+                        len_fld = (lunp[0] & 0x30) >> 4;
+                        e_a_method = lunp[0] & 0xf;
+                        if ((0 == len_fld) && (1 == e_a_method))
+                                tag_lun_helper(tag_arr, k, 2);
+                        else if ((1 == len_fld) && (2 == e_a_method))
+                                tag_lun_helper(tag_arr, k, 4);
+                        else if ((2 == len_fld) && (2 == e_a_method))
+                                tag_lun_helper(tag_arr, k, 6);
+                        else if ((3 == len_fld) && (0xf == e_a_method))
+                                tag_arr[2 * k] = (k > 0) ? 2 : 1;
+                        else {
+                                if (len_fld < 2)
+                                        tag_lun_helper(tag_arr, k, 4);
+                                else {
+                                        tag_lun_helper(tag_arr, k, 6);
+                                        if (3 == len_fld) {
+                                                tag_arr[(2 * k) + 6] = 1;
+                                                tag_arr[(2 * k) + 7] = 1;
+                                        }
+                                }
+                        }
+                        break;
+                default:
+                        tag_lun_helper(tag_arr, k, 2);
+                        break;
+                }
+                if (! next_level)
+                        break;
+        }
 }
 
 static uint64_t
