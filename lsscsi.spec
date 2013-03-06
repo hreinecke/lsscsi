@@ -51,7 +51,7 @@ fi
 
 
 %changelog
-* Mon Feb 25 2013 - dgilbert at interlog dot com
+* Tue Mar 05 2013 - dgilbert at interlog dot com
 - rework buffers for large systems, add --lunhex
   * lsscsi-0.27
 * Tue Jan 31 2012 - dgilbert at interlog dot com

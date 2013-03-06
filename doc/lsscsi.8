@@ -1,4 +1,4 @@
-.TH lsscsi "8" "February 2013" "lsscsi\-0.27" LSSCSI
+.TH lsscsi "8" "March 2013" "lsscsi\-0.27" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
@@ -22,9 +22,9 @@ wildcards. The default is '*:*:*:*' which means to match everything. Any
 filter string using '*' of '?' should be surrounded by single or double
 quotes to stop shell expansions. If '\-' is used as a wildcard then the
 whole filter argument should be prefixed by '\-\- ' to tell this utility
-their are no more options on the command line to be interpreted.
+there are no more options on the command line to be interpreted.
 A leading '[' and trailing ']' are permitted (e.g. '[1:0:0]'
-matches all luns on 1:0:0). May also be used to filter \fI\-\-hosts\fR
+matches all LUNs on 1:0:0). May also be used to filter \fI\-\-hosts\fR
 in which case only the \fIH\fR is active and may be either a number
 or in the form "host<n>" where <n> is a host number.
 .PP
@@ -40,9 +40,6 @@ In some situations it may be useful to see the device node name that
 Linux would produce by default, so the \fI\-\-kname\fR option is provided.
 An example of where this may be useful is kernel error logs which tend to
 report disk error messages using the disk's default kernel name.
-.PP
-Information about this utility including examples can also be found at:
-http://sg.danny.cz/scsi/lsscsi.html .
 .SH OPTIONS
 Arguments to long options are mandatory for short options as well.
 The options are arranged in alphabetical order based on the long
@@ -73,7 +70,7 @@ in the "/dev" directory as discussed above.
 .TP
 \fB\-L\fR, \fB\-\-list\fR
 Output additional information in <attribute_name>=<value> pairs, one pair
-per line preceded by two spaces. This option has the same effect as '\-lll'
+per line preceded by two spaces. This option has the same effect as '\-lll'.
 .TP
 \fB\-l\fR, \fB\-\-long\fR
 Output additional information for each SCSI device (host). Can be
@@ -83,14 +80,14 @@ outputs SCSI device (host) attributes one per line; preceded by
 two spaces; in the form "<attribute_name>=<value>".
 .TP
 \fB\-x\fR, \fB\-\-lunhex\fR
-when this option is used once the lun in the tuple (at the start of each
+when this option is used once the LUN in the tuple (at the start of each
 device line) is shown in "T10" format which is up to 16 hexadecimal
-digits. It is prefixed by "0x" to distinguish the lun from the decimal
-value shown in the absence of this option. Also hierarchial luns are
+digits. It is prefixed by "0x" to distinguish the LUN from the decimal
+value shown in the absence of this option. Also hierarchal LUNs are
 shown with a "_" character separating the levels. For example the
-two level lun: 0x0355006600000000 will appear as 0x0355_0066. If this
+two level LUN: 0x0355006600000000 will appear as 0x0355_0066. If this
 option is given twice (e.g. using the short form: '\-xx') then the full
-16 hexadecimal digits are shown for each lun, prefixed by "0x"
+16 hexadecimal digits are shown for each LUN, prefixed by "0x".
 .TP
 \fB\-p\fR, \fB\-\-protection\fR
 Output target (DIF) and initiator (DIX) protection types.
@@ -108,7 +105,7 @@ if \fI\-\-hosts\fR is given, initiator related information. When used without
 usually prefixed by the type of transport. For devices this information
 replaces the normal vendor, product and revision strings. When the
 \fI\-\-list\fR option is also given then additionally multiple lines
-of attribute_name=value pairs are ouput, each indented by two spaces. See
+of attribute_name=value pairs are output, each indented by two spaces. See
 the section on transports below.
 .TP
 \fB\-v\fR, \fB\-\-verbose\fR
@@ -128,7 +125,7 @@ the WWN is hexadecimal, it is prefixed by "0x".
 assumes sysfs is mounted at PATH instead of the default '/sys' . If this
 option is given PATH should be an absolute path (i.e. start with '/').
 .SH TRANSPORTS
-This utility lists SCSI devices which are known as logical units (lu) in
+This utility lists SCSI devices which are known as logical units (LU) in
 the SCSI Architecture Model (ref: SAM\-4 at http://www.t10.org) or hosts
 when the \fI\-\-hosts\fR option is given. A host is called an initiator in
 SAM\-4. A SCSI command travels out via an initiator, across some transport
@@ -153,7 +150,7 @@ the summary line, multiple lines of transport specific information in the
 form "<attribute_name>=<value>" are output, each indented by two spaces.
 Using a filter argument will reduce the volume of output if a lot of
 devices or hosts are present.
-.PP 
+.PP
 The transports that are currently recognized are: IEEE 1394, ATA, FC,
 iSCSI, SAS, SATA, SPI and USB.
 .PP
@@ -210,14 +207,48 @@ contain multiple logical units. Thus the same "usb: <device_name>" string
 appears for a USB SCSI host and all logical units that belong to the USB
 SCSI target associated with that USB SCSI host.
 .SH LUNS
-TBA
+For historical reasons and as used by several other Unix based Operating
+Systems, Linux uses a tuple of integers to describe (a path to) a SCSI
+device (also know as a Logical Unit (LU)). The last element of that tuple
+is the so\-called Logical Unit Number (LUN). And originally in SCSI a
+LUN was an integer, at first 3 bits long, then 8 then 16 bits. SCSI LUNs
+today (SAM\-5 section 4.7) are 64 bits but SCSI standards now consider
+a LUN to be an array of 8 bytes.
+.PP
+Up until 2013, Linux mapped SCSI LUNs to a 32 bit integer by taking the
+first 4 bytes of the SCSI LUN and ignoring the last 4 bytes. Linux treated
+the first two bytes of the SCSI LUN as a unit (a word) and it became the
+least significant 16 bits in the Linux LUN integer. The next two bytes of
+the SCSI LUN became the upper 16 bits in the Linux LUN integer. The rationale
+for this was to keep commonly used LUNs small Linux LUN integers. The most
+common LUN (by far) in SCSI LUN (hex) notation is 00 00 00 00 00 00 00 00
+and this becomes the Linux LUN integer 0. The next most common LUN is
+00 01 00 00 00 00 00 00 and this becomes the Linux LUN integer 1.
+.PP
+In 2013 it is proposed to increase Linux LUNs to a 64 bit integer by extending
+the mapping outlined above. In this case all information that is possible
+to represent in a SCSI LUN is mapped a Linux LUN (64 bit) integer. And the
+mapping can be reversed without losing information.
+.PP
+This version of the utility supports both 32 and 64 bit Linux LUN integers.
+By default the LUN shown at the end of the tuple commencing each line is
+a Linux LUN as a decimal integer. When the \fI\-\-lunhex\fR option is given
+then the LUN is in SCSI LUN format with the 8 bytes run together, with the
+output in hexadecimal and prefixed by '0x'. The LUN is decoded according
+to SAM\-5's description and trailing zeros (i.e. digits to the right) are not
+shown. So LUN 0 (i.e. 00 00 00 00 00 00 00 00) is shown as 0x0000 and
+LUN 65 (i.e. 00 41 00 00 00 00 00 00) is shown as 0x0041.
+If the \fI\-\-lunhex\fR option is given twice then the full 64 bits (i.e. 16
+hexadecimal digits) are shown.
 .PP
 If the \fI\-\-lunhex\fR option is not given on the command line then the
-environment variable LSSCSI_LUNHEX_OPT is checked if the \fI\-\-lunhex\fR
-option is not given. If LSSCSI_LUNHEX_OPT is present then its associated
-value becomes the number of times the \fI\-\-lunhex\fR is set internally.
-So, for example, 'LSSCSI_LUNHEX_OPT=2  lsscsi' and 'lsscsi \-xx' are
-equivalent.
+environment variable LSSCSI_LUNHEX_OPT is checked. If LSSCSI_LUNHEX_OPT is
+present then its associated value becomes the number of times the
+\fI\-\-lunhex\fR is set internally. So, for
+example, 'LSSCSI_LUNHEX_OPT=2  lsscsi' and 'lsscsi \-xx' are equivalent.
+.SH EXAMPLES
+Information about this utility including examples can also be found at:
+http://sg.danny.cz/scsi/lsscsi.html .
 .SH NOTES
 Information for this command is derived from the sysfs file system,
 which is assumed to be mounted at /sys unless specified otherwise
