@@ -30,7 +30,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.27  2013/03/05 [svn: r107]";
+static const char * version_str = "0.27  2013/03/16 [svn: r108]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -105,6 +105,7 @@ struct lsscsi_opt_coll {
         int lunhex;
         int protection;         /* data integrity */
         int protmode;           /* data integrity */
+        int scsi_id;            /* udev derived from /dev/disk/by-id/scsi* */
         int size;
         int transport;
         int verbose;
@@ -164,6 +165,7 @@ static struct option long_options[] = {
         {"lunhex", 0, 0, 'x'},
         {"protection", 0, 0, 'p'},
         {"protmode", 0, 0, 'P'},
+        {"scsi_id", 0, 0, 'i'},
         {"size", 0, 0, 's'},
         {"sysfsroot", 1, 0, 'y'},
         {"transport", 0, 0, 't'},
@@ -226,8 +228,8 @@ static char errpath[LMAX_PATH];
 static const char * usage_message =
 "Usage: lsscsi   [--classic] [--device] [--generic] [--help] [--hosts]\n"
             "\t\t[--kname] [--list] [--lunhex] [--long] [--protection]\n"
-            "\t\t[--size] [--sysfsroot=PATH] [--transport] [--verbose]\n"
-            "\t\t[--version] [--wwn] [<h:c:t:l>]\n"
+            "\t\t[--scsi_id] [--size] [--sysfsroot=PATH] [--transport]\n"
+            "\t\t[--verbose] [--version] [--wwn] [<h:c:t:l>]\n"
 "  where:\n"
 "    --classic|-c      alternate output similar to 'cat /proc/scsi/scsi'\n"
 "    --device|-d       show device node's major + minor numbers\n"
@@ -243,6 +245,7 @@ static const char * usage_message =
 "                      use twice to get full 16 digit hexadecimal LUN\n"
 "    --protection|-p   show target and initiator protection information\n"
 "    --protmode|-P     show negotiated protection information mode\n"
+"    --scsi_id|-i      show udev derived /dev/disk/by-id/scsi* entry\n"
 "    --size|-s         show disk size\n"
 "    --sysfsroot=PATH|-y PATH    set sysfs mount point to PATH (def: /sys)\n"
 "    --transport|-t    transport information for target or, if '--hosts'\n"
@@ -932,9 +935,10 @@ free_dev_node_list(void)
 }
 
 /* Given a path to a class device, find the most recent device node with
-   matching major/minor. Returns 1 if match found, 0 otherwise. */
+ * matching major/minor. Outputs to node which is assumed to be at least
+ * LMAX_NAME bytes long. Returns 1 if match found, 0 otherwise. */
 static int
-get_dev_node(const char * wd, char *node, enum dev_type type)
+get_dev_node(const char * wd, char * node, enum dev_type type)
 {
         struct dev_node_list *cur_list;
         struct dev_node_entry *cur_ent;
@@ -1114,6 +1118,86 @@ get_disk_wwn(const char *wd, char * wwn_str, int max_wwn_str_len)
                 }
         }
         return 0;
+}
+
+/*
+ * Look up a device node in a directory with symlinks to device nodes.
+ * @dir: Directory to examine, e.g. "/dev/disk/by-id".
+ * @pfx: Prefix of the symlink, e.g. "scsi-".
+ * @dev: Device node to look up, e.g. "/dev/sda".
+ * Returns a pointer to the name of the symlink without the prefix if a match
+ * has been found. The caller must free the pointer returned by this function.
+ * Side effect: changes the working directory to @dir.
+ */
+static char *
+lookup_dev(const char *dir, const char *pfx, const char *dev)
+{
+        struct stat stats;
+        unsigned st_rdev;
+        DIR *dirp;
+        struct dirent *entry;
+        char *result = NULL;
+
+        if (stat(dev, &stats) < 0)
+                goto out;
+        st_rdev = stats.st_rdev;
+        if (chdir(dir) < 0)
+                goto out;
+        dirp = opendir(dir);
+        if (!dirp)
+                goto out;
+        while ((entry = readdir(dirp)) != NULL) {
+                if (stat(entry->d_name, &stats) >= 0 &&
+                    stats.st_rdev == st_rdev &&
+                    strncmp(entry->d_name, pfx, strlen(pfx)) == 0) {
+                        result = strdup(entry->d_name + strlen(pfx));
+                        break;
+                }
+        }
+        closedir(dirp);
+out:
+        return result;
+}
+
+/*
+ * Obtain the SCSI ID of a disk.
+ * @dev_node: Device node of the disk, e.g. "/dev/sda".
+ * Return value: pointer to the SCSI ID if lookup succeeded or NULL if lookup
+ * failed.
+ * The caller must free the returned buffer with free().
+ */
+static char *
+get_disk_scsi_id(const char *dev_node)
+{
+        char sys_block[64];
+        char holder[16];
+        char *scsi_id = NULL;
+        DIR *dir;
+        struct dirent *entry;
+
+        scsi_id = lookup_dev(dev_disk_byid_dir, "scsi-", dev_node);
+        if (scsi_id)
+                goto out;
+        scsi_id = lookup_dev(dev_disk_byid_dir, "dm-uuid-mpath-", dev_node);
+        if (scsi_id)
+                goto out;
+        scsi_id = lookup_dev(dev_disk_byid_dir, "usb-", dev_node);
+        if (scsi_id)
+                goto out;
+        snprintf(sys_block, sizeof(sys_block), "/sys/class/block/%s/holders",
+                 dev_node + 5);
+        dir = opendir(sys_block);
+        if (!dir)
+                goto out;
+        while ((entry = readdir(dir)) != NULL) {
+                snprintf(holder, sizeof(holder), "/dev/%s", entry->d_name);
+                scsi_id = get_disk_scsi_id(holder);
+                if (scsi_id)
+                        break;
+        }
+        closedir(dir);
+out:
+        return scsi_id;
 }
 
 /* Fetch USB device name string (form "<b>-<p1>[.<p2>]+:<c>.<i>") given
@@ -2474,11 +2558,22 @@ one_sdev_entry(const char * dir_name, const char * devname,
                                 else
                                         printf("[dev?]");
                         }
+
+                        if (op->scsi_id) {
+                                char *scsi_id;
+
+                                scsi_id = get_disk_scsi_id(dev_node);
+                                printf("  %s", scsi_id ? scsi_id : "-");
+                                free(scsi_id);
+                        }
                 }
         } else {
                 if (get_wwn)
                         printf("                                ");
-                printf("%-9s", "-");
+                if (op->scsi_id)
+                        printf("%-9s  -", "-");
+                else
+                        printf("%-9s", "-");
         }
 
         if (op->generic) {
@@ -3032,8 +3127,8 @@ main(int argc, char **argv)
         while (1) {
                 int option_index = 0;
 
-                c = getopt_long(argc, argv, "cdghHklLpPstvVwxy:", long_options,
-                                &option_index);
+                c = getopt_long(argc, argv, "cdghHiklLpPstvVwxy:",
+                                long_options, &option_index);
                 if (c == -1)
                         break;
 
@@ -3052,6 +3147,9 @@ main(int argc, char **argv)
                         return 0;
                 case 'H':
                         ++do_hosts;
+                        break;
+                case 'i':
+                        ++opts.scsi_id;
                         break;
                 case 'k':
                         ++opts.kname;

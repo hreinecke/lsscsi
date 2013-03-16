@@ -5,9 +5,10 @@ lsscsi \- list SCSI devices (or hosts) and their attributes
 .B lsscsi
 [\fI\-\-classic\fR] [\fI\-\-device\fR] [\fI\-\-generic\fR] [\fI\-\-help\fR]
 [\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-lunhex\fR]
-[\fI\-\-long\fR] [\fI\-\-protection\fR] [\fI\-\-protmode\fR] [\fI\-\-size\fR]
-[\fI\-\-sysfsroot=PATH\fR] [\fI\-\-transport\fR] [\fI\-\-verbose\fR]
-[\fI\-\-version\fR] [\fI\-\-wwn\fR] [\fIH:C:T:L\fR]
+[\fI\-\-long\fR] [\fI\-\-protection\fR] [\fI\-\-protmode\fR]
+[\fI\-\-scsi_id\fR] [\fI\-\-size\fR] [\fI\-\-sysfsroot=PATH\fR]
+[\fI\-\-transport\fR] [\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fI\-\-wwn\fR]
+[\fIH:C:T:L\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
@@ -95,6 +96,14 @@ Output target (DIF) and initiator (DIX) protection types.
 \fB\-P\fR, \fB\-\-protmode\fR
 Output effective protection information mode for each disk device.
 .TP
+\fB\-i\fR, \fB\-\-scsi_id\fR
+outputs the udev derived matching id found in /dev/disk/by\-id/scsi* .
+This is only for disk (and disk like) devices. If no match is found
+then "dm\-uuid\-mpath*" and "usb*" are searched in the same directory.
+If there is still no match then the /sys/class/block/<disk>/holders
+directory is searched. The matching id is printed following the device
+name (e.g.  /dev/sdc) and if there is no match "\-" is output.
+.TP
 \fB\-s\fR, \fB\-\-size\fR
 Print disk capacity in human readable form.
 .TP
@@ -173,7 +182,7 @@ option these ids will be for the target port associated with the
 device (logical unit) being listed. When the \fI\-\-hosts\fR option is
 given then the ids are for the initiator port used by the host. Output
 on the summary line specific to the FC transport is prefixed by "fc:".
-If FCoE (over ethernet) is detected the prefix is changed to "fcoe:".
+If FCoE (over Ethernet) is detected the prefix is changed to "fcoe:".
 .PP
 For iSCSI the target port name is output when \fI\-\-transport\fR is given,
 in the absence of the \fI\-\-hosts\fR option. This is made up of the
