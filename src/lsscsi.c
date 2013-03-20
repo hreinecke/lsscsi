@@ -1,6 +1,7 @@
 /* This is a utility program for listing SCSI devices and hosts (HBAs)
  * in the Linux operating system. It is applicable to kernel versions
  * 2.6.1 and greater.
+ *
  *  Copyright (C) 2003-2013 D. Gilbert
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -30,7 +31,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.27  2013/03/16 [svn: r108]";
+static const char * version_str = "0.27  2013/03/20 [svn: r109]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -1184,8 +1185,8 @@ get_disk_scsi_id(const char *dev_node)
         scsi_id = lookup_dev(dev_disk_byid_dir, "usb-", dev_node);
         if (scsi_id)
                 goto out;
-        snprintf(sys_block, sizeof(sys_block), "/sys/class/block/%s/holders",
-                 dev_node + 5);
+        snprintf(sys_block, sizeof(sys_block), "%s/class/block/%s/holders",
+                 sysfsroot, dev_node + 5);
         dir = opendir(sys_block);
         if (!dir)
                 goto out;
