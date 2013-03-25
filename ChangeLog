@@ -1,6 +1,6 @@
 Linux utility for listing SCSI devices.
 
-Version 0.27 2013/03/20 [svn: r109]
+Version 0.27 2013/03/24 [svn: r110]
   - rework buffers for systems with many disks
   - accept luns from sysfs as large as a 64 bit unsigned
     decimal number (largest was signed 32 bit decimal)

@@ -31,7 +31,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.27  2013/03/20 [svn: r109]";
+static const char * version_str = "0.27  2013/03/24 [svn: r110]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -167,6 +167,7 @@ static struct option long_options[] = {
         {"protection", 0, 0, 'p'},
         {"protmode", 0, 0, 'P'},
         {"scsi_id", 0, 0, 'i'},
+        {"scsi-id", 0, 0, 'i'}, /* convenience, not documented */
         {"size", 0, 0, 's'},
         {"sysfsroot", 1, 0, 'y'},
         {"transport", 0, 0, 't'},
