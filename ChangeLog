@@ -1,12 +1,11 @@
 Linux utility for listing SCSI devices.
 
-Version 0.27 2013/03/24 [svn: r110]
-  - rework buffers for systems with many disks
-  - accept luns from sysfs as large as a 64 bit unsigned
+Version 0.27 2013/05/08 [svn: r111]
+  - rework buffer handling for systems with many disks
+  - add --lunhex option for displaying LUNs in hex
+  - accept LUNs from sysfs as large as a 64 bit unsigned
     decimal number (largest was signed 32 bit decimal)
-  - add --lunhex option for displaying lun in hex
   - accept LSSCSI_LUNHEX_OPT environment variable
-  - todo perhaps: change sort order of luns with --lunhex
   - add scsi_id option for /dev/disk/by-id/scsi*
 
 Version 0.26 2012/01/31 [svn: r97]

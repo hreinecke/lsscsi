@@ -31,7 +31,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.27  2013/03/24 [svn: r110]";
+static const char * version_str = "0.27  2013/05/08 [svn: r111]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -183,26 +183,30 @@ static struct option long_options[] = {
 #define DEV_NODE_LIST_ENTRIES 16
 enum dev_type { BLK_DEV, CHR_DEV};
 
+struct dev_node_entry {
+       unsigned int maj, min;
+       enum dev_type type;
+       time_t mtime;
+       char name[LMAX_DEVPATH];
+};
+
 struct dev_node_list {
        struct dev_node_list *next;
        unsigned int count;
-       struct dev_node_entry {
-               unsigned int maj, min;
-               enum dev_type type;
-               time_t mtime;
-               char name[LMAX_DEVPATH];
-       } nodes[DEV_NODE_LIST_ENTRIES];
+       struct dev_node_entry nodes[DEV_NODE_LIST_ENTRIES];
 };
 static struct dev_node_list* dev_node_listhead = NULL;
+
+struct disk_wwn_node_entry {
+       char wwn[32];
+       char disk_bname[12];
+};
 
 #define DISK_WWN_NODE_LIST_ENTRIES 16
 struct disk_wwn_node_list {
        struct disk_wwn_node_list *next;
        unsigned int count;
-       struct disk_wwn_node_entry {
-               char wwn[32];
-               char disk_bname[12];
-       } nodes[DISK_WWN_NODE_LIST_ENTRIES];
+       struct disk_wwn_node_entry nodes[DISK_WWN_NODE_LIST_ENTRIES];
 };
 static struct disk_wwn_node_list * disk_wwn_node_listhead = NULL;
 
@@ -262,6 +266,24 @@ static void
 usage(void)
 {
         fprintf(stderr, "%s", usage_message);
+}
+
+/* Copies (dest_maxlen - 1) or less chars from src to dest. Less chars are
+ * copied if '\0' char found in src. As long as dest_maxlen > 0 then dest
+ * will be '\0' terminated on exit. If dest_maxlen < 1 then does nothing. */
+static void
+my_strcopy(char *dest, const char *src, int dest_maxlen)
+{
+        const char * lp;
+
+        if (dest_maxlen < 1)
+                return;
+        lp = (const char *)memchr(src, 0, dest_maxlen);
+        if (NULL == lp) {
+                memcpy(dest, src, dest_maxlen - 1);
+                dest[dest_maxlen - 1] = '\0';
+        } else
+                memcpy(dest, src, (lp - src) + 1);
 }
 
 /* Returns remainder (*np % base) and replaces *np with (*np / base).
@@ -386,7 +408,7 @@ first_scandir_select(const struct dirent * s)
         if ((DT_LNK != s->d_type) &&
             ((DT_DIR != s->d_type) || ('.' == s->d_name[0])))
                 return 0;
-        strncpy(aa_first.name, s->d_name, LMAX_NAME);
+        my_strcopy(aa_first.name, s->d_name, LMAX_NAME);
         aa_first.ft = FT_CHAR;  /* dummy */
         aa_first.d_type =  s->d_type;
         return 1;
@@ -499,7 +521,7 @@ enclosure_device_scandir_select(const struct dirent * s)
             ((DT_DIR != s->d_type) || ('.' == s->d_name[0])))
                 return 0;
         if (strstr(s->d_name, "enclosure_device")){
-                strncpy(enclosure_device.name, s->d_name, LMAX_NAME);
+                my_strcopy(enclosure_device.name, s->d_name, LMAX_NAME);
                 enclosure_device.ft = FT_CHAR;  /* dummy */
                 enclosure_device.d_type =  s->d_type;
                 return 1;
@@ -565,17 +587,17 @@ non_sg_scandir_select(const struct dirent * s)
             ((DT_DIR != s->d_type) || ('.' == s->d_name[0])))
                 return 0;
         if (0 == strncmp("scsi_changer", s->d_name, 12)) {
-                strncpy(non_sg.name, s->d_name, LMAX_NAME);
+                my_strcopy(non_sg.name, s->d_name, LMAX_NAME);
                 non_sg.ft = FT_CHAR;
                 non_sg.d_type =  s->d_type;
                 return 1;
         } else if (0 == strncmp("block", s->d_name, 5)) {
-                strncpy(non_sg.name, s->d_name, LMAX_NAME);
+                my_strcopy(non_sg.name, s->d_name, LMAX_NAME);
                 non_sg.ft = FT_BLOCK;
                 non_sg.d_type =  s->d_type;
                 return 1;
         } else if (0 == strcmp("tape", s->d_name)) {
-                strncpy(non_sg.name, s->d_name, LMAX_NAME);
+                my_strcopy(non_sg.name, s->d_name, LMAX_NAME);
                 non_sg.ft = FT_CHAR;
                 non_sg.d_type =  s->d_type;
                 return 1;
@@ -583,14 +605,14 @@ non_sg_scandir_select(const struct dirent * s)
                 len = strlen(s->d_name);
                 if (isdigit(s->d_name[len - 1])) {
                         /* want 'st<num>' symlink only */
-                        strncpy(non_sg.name, s->d_name, LMAX_NAME);
+                        my_strcopy(non_sg.name, s->d_name, LMAX_NAME);
                         non_sg.ft = FT_CHAR;
                         non_sg.d_type =  s->d_type;
                         return 1;
                 } else
                         return 0;
         } else if (0 == strncmp("onstream_tape:os", s->d_name, 16)) {
-                strncpy(non_sg.name, s->d_name, LMAX_NAME);
+                my_strcopy(non_sg.name, s->d_name, LMAX_NAME);
                 non_sg.ft = FT_CHAR;
                 non_sg.d_type =  s->d_type;
                 return 1;
@@ -629,7 +651,7 @@ sg_scandir_select(const struct dirent * s)
             ((DT_DIR != s->d_type) || ('.' == s->d_name[0])))
                 return 0;
         if (0 == strncmp("scsi_generic", s->d_name, 12)) {
-                strncpy(aa_sg.name, s->d_name, LMAX_NAME);
+                my_strcopy(aa_sg.name, s->d_name, LMAX_NAME);
                 aa_sg.ft = FT_CHAR;
                 aa_sg.d_type =  s->d_type;
                 return 1;
@@ -691,9 +713,9 @@ sas_low_phy_scandir_select(const struct dirent * s)
                 return 0;
         if (0 == strncmp("phy", s->d_name, 3)) {
                 if (0 == strlen(sas_low_phy))
-                        strncpy(sas_low_phy, s->d_name, LMAX_NAME);
+                        my_strcopy(sas_low_phy, s->d_name, LMAX_NAME);
                 else {
-                        cp = strrchr(s->d_name, ':');
+                        cp = (char *)strrchr(s->d_name, ':');
                         if (NULL == cp)
                                 return 0;
                         n = atoi(cp + 1);
@@ -702,7 +724,7 @@ sas_low_phy_scandir_select(const struct dirent * s)
                                 return 0;
                         m = atoi(cp + 1);
                         if (n < m)
-                                strncpy(sas_low_phy, s->d_name, LMAX_NAME);
+                                my_strcopy(sas_low_phy, s->d_name, LMAX_NAME);
                 }
                 return 1;
         } else
@@ -740,7 +762,7 @@ iscsi_target_scandir_select(const struct dirent * s)
                 return 0;
         if (0 == strncmp("session", s->d_name, 7)) {
                 iscsi_tsession_num = atoi(s->d_name + 7);
-                strncpy(buff, iscsi_dir_name, LMAX_PATH);
+                my_strcopy(buff, iscsi_dir_name, LMAX_PATH);
                 off = strlen(buff);
                 snprintf(buff + off, sizeof(buff) - off,
                          "/%s/target%d:%d:%d", s->d_name, iscsi_target_hct->h,
@@ -864,7 +886,8 @@ collect_dev_nodes(void)
         if (dev_node_listhead)
                 return; /* already collected nodes */
 
-        dev_node_listhead = malloc(sizeof(struct dev_node_list));
+        dev_node_listhead = (struct dev_node_list*)
+                            malloc(sizeof(struct dev_node_list));
         if (! dev_node_listhead)
                 return;
 
@@ -895,7 +918,8 @@ collect_dev_nodes(void)
                 /* Add to the list. */
                 if (cur_list->count >= DEV_NODE_LIST_ENTRIES) {
                         prev_list = cur_list;
-                        cur_list = malloc(sizeof(struct dev_node_list));
+                        cur_list = (struct dev_node_list *)
+                                   malloc(sizeof(struct dev_node_list));
                         if (! cur_list) break;
                         prev_list->next = cur_list;
                         cur_list->next = NULL;
@@ -910,7 +934,7 @@ collect_dev_nodes(void)
                 else if (S_ISCHR(stats.st_mode))
                         cur_ent->type = CHR_DEV;
                 cur_ent->mtime = stats.st_mtime;
-                strncpy(cur_ent->name, device_path, sizeof(cur_ent->name));
+                my_strcopy(cur_ent->name, device_path, sizeof(cur_ent->name));
 
                 cur_list->count++;
         }
@@ -951,7 +975,7 @@ get_dev_node(const char * wd, char * node, enum dev_type type)
         unsigned int k = 0;
 
         /* assume 'node' is at least 2 bytes long */
-        strcpy(node, "-");
+        memcpy(node, "-", 2);
         if (dev_node_listhead == NULL) {
                 collect_dev_nodes();
                 if (dev_node_listhead == NULL)
@@ -983,7 +1007,7 @@ get_dev_node(const char * wd, char * node, enum dev_type type)
                         if ((!match_found) ||
                             (difftime(cur_ent->mtime,newest_mtime) > 0)) {
                                 newest_mtime = cur_ent->mtime;
-                                strncpy(node, cur_ent->name, LMAX_NAME);
+                                my_strcopy(node, cur_ent->name, LMAX_NAME);
                         }
                         match_found = 1;
                 }
@@ -1013,7 +1037,8 @@ collect_disk_wwn_nodes(void)
         if (disk_wwn_node_listhead)
                 return num; /* already collected nodes */
 
-        disk_wwn_node_listhead = malloc (sizeof(struct disk_wwn_node_list));
+        disk_wwn_node_listhead = (struct disk_wwn_node_list *)
+                                 malloc(sizeof(struct disk_wwn_node_list));
         if (! disk_wwn_node_listhead)
                 return -1;
 
@@ -1047,7 +1072,8 @@ collect_disk_wwn_nodes(void)
                 /* Add to the list. */
                 if (cur_list->count >= DISK_WWN_NODE_LIST_ENTRIES) {
                         prev_list = cur_list;
-                        cur_list = malloc(sizeof(struct disk_wwn_node_list));
+                        cur_list = (struct disk_wwn_node_list *)
+                                   malloc(sizeof(struct disk_wwn_node_list));
                         if (! cur_list)
                                 break;
                         memset(cur_list, 0, sizeof(struct disk_wwn_node_list));
@@ -1055,10 +1081,10 @@ collect_disk_wwn_nodes(void)
                 }
 
                 cur_ent = &cur_list->nodes[cur_list->count];
-                strncpy(cur_ent->wwn, dep->d_name + 4,
-                        sizeof(cur_ent->wwn) - 1);
-                strncpy(cur_ent->disk_bname, basename(symlink_path),
-                        sizeof(cur_ent->disk_bname) - 1);
+                my_strcopy(cur_ent->wwn, dep->d_name + 4,
+                           sizeof(cur_ent->wwn));
+                my_strcopy(cur_ent->disk_bname, basename(symlink_path),
+                           sizeof(cur_ent->disk_bname));
                 cur_list->count++;
                 ++num;
         }
@@ -1095,7 +1121,7 @@ get_disk_wwn(const char *wd, char * wwn_str, int max_wwn_str_len)
         char * bn;
         unsigned int k = 0;
 
-        strncpy(name, wd, sizeof(name));
+        my_strcopy(name, wd, sizeof(name));
         name[sizeof(name) - 1] = '\0';
         bn = basename(name);
         if (disk_wwn_node_listhead == NULL) {
@@ -1114,7 +1140,7 @@ get_disk_wwn(const char *wd, char * wwn_str, int max_wwn_str_len)
                 cur_ent = &cur_list->nodes[k];
                 k++;
                 if (0 == strcmp(cur_ent->disk_bname, bn)) {
-                        strncpy(wwn_str, cur_ent->wwn, max_wwn_str_len - 1);
+                        my_strcopy(wwn_str, cur_ent->wwn, max_wwn_str_len);
                         wwn_str[max_wwn_str_len - 1] = '\0';
                         return 1;
                 }
@@ -1232,7 +1258,8 @@ get_usb_devname(const char * hname, const char * devname, char * b, int b_len)
                         b[0] = '\0';
                 if ((cp = strstr(bf2, "/host"))) {
                         len = (cp - bf2) - 1;
-                        if ((len > 0) && ((c2p = memrchr(bf2, '/', len)))) {
+                        if ((len > 0) &&
+                            ((c2p = (char *)memrchr(bf2, '/', len)))) {
                                 len = cp - ++c2p;
                                 snprintf(b, b_len, "%.*s", len, c2p);
                         }
@@ -1335,7 +1362,8 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * op, */
                 }
                 off = strlen(b);
                 if (get_value(buff, "port_name", b + off, b_len - off)) {
-                        strcat(b, ",");
+                        off = strlen(b);
+                        my_strcopy(b + off, ",", sizeof(b) - off);
                         off = strlen(b);
                 } else
                         return 0;
@@ -1404,7 +1432,7 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * op, */
                 if (strlen(buff) + strlen(buff2) + strlen("host_id/guid") + 2
                     > sizeof(buff))
                         break;
-                strcat(buff, buff2);
+                my_strcopy(buff + strlen(buff), buff2, sizeof(buff));
 
                 /* read the FireWire host's EUI-64 */
                 if (!get_value(buff, "host_id/guid", buff2, sizeof(buff2)) ||
@@ -1472,9 +1500,9 @@ transport_init_longer(const char * path_name,
         int portnum;
         int i, j, len;
 
-        strncpy(buff, path_name, sizeof(buff));
+        my_strcopy(buff, path_name, sizeof(buff));
         cp = basename(buff);
-        strncpy(bname, cp, sizeof(bname));
+        my_strcopy(bname, cp, sizeof(bname));
         bname[sizeof(bname) - 1] = '\0';
         cp = bname;
         switch (transport_id) {
@@ -1763,8 +1791,8 @@ transport_tport(const char * devname,
                                 return 0;
                         *cp = '\0';
                         cp = basename(wd);
-                        strncpy(sas_hold_end_device, cp,
-                                sizeof(sas_hold_end_device));
+                        my_strcopy(sas_hold_end_device, cp,
+                                   sizeof(sas_hold_end_device));
                         snprintf(buff, sizeof(buff), "%s%s%s", sysfsroot,
                                  sas_device, cp);
 
@@ -1808,7 +1836,8 @@ transport_tport(const char * devname,
                          fc_transport, hctl.h, hctl.c, hctl.t);
                 off = strlen(b);
                 if (get_value(buff, "port_name", b + off, b_len - off)) {
-                        strcat(b, ",");
+                        off = strlen(b);
+                        my_strcopy(b + off, ",", sizeof(b) - off);
                         off = strlen(b);
                 } else
                         return 0;
@@ -1911,7 +1940,7 @@ transport_tport_longer(const char * devname,
 #else
         snprintf(path_name, sizeof(path_name), "%s%s%s", sysfsroot,
                  class_scsi_dev, devname);
-        strncpy(buff, path_name, sizeof(buff));
+        my_strcopy(buff, path_name, sizeof(buff));
 #endif
         switch (transport_id) {
         case TRANSPORT_SPI:
@@ -2515,14 +2544,15 @@ one_sdev_entry(const char * dir_name, const char * devname,
                 if (DT_DIR == non_sg.d_type) {
                         snprintf(wd, sizeof(wd), "%s/%s", buff, non_sg.name);
                         if (1 == scan_for_first(wd, op))
-                                strncpy(extra, aa_first.name, sizeof(extra));
+                                my_strcopy(extra, aa_first.name,
+                                           sizeof(extra));
                         else {
                                 printf("unexpected scan_for_first error");
                                 wd[0] = '\0';
                         }
                 } else {
-                        strncpy(wd, buff, sizeof(wd));
-                        strncpy(extra, non_sg.name, sizeof(extra));
+                        my_strcopy(wd, buff, sizeof(wd));
+                        my_strcopy(extra, non_sg.name, sizeof(extra));
                 }
                 if (wd[0] && (if_directory_chdir(wd, extra))) {
                         if (NULL == getcwd(wd, sizeof(wd))) {
@@ -2611,8 +2641,8 @@ one_sdev_entry(const char * dir_name, const char * devname,
                 char sddir[LMAX_DEVPATH];
                 char blkdir[LMAX_DEVPATH];
 
-                strncpy(sddir,  buff, sizeof(sddir));
-                strncpy(blkdir, buff, sizeof(blkdir));
+                my_strcopy(sddir,  buff, sizeof(sddir));
+                my_strcopy(blkdir, buff, sizeof(blkdir));
 
                 if (sd_scan(sddir) &&
                     if_directory_chdir(sddir, ".") &&
@@ -2637,7 +2667,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
         if (op->protmode) {
                 char sddir[LMAX_DEVPATH];
 
-                strncpy(sddir, buff, sizeof(sddir));
+                my_strcopy(sddir, buff, sizeof(sddir));
 
                 if (sd_scan(sddir) &&
                     if_directory_chdir(sddir, ".") &&
@@ -2655,7 +2685,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
         if (op->size) {
                 char blkdir[LMAX_DEVPATH];
 
-                strncpy(blkdir, buff, sizeof(blkdir));
+                my_strcopy(blkdir, buff, sizeof(blkdir));
 
                 value[0] = 0;
                 if (type == 0 &&
@@ -2780,7 +2810,7 @@ list_sdevices(const struct lsscsi_opt_coll * op)
                 printf("Attached devices: %s\n", (num ? "" : "none"));
 
         for (k = 0; k < num; ++k) {
-                strncpy(name, namelist[k]->d_name, sizeof(name));
+                my_strcopy(name, namelist[k]->d_name, sizeof(name));
                 transport_id = TRANSPORT_UNKNOWN;
                 one_sdev_entry(buff, name, op);
                 free(namelist[k]);
@@ -2876,8 +2906,8 @@ one_host_entry(const char * dir_name, const char * devname,
         char buff[LMAX_DEVPATH];
         char value[LMAX_NAME];
         char wd[LMAX_PATH];
-        char * nullname1 = "<NULL>";
-        char * nullname2 = "(null)";
+        const char * nullname1 = "<NULL>";
+        const char * nullname2 = "(null)";
         unsigned int host_id;
 
         if (op->classic) {
@@ -2988,7 +3018,7 @@ list_hosts(const struct lsscsi_opt_coll * op)
                 printf("Attached hosts: %s\n", (num ? "" : "none"));
 
         for (k = 0; k < num; ++k) {
-                strncpy(name, namelist[k]->d_name, sizeof(name));
+                my_strcopy(name, namelist[k]->d_name, sizeof(name));
                 transport_id = TRANSPORT_UNKNOWN;
                 one_host_entry(buff, name, op);
                 free(namelist[k]);
@@ -2996,7 +3026,7 @@ list_hosts(const struct lsscsi_opt_coll * op)
         free(namelist);
 }
 
-/* Return 0 if able to decode, otheriwse 1 */
+/* Return 0 if able to decode, otherwise 1 */
 static int
 one_filter_arg(const char * arg, struct addr_hctl * filtp)
 {
@@ -3027,13 +3057,20 @@ one_filter_arg(const char * arg, struct addr_hctl * filtp)
                         return 1;
                 }
                 if ((n > 0) && ('-' != *cp) && ('*' != *cp) && ('?' != *cp)) {
-                        strncpy(buff, cp, n);
+                        memcpy(buff, cp, n);
                         buff[n] = '\0';
-                        if (3 == k)
-                                res = sscanf(buff, "%" SCNu64 , &val64);
-                        else
+                        if (3 == k) {
+                                if (('0' == buff[0]) &&
+                                    ('X' == toupper(buff[1])))
+                                        res = sscanf(buff, "%" SCNx64 ,
+                                                     &val64);
+                                else
+                                        res = sscanf(buff, "%" SCNu64 ,
+                                                     &val64);
+                        } else
                                 res = sscanf(buff, "%d", &val);
-                        if (1 != res) {
+                        if ((1 != res) && (NULL == strchr(buff, ']'))) {
+                                        ;
                                 fprintf(stderr, "cannot decode %s as an "
                                         "integer\n", buff);
                                 return 1;
@@ -3082,27 +3119,27 @@ decode_filter_arg(const char * a1p, const char * a2p, const char * a3p,
                 b1p = b1;
                 if ((n = strlen(a1p)) > rem)
                         goto err_out;
-                strncpy(b1p, a1p, rem);
+                my_strcopy(b1p, a1p, rem);
                 b1p += n;
                 *b1p++ = ':';
                 rem -= (n + 1);
                 if ((n = strlen(a2p)) > rem)
                         goto err_out;
-                strncpy(b1p, a2p, rem);
+                my_strcopy(b1p, a2p, rem);
                 if (a3p) {
                         b1p += n;
                         *b1p++ = ':';
                         rem -= (n + 1);
                         if ((n = strlen(a3p)) > rem)
                                 goto err_out;
-                        strncpy(b1p, a3p, rem);
+                        my_strcopy(b1p, a3p, rem);
                         if (a4p) {
                                 b1p += n;
                                 *b1p++ = ':';
                                 rem -= (n + 1);
                                 if ((n = strlen(a4p)) > rem)
                                         goto err_out;
-                                strncpy(b1p, a4p, rem);
+                                my_strcopy(b1p, a4p, rem);
                         }
                 }
                 return one_filter_arg(b1, filtp);

@@ -168,6 +168,8 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 
+# C++ test
+
 # INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/include/scsi
 
 # -std=<s> can be c99, c11, gnu11, etc. Default is gnu89 (gnu90 is the same)

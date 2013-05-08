@@ -1,0 +1,7 @@
+Some suggestions:
+
+  - allow multiple sort orders of LUNs, may be useful if there are a
+    lot of LUNs [20130507]
+
+  - add unit option for different size representations [proposed by
+    Pascal Gregis 20121019]
