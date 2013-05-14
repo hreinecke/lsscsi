@@ -1,5 +1,5 @@
 %define name    lsscsi
-%define version 0.27
+%define version 0.28
 %define release 1
 
 Summary: 	List SCSI devices (or hosts) and associated information
@@ -51,6 +51,9 @@ fi
 
 
 %changelog
+* Sun May 11 2013 - dgilbert at interlog dot com
+- xxxxxxxxxxxx
+  * lsscsi-0.28
 * Sat Mar 16 2013 - dgilbert at interlog dot com
 - rework buffers for large systems, add --lunhex and --scsi_id
   * lsscsi-0.27

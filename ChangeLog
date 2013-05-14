@@ -1,5 +1,8 @@
 Linux utility for listing SCSI devices.
 
+Version 0.28 2013/05/11 [svn: r112]
+  - xxxxxxxxx
+
 Version 0.27 2013/05/08 [svn: r111]
   - rework buffer handling for systems with many disks
   - add --lunhex option for displaying LUNs in hex
