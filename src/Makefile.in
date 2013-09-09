@@ -168,7 +168,7 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 
-# C++ test
+# C++/clang testing
 
 # INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/include/scsi
 

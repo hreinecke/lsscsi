@@ -51,7 +51,7 @@ fi
 
 
 %changelog
-* Sun May 11 2013 - dgilbert at interlog dot com
+* Tue Jun 04 2013 - dgilbert at interlog dot com
 - xxxxxxxxxxxx
   * lsscsi-0.28
 * Sat Mar 16 2013 - dgilbert at interlog dot com

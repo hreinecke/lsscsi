@@ -1,7 +1,9 @@
 bin_PROGRAMS = lsscsi
 
-# C++ test
+# C++/clang testing
+## CC = g++ -std=c++11
 ## CC = g++
+## CC = clang
 
 # INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/include/scsi
 
