@@ -1,7 +1,7 @@
 Linux utility for listing SCSI devices.
 
-Version 0.28 2013/06/04 [svn: r113]
-  - xxxxxxxxx
+Version 0.28 2013/10/31 [svn: r114]
+  - upgrade automake to version 1.13.3
 
 Version 0.27 2013/05/08 [svn: r111]
   - rework buffer handling for systems with many disks

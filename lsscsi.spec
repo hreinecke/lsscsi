@@ -51,8 +51,8 @@ fi
 
 
 %changelog
-* Tue Jun 04 2013 - dgilbert at interlog dot com
-- xxxxxxxxxxxx
+* Tue Oct 31 2013 - dgilbert at interlog dot com
+- upgrade automake to version 1.13.3
   * lsscsi-0.28
 * Sat Mar 16 2013 - dgilbert at interlog dot com
 - rework buffers for large systems, add --lunhex and --scsi_id
