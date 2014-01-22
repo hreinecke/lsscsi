@@ -14,10 +14,12 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-root/
 Packager:	dgilbert at interlog dot com
 
 %description
-Uses information provided by the sysfs pseudo file system in Linux kernel
-2.6 and 3 series to list SCSI devices or all SCSI hosts. Includes a "classic"
-option to mimic the output of "cat /proc/scsi/scsi" that has been widely
-used prior to the lk 2.6 series.
+Uses information provided by the sysfs pseudo file system in the Linux
+kernel 2.6 series, and later, to list SCSI devices (Logical
+Units (e.g. disks)). It can list transport identifiers (e.g. SAS address
+of a SAS disk), protection information configuration and size for storage
+devices. Alternatively it can be used to list SCSI hosts (e.g. HBAs). By
+default one line of information is output per device (or host).
 
 Author:
 --------
@@ -51,7 +53,7 @@ fi
 
 
 %changelog
-* Tue Oct 31 2013 - dgilbert at interlog dot com
+* Wed Jan 22 2014 - dgilbert at interlog dot com
 - upgrade automake to version 1.13.3
   * lsscsi-0.28
 * Sat Mar 16 2013 - dgilbert at interlog dot com

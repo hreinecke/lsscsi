@@ -9,7 +9,9 @@ Package: lsscsi
 Architecture: any
 Depends: ${shlibs:Depends}
 Description: list all SCSI devices (or hosts) currently on system
- Uses information in sysfs (linux kernels 2.6.0 and later) to list all
- scsi devices (or hosts) currently attached to the system. Options can
- be used to control the amount and form of information provided for each
- device.
+ Uses information provided by the sysfs pseudo file system in the Linux
+ kernel 2.6 series, and later, to list SCSI devices (Logical
+ Units (e.g. disks)). It can list transport identifiers (e.g. SAS address
+ of a SAS disk), protection information configuration and size for storage
+ devices. Alternatively it can be used to list SCSI hosts (e.g. HBAs). By
+ default one line of information is output per device (or host).

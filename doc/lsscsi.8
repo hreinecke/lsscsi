@@ -1,4 +1,4 @@
-.TH lsscsi "8" "June 2013" "lsscsi\-0.28" LSSCSI
+.TH lsscsi "8" "January 2014" "lsscsi\-0.28" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
@@ -19,12 +19,12 @@ control the amount and form of information provided for each device.
 If a \fIH:C:T:L\fR argument is given then it acts as a filter and only
 devices that match it are listed. The colons don't have to be present,
 and '\-', '*', '?' or missing arguments at the end are interpreted as
-wildcards. The default is '*:*:*:*' which means to match everything. Any
-filter string using '*' of '?' should be surrounded by single or double
-quotes to stop shell expansions. If '\-' is used as a wildcard then the
-whole filter argument should be prefixed by '\-\- ' to tell this utility
-there are no more options on the command line to be interpreted.
-A leading '[' and trailing ']' are permitted (e.g. '[1:0:0]'
+wildcards. The default is '*:*:*:*' which means to match devices (i.e.
+Logical Units). Any filter string using '*' of '?' should be surrounded by
+single or double quotes to stop shell expansions. If '\-' is used as a
+wildcard then the whole filter argument should be prefixed by '\-\- ' to
+tell this utility there are no more options on the command line to be
+interpreted.  A leading '[' and trailing ']' are permitted (e.g. '[1:0:0]'
 matches all LUNs on 1:0:0). May also be used to filter \fI\-\-hosts\fR
 in which case only the \fIH\fR is active and may be either a number
 or in the form "host<n>" where <n> is a host number.
@@ -286,7 +286,7 @@ Written by Doug Gilbert
 .SH "REPORTING BUGS"
 Report bugs to <dgilbert at interlog dot com>.
 .SH COPYRIGHT
-Copyright \(co 2003\-2013 Douglas Gilbert
+Copyright \(co 2003\-2014 Douglas Gilbert
 .br
 This software is distributed under the GPL version 2. There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.

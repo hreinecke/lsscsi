@@ -2,7 +2,7 @@
  * in the Linux operating system. It is applicable to kernel versions
  * 2.6.1 and greater.
  *
- *  Copyright (C) 2003-2013 D. Gilbert
+ *  Copyright (C) 2003-2014 D. Gilbert
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 2, or (at your option)
@@ -31,7 +31,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.28  2013/10/31 [svn: r114]";
+static const char * version_str = "0.28  2014/01/22 [svn: r115]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -1363,7 +1363,7 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * op, */
                 off = strlen(b);
                 if (get_value(buff, "port_name", b + off, b_len - off)) {
                         off = strlen(b);
-                        my_strcopy(b + off, ",", sizeof(b) - off);
+                        my_strcopy(b + off, ",", b_len - off);
                         off = strlen(b);
                 } else
                         return 0;
@@ -1457,7 +1457,7 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * op, */
         cp = get_usb_devname(devname, NULL, wd, sizeof(wd) - 1);
         if (cp) {
                 transport_id = TRANSPORT_USB;
-                snprintf(b, b_len, "usb: %s", cp);
+                snprintf(b, b_len, "usb:%s", cp);
                 return 1;
         }
 
@@ -1891,7 +1891,7 @@ transport_tport(const char * devname,
         cp = get_usb_devname(NULL, devname, wd, sizeof(wd) - 1);
         if (cp) {
                 transport_id = TRANSPORT_USB;
-                snprintf(b, b_len, "usb: %s", cp);
+                snprintf(b, b_len, "usb:%s", cp);
                 return 1;
         }
 
@@ -2336,6 +2336,8 @@ one_classic_sdev_entry(const char * dir_name, const char * devname,
                 printf("ANSI SCSI revision: ?\n");
         } else if (1 != sscanf(value, "%d", &scsi_level)) {
                 printf("ANSI SCSI revision: ??\n");
+        } else if (scsi_level == 0) {
+                printf("ANSI SCSI revision: none\n");
         } else
                 printf("ANSI SCSI revision: %02x\n", (scsi_level - 1) ?
                                             scsi_level - 1 : 1);

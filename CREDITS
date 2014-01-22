@@ -12,6 +12,7 @@ Hannes Reinecke <hare at suse dot de >
     proposed additional code so lsscsi would work with lk 2.6.26
     (when CONFIG_SYSFS_DEPRECATED_V2 not defined) [20080318]
     fcoe transport indicator [20111026]
+    fix handling of scsi_level 0; USB and FC transport id fixes [20140122]
 
 Ihab Hamadi <ihab dot hamadi at emulex dot com>
     co-author of protection information addition [20081206]
@@ -46,4 +47,4 @@ Stefan Richter <stefanr at s5r6 dot in-berlin dot de>
     transport help with ieee1394 [20061231]
 
 Doug Gilbert
-1st March 2011
+22nd January 2014
