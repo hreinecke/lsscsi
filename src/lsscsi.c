@@ -31,7 +31,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.28  2014/01/22 [svn: r115]";
+static const char * version_str = "0.28  2014/02/05 [svn: r116]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -135,7 +135,8 @@ static const char * scsi_device_types[] =
         "Bridge controller",
         "Object based storage",
         "Automation Drive interface",
-        "Reserved (0x13)", "Reserved (0x14)",
+        "Security manager",
+        "Zoned Block",
         "Reserved (0x15)", "Reserved (0x16)", "Reserved (0x17)",
         "Reserved (0x18)", "Reserved (0x19)", "Reserved (0x1a)",
         "Reserved (0x1b)", "Reserved (0x1c)", "Reserved (0x1e)",
@@ -148,7 +149,7 @@ static const char * scsi_short_device_types[] =
         "disk   ", "tape   ", "printer", "process", "worm   ", "cd/dvd ",
         "scanner", "optical", "mediumx", "comms  ", "(0xa)  ", "(0xb)  ",
         "storage", "enclosu", "sim dsk", "opti rd", "bridge ", "osd    ",
-        "adi    ", "(0x13) ", "(0x14) ", "(0x15) ", "(0x16) ", "(0x17) ",
+        "adi    ", "sec man", "zbc    ", "(0x15) ", "(0x16) ", "(0x17) ",
         "(0x18) ", "(0x19) ", "(0x1a) ", "(0x1b) ", "(0x1c) ", "(0x1e) ",
         "wlun   ", "no dev ",
 };
