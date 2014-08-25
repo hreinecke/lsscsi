@@ -1,4 +1,4 @@
-.TH lsscsi "8" "February 2014" "lsscsi\-0.28" LSSCSI
+.TH lsscsi "8" "August 2014" "lsscsi\-0.28" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
@@ -161,7 +161,7 @@ Using a filter argument will reduce the volume of output if a lot of
 devices or hosts are present.
 .PP
 The transports that are currently recognized are: IEEE 1394, ATA, FC,
-iSCSI, SAS, SATA, SPI and USB.
+iSCSI, SAS, SATA, SPI, SRP and USB.
 .PP
 For IEEE 1394 (a.k.a. Firewire and "SBP" when storage is involved), the
 EUI\-64 based target port name is output when \fI\-\-transport\fR is given,
@@ -169,12 +169,15 @@ in the absence of the \fI\-\-hosts\fR option. When the \fI\-\-hosts\fR
 option is given then the EUI\-64 initiator port name is output. Output on
 the summary line specific to the IEEE 1394 transport is prefixed by "sbp:".
 .PP
-to detect ATA and SATA a crude check is performed on the driver
+To detect ATA and SATA devices a crude check is performed on the driver
 name (after the checks for other transports are exhausted). Based on the
-driver name either ATA or SATA transport type is chosen. Output on the
-summary line is either "ata:" or "sata:". No other attributes are given.
-Most device and hosts flagged as "ata:" will use the parallel ATA
-transport (PATA).
+driver name either the ATA or SATA transport type is chosen. Output on
+the summary line is either "ata:" or "sata:". A search is made for an
+associated vpd_pg83 file in sysfs, if found it may contain the device's
+WWN which is output if present. The WWN will not appear in Linux kernels
+before 3.15 and with old PATA and SATA devices. Most device and hosts
+flagged as "ata:" will use the parallel ATA transport (PATA). For SATA
+devices that are attached via a SAS expander, see the SAS paragraph below.
 .PP
 For Fibre Channel (FC) the port name and port identifier are output
 when \fI\-\-transport\fR is given. In the absence of the \fI\-\-hosts\fR
@@ -200,10 +203,18 @@ phy_id + 1). SATA disks directly attached to SAS HBAs seem to have an
 indeterminate SAS address. Output on the summary line specific to the SAS
 transport is prefixed by "sas:".
 .PP
+For SATA devices, see the paragraph above on ATA devices. As noted in the
+previous paragraph, SATA devices attached to SAS expanders will display a
+manufactured SAS transport address (manufactured by the expander) rather
+than the SATA device's WWN.
+.PP
 For the SCSI Parallel Interface (SPI) the target port identifier (usually
 a number between 0 and 15 inclusive) is output when \fI\-\-transport\fR is
 given, in the absence of the \fI\-\-hosts\fR option. When the \fI\-\-hosts\fR
 option is given then only "spi:" is output on the summary line.
+.PP
+For the SCSI RDMA Protocol (SRP) the IB (InfiniBand) port's GUID is given.
+As an example, it has a form like this: 0002:c903:00fa:abcd .
 .PP
 When a USB transport is detected, the summary line will contain "usb:"
 followed by a USB device name. The USB device name has the

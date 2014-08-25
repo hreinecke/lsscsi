@@ -21,6 +21,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -31,7 +32,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.28  2014/02/05 [svn: r116]";
+static const char * version_str = "0.28  2014/08/25 [svn: r117]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -48,6 +49,7 @@ static const char * version_str = "0.28  2014/02/05 [svn: r116]";
 #define TRANSPORT_ATA 8         /* probably PATA, could be SATA */
 #define TRANSPORT_SATA 9        /* most likely SATA */
 #define TRANSPORT_FCOE 10
+#define TRANSPORT_SRP 11
 
 #ifdef PATH_MAX
 #define LMAX_PATH PATH_MAX
@@ -82,6 +84,7 @@ static const char * fc_transport = "/class/fc_transport/";
 static const char * fc_remote_ports = "/class/fc_remote_ports/";
 static const char * iscsi_host = "/class/iscsi_host/";
 static const char * iscsi_session = "/class/iscsi_session/";
+static const char * srp_host = "/class/srp_host/";
 static const char * dev_dir = "/dev";
 static const char * dev_disk_byid_dir = "/dev/disk/by-id";
 
@@ -324,6 +327,8 @@ string_get_size(uint64_t size, const enum string_size_units units, char *buf,
                                    "EB", "ZB", "YB", NULL};
         const char *units_2[] = {"B", "KiB", "MiB", "GiB", "TiB", "PiB",
                                  "EiB", "ZiB", "YiB", NULL };
+        /* designated initializer are C99 but not yet C++; g++ and clang++
+         * accept them (with noise) */
         const char **units_str[] = {
                 [STRING_UNITS_10] =  units_10,
                 [STRING_UNITS_2] = units_2,
@@ -1270,6 +1275,97 @@ get_usb_devname(const char * hname, const char * devname, char * b, int b_len)
         return NULL;
 }
 
+#define VPD_DEVICE_ID 0x83
+#define VPD_ASSOC_LU 0
+
+/* Iterates to next designation descriptor in the device identification
+ * VPD page. The 'initial_desig_desc' should point to start of first
+ * descriptor with 'page_len' being the number of valid bytes in that
+ * and following descriptors. To start, 'off' should point to a negative
+ * value, thereafter it should point to the value yielded by the previous
+ * call. If 0 returned then 'initial_desig_desc + *off' should be a valid
+ * descriptor; returns -1 if normal end condition and -2 for an abnormal
+ * termination. Matches association, designator_type and/or code_set when
+ * any of those values are greater than or equal to zero. */
+int
+sg_vpd_dev_id_iter(const unsigned char * initial_desig_desc, int page_len,
+                   int * off, int m_assoc, int m_desig_type, int m_code_set)
+{
+    const unsigned char * ucp;
+    int k, c_set, assoc, desig_type;
+
+    for (k = *off, ucp = initial_desig_desc ; (k + 3) < page_len; ) {
+        k = (k < 0) ? 0 : (k + ucp[k + 3] + 4);
+        if ((k + 4) > page_len)
+            break;
+        c_set = (ucp[k] & 0xf);
+        if ((m_code_set >= 0) && (m_code_set != c_set))
+            continue;
+        assoc = ((ucp[k + 1] >> 4) & 0x3);
+        if ((m_assoc >= 0) && (m_assoc != assoc))
+            continue;
+        desig_type = (ucp[k + 1] & 0xf);
+        if ((m_desig_type >= 0) && (m_desig_type != desig_type))
+            continue;
+        *off = k;
+        return 0;
+    }
+    return (k == page_len) ? -1 : -2;
+}
+
+/* Fetch ATA device name string if available (from the device (optional)
+ * and via sysfs (lk 3.16 ? and later in vpd_pg83). If available this
+ * will be the ATA WWN which is actually the unique LU identifier rather
+ * than a transport identifier (ATA does not make the distinction).
+ * Returns 'b' which if detected will be a non-empty string. If the ATA
+ * device name (WWN) is not detected then 'b' will point to an empty
+ * string.
+ */
+static char *
+get_ata_devname(const char * devname, char * b, int b_len)
+{
+        char buff[LMAX_DEVPATH];
+        unsigned char u[512];
+        struct stat a_stat;
+        unsigned char *ucp;
+        int fd, res, len, dlen, off;
+
+        if ((NULL == b) || (b_len < 1))
+                return b;
+        b[0] = '\0';
+        snprintf(buff, sizeof(buff), "%s%s%s/device/vpd_pg83",
+                 sysfsroot, class_scsi_dev, devname);
+        if ((stat(buff, &a_stat) >= 0) && S_ISREG(a_stat.st_mode)) {
+                if ((fd = open(buff, O_RDONLY)) < 0)
+                        return b;
+                res = read(fd, u, sizeof(u));
+                if (res <= 8) {
+                        close(fd);
+                        return b;
+                }
+                close(fd);
+                if (VPD_DEVICE_ID != u[1])
+                        return b;
+                len = (u[2] << 8) + u[3];
+                if ((len + 4) != res)
+                        return b;
+                ucp = u + 4;
+                off = -1;
+                res = sg_vpd_dev_id_iter(ucp, len, &off, VPD_ASSOC_LU,
+                                         3 /* NAA */, 1 /* binary */);
+                if (res)
+                        return b;
+                dlen = ucp[off + 3];
+                if (8 != dlen)
+                        return b;
+                snprintf(b, b_len, "%02x%02x%02x%02x%02x%02x%02x%02x",
+                         ucp[off + 4], ucp[off + 5], ucp[off + 6],
+                         ucp[off + 7], ucp[off + 8], ucp[off + 9],
+                         ucp[off + 10], ucp[off + 11]);
+        }
+        return b;
+}
+
 /*  Parse colon_list into host/channel/target/lun ("hctl") array,
  *  return 1 if successful, else 0.
  */
@@ -1327,6 +1423,69 @@ print_enclosure_device(const char *devname, const char *path,
         }
 }
 
+/*
+ * Obtain the GUID of the InfiniBand port associated with SCSI host number h
+ * by stripping prefix fe80:0000:0000:0000: from GID 0. An example:
+ * 0002:c903:00a0:5de2.
+ */
+static void get_local_srp_gid(const int h, char *b, int b_len)
+{
+        char buff[LMAX_DEVPATH];
+        char value[LMAX_NAME];
+        int port;
+
+        snprintf(buff, sizeof(buff), "%s%shost%d", sysfsroot, scsi_host, h);
+        if (!get_value(buff, "local_ib_port", value, sizeof(value)))
+                return;
+        if (sscanf(value, "%d", &port) != 1)
+                return;
+        if (!get_value(buff, "local_ib_device", value, sizeof(value)))
+                return;
+        snprintf(buff, sizeof(buff), "%s/class/infiniband/%s/ports/%d/gids",
+                 sysfsroot, value, port);
+        if (!get_value(buff, "0", value, sizeof(value)))
+                return;
+        if (strlen(value) > 20)
+                snprintf(b, b_len, "%s", value + 20);
+}
+
+/*
+ * Obtain the original GUID of the remote InfiniBand port associated with a
+ * SCSI host by stripping prefix fe80:0000:0000:0000: from its GID. An
+ * example: 0002:c903:00a0:5de2.
+ */
+static int get_srp_orig_dgid(const int h, char *b, int b_len)
+{
+        char buff[LMAX_DEVPATH];
+        char value[LMAX_NAME];
+
+        snprintf(buff, sizeof(buff), "%s%shost%d", sysfsroot, scsi_host, h);
+        if (get_value(buff, "orig_dgid", value, sizeof(value)) &&
+            strlen(value) > 20) {
+                snprintf(b, b_len, "%s", value + 20);
+                return 1;
+        }
+        return 0;
+}
+
+/*
+ * Obtain the GUID of the remote InfiniBand port associated with a SCSI host
+ * by stripping prefix fe80:0000:0000:0000: from its GID. An example:
+ * 0002:c903:00a0:5de2.
+ */
+static int get_srp_dgid(const int h, char *b, int b_len)
+{
+        char buff[LMAX_DEVPATH];
+        char value[LMAX_NAME];
+
+        snprintf(buff, sizeof(buff), "%s%shost%d", sysfsroot, scsi_host, h);
+        if (get_value(buff, "dgid", value, sizeof(value)) &&
+            strlen(value) > 20) {
+                snprintf(b, b_len, "%s", value + 20);
+                return 1;
+        }
+        return 0;
+}
 
 /* Check host associated with 'devname' for known transport types. If so set
    transport_id, place a string in 'b' and return 1. Otherwise return 0. */
@@ -1372,6 +1531,18 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * op, */
                         return 1;
                 else
                         return 0;
+        }
+
+        /* SRP host */
+        snprintf(buff, sizeof(buff), "%s%s%s", sysfsroot, srp_host, devname);
+        if (stat(buff, &a_stat) >= 0 && S_ISDIR(a_stat.st_mode)) {
+                int h;
+
+                transport_id = TRANSPORT_SRP;
+                snprintf(b, b_len, "srp:");
+                if (sscanf(devname, "host%d", &h) == 1)
+                        get_local_srp_gid(h, b + strlen(b), b_len - strlen(b));
+                return 1;
         }
 
         /* SAS host */
@@ -1557,6 +1728,19 @@ transport_init_longer(const char * path_name,
                         printf("  tgtid_bind_type=%s\n", value);
                 if (op->verbose > 2)
                         printf("fetched from directory: %s\n", buff);
+                break;
+        case TRANSPORT_SRP:
+                printf("  transport=srp\n");
+                {
+                        int h;
+
+                        if (sscanf(path_name, "host%d", &h) != 1)
+                                break;
+                        if (get_srp_orig_dgid(h, value, sizeof(value)))
+                                printf("  orig_dgid=%s\n", value);
+                        if (get_srp_dgid(h, value, sizeof(value)))
+                                printf("  dgid=%s\n", value);
+                }
                 break;
         case TRANSPORT_SAS:
                 printf("  transport=sas\n");
@@ -1766,7 +1950,7 @@ transport_tport(const char * devname,
         char tpgt[LMAX_NAME];
         char * cp;
         struct addr_hctl hctl;
-        int off, n;
+        int off, n, ata_dev;
         struct stat a_stat;
 
         if (! parse_colon_list(devname, &hctl))
@@ -1848,6 +2032,16 @@ transport_tport(const char * devname,
                         return 0;
         }
 
+        /* SRP host? */
+        snprintf(buff, sizeof(buff), "%s%shost%d", sysfsroot, srp_host,
+                 hctl.h);
+        if (stat(buff, &a_stat) >= 0 && S_ISDIR(a_stat.st_mode)) {
+                transport_id = TRANSPORT_SRP;
+                snprintf(b, b_len, "srp:");
+                get_local_srp_gid(hctl.h, b + strlen(b), b_len - strlen(b));
+                return 1;
+        }
+
         /* SAS class representation or SBP? */
         snprintf(buff, sizeof(buff), "%s%s/%s", sysfsroot, bus_scsi_devs,
                  devname);
@@ -1900,18 +2094,25 @@ transport_tport(const char * devname,
         snprintf(buff, sizeof(buff), "%s%shost%d", sysfsroot, scsi_host,
                  hctl.h);
         if (get_value(buff, "proc_name", wd, sizeof(wd))) {
+                ata_dev = 0;
                 if (0 == strcmp("ahci", wd)) {
                         transport_id = TRANSPORT_SATA;
                         snprintf(b, b_len, "sata:");
-                        return 1;
+                        ata_dev = 1;
                 } else if (strstr(wd, "ata")) {
                         if (0 == memcmp("sata", wd, 4)) {
                                 transport_id = TRANSPORT_SATA;
                                 snprintf(b, b_len, "sata:");
-                                return 1;
+                        } else {
+                                transport_id = TRANSPORT_ATA;
+                                snprintf(b, b_len, "ata:");
                         }
-                        transport_id = TRANSPORT_ATA;
-                        snprintf(b, b_len, "ata:");
+                        ata_dev = 1;
+                }
+                if (ata_dev) {
+                        off = strlen(b);
+                        snprintf(b + off, b_len - off, "%s",
+                                 get_ata_devname(devname, wd, sizeof(wd)));
                         return 1;
                 }
         }
@@ -2022,6 +2223,15 @@ transport_tport_longer(const char * devname,
                         printf("  fetched from directory: %s\n", buff);
                         printf("  fetched from directory: %s\n", b2);
                 }
+                break;
+        case TRANSPORT_SRP:
+                printf("  transport=srp\n");
+                if (!parse_colon_list(devname, &hctl))
+                        break;
+                if (get_srp_orig_dgid(hctl.h, value, sizeof(value)))
+                        printf("  orig_dgid=%s\n", value);
+                if (get_srp_dgid(hctl.h, value, sizeof(value)))
+                        printf("  dgid=%s\n", value);
                 break;
         case TRANSPORT_SAS:
                 printf("  transport=sas\n");
@@ -2161,9 +2371,15 @@ transport_tport_longer(const char * devname,
                 break;
         case TRANSPORT_ATA:
                 printf("  transport=ata\n");
+                cp = get_ata_devname(devname, b2, sizeof(b2));
+                if (strlen(cp) > 0)
+                        printf("  wwn=%s\n", cp);
                 break;
         case TRANSPORT_SATA:
                 printf("  transport=sata\n");
+                cp = get_ata_devname(devname, b2, sizeof(b2));
+                if (strlen(cp) > 0)
+                        printf("  wwn=%s\n", cp);
                 break;
         default:
                 if (op->verbose > 1)
