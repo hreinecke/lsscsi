@@ -1,4 +1,4 @@
-.TH lsscsi "8" "August 2014" "lsscsi\-0.28" LSSCSI
+.TH lsscsi "8" "September 2014" "lsscsi\-0.28" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
@@ -7,8 +7,8 @@ lsscsi \- list SCSI devices (or hosts) and their attributes
 [\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-lunhex\fR]
 [\fI\-\-long\fR] [\fI\-\-protection\fR] [\fI\-\-protmode\fR]
 [\fI\-\-scsi_id\fR] [\fI\-\-size\fR] [\fI\-\-sysfsroot=PATH\fR]
-[\fI\-\-transport\fR] [\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fI\-\-wwn\fR]
-[\fIH:C:T:L\fR]
+[\fI\-\-transport\fR] [\fI\-\-unit\fR] [\fI\-\-verbose\fR] [\fI\-\-version\fR]
+[\fI\-\-wwn\fR] [\fIH:C:T:L\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
@@ -116,6 +116,27 @@ replaces the normal vendor, product and revision strings. When the
 \fI\-\-list\fR option is also given then additionally multiple lines
 of attribute_name=value pairs are output, each indented by two spaces. See
 the section on transports below.
+.TP
+\fB\-u\fR, \fB\-\-unit\fR
+Output logical unit name, if available. If given once, then the 30 character
+field where the vendor, product and revision strings are usually placed is
+replaced by the logical unit name. If the name cannot fit in the 30 character
+field then it is truncated to the right and a trailing '_' character is used
+to alert the reader to the truncation.
+.br
+If this option is used twice then the field is expander to 32 bytes. That is
+enough the show a 16 byte EUI-64 identifier. However SCSI name strings as
+used by iSCSI (i.e. modified URLs) still will not fit. They will be truncated
+to the left and a leading '_' character is used to alert the reader to the
+truncation.
+.br
+If this option is used three times the whole logical unit name is output (and
+any remaining output on that line is skipped).
+.br
+In order to work this option needs a Linux kernel from and including 3.15 .
+It accesses the sysfs vpd_pg83 file for the device in question. Old SCSI
+and ATA (SATA) equipment may not provide this information. If it is provided
+by ATA (SATA) then it will be the WWN.
 .TP
 \fB\-v\fR, \fB\-\-verbose\fR
 outputs directory names where information is found. Use multiple times for

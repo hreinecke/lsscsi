@@ -1,8 +1,9 @@
 Linux utility for listing SCSI devices.
 
-Version 0.28 2014/08/25 [svn: r117]
+Version 0.28 2014/09/04 [svn: r118]
   - fix handling of scsi_level 0 (no compliance)
   - add SRP transport identifier
+  - add --unit option for LU identifier (>= lk 3.15)
   - add (S)ATA transport identifier (>= lk 3.15)
   - make USB transport ids more consistent
   - fix FC transport id missing comma

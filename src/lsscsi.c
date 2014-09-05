@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
@@ -32,7 +33,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.28  2014/08/25 [svn: r117]";
+static const char * version_str = "0.28  2014/09/04 [svn: r118]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -112,6 +113,7 @@ struct lsscsi_opt_coll {
         int scsi_id;            /* udev derived from /dev/disk/by-id/scsi* */
         int size;
         int transport;
+        int unit;               /* logical unit (LU) name: from vpd_pg83 */
         int verbose;
         int wwn;
 };
@@ -175,6 +177,7 @@ static struct option long_options[] = {
         {"size", 0, 0, 's'},
         {"sysfsroot", 1, 0, 'y'},
         {"transport", 0, 0, 't'},
+        {"unit", 0, 0, 'u'},
         {"verbose", 0, 0, 'v'},
         {"version", 0, 0, 'V'},
         {"wwn", 0, 0, 'w'},
@@ -239,7 +242,7 @@ static const char * usage_message =
 "Usage: lsscsi   [--classic] [--device] [--generic] [--help] [--hosts]\n"
             "\t\t[--kname] [--list] [--lunhex] [--long] [--protection]\n"
             "\t\t[--scsi_id] [--size] [--sysfsroot=PATH] [--transport]\n"
-            "\t\t[--verbose] [--version] [--wwn] [<h:c:t:l>]\n"
+            "\t\t[--unit] [--verbose] [--version] [--wwn] [<h:c:t:l>]\n"
 "  where:\n"
 "    --classic|-c      alternate output similar to 'cat /proc/scsi/scsi'\n"
 "    --device|-d       show device node's major + minor numbers\n"
@@ -260,16 +263,38 @@ static const char * usage_message =
 "    --sysfsroot=PATH|-y PATH    set sysfs mount point to PATH (def: /sys)\n"
 "    --transport|-t    transport information for target or, if '--hosts'\n"
 "                      given, for initiator\n"
+"    --unit|-u         logical unit (LU) name (aka WWN for ATA/SATA)\n"
 "    --verbose|-v      output path names where data is found\n"
 "    --version|-V      output version string and exit\n"
 "    --wwn|-w          output WWN for disks (from /dev/disk/by-id/wwn*)\n"
 "    <h:c:t:l>         filter output list (def: '*:*:*:*' (all))\n\n"
 "List SCSI devices or hosts, optionally with additional information\n";
 
+
+#ifdef __GNUC__
+static int pr2serr(const char * fmt, ...)
+        __attribute__ ((format (printf, 1, 2)));
+#else
+static int pr2serr(const char * fmt, ...);
+#endif
+
+
+static int
+pr2serr(const char * fmt, ...)
+{
+        va_list args;
+        int n;
+
+        va_start(args, fmt);
+        n = vfprintf(stderr, fmt, args);
+        va_end(args);
+        return n;
+}
+
 static void
 usage(void)
 {
-        fprintf(stderr, "%s", usage_message);
+        pr2serr("%s", usage_message);
 }
 
 /* Copies (dest_maxlen - 1) or less chars from src to dest. Less chars are
@@ -1313,55 +1338,70 @@ sg_vpd_dev_id_iter(const unsigned char * initial_desig_desc, int page_len,
     return (k == page_len) ? -1 : -2;
 }
 
-/* Fetch ATA device name string if available (from the device (optional)
- * and via sysfs (lk 3.16 ? and later in vpd_pg83). If available this
- * will be the ATA WWN which is actually the unique LU identifier rather
- * than a transport identifier (ATA does not make the distinction).
- * Returns 'b' which if detected will be a non-empty string. If the ATA
- * device name (WWN) is not detected then 'b' will point to an empty
- * string.
+/* Fetch logical unit (LU) name given the device name in the
+ * form: h:c:t:l tuple string (e.g. "2:0:1:0"). This is fetched via
+ * sysfs (lk 3.15 and later) in vpd_pg83. For later ATA and SATA
+ * devices this may be its WWN.
  */
 static char *
-get_ata_devname(const char * devname, char * b, int b_len)
+get_lu_name(const char * devname, char * b, int b_len)
 {
         char buff[LMAX_DEVPATH];
         unsigned char u[512];
         struct stat a_stat;
         unsigned char *ucp;
-        int fd, res, len, dlen, off;
+        char *cp;
+        int fd, res, len, dlen, off, k;
 
         if ((NULL == b) || (b_len < 1))
                 return b;
         b[0] = '\0';
         snprintf(buff, sizeof(buff), "%s%s%s/device/vpd_pg83",
                  sysfsroot, class_scsi_dev, devname);
-        if ((stat(buff, &a_stat) >= 0) && S_ISREG(a_stat.st_mode)) {
-                if ((fd = open(buff, O_RDONLY)) < 0)
-                        return b;
-                res = read(fd, u, sizeof(u));
-                if (res <= 8) {
-                        close(fd);
-                        return b;
-                }
+        if (! ((stat(buff, &a_stat) >= 0) && S_ISREG(a_stat.st_mode)))
+                return b;
+        if ((fd = open(buff, O_RDONLY)) < 0)
+                return b;
+        res = read(fd, u, sizeof(u));
+        if (res <= 8) {
                 close(fd);
-                if (VPD_DEVICE_ID != u[1])
-                        return b;
-                len = (u[2] << 8) + u[3];
-                if ((len + 4) != res)
-                        return b;
-                ucp = u + 4;
-                off = -1;
-                res = sg_vpd_dev_id_iter(ucp, len, &off, VPD_ASSOC_LU,
-                                         3 /* NAA */, 1 /* binary */);
-                if (res)
-                        return b;
+                return b;
+        }
+        close(fd);
+        if (VPD_DEVICE_ID != u[1])
+                return b;
+        len = (u[2] << 8) + u[3];
+        if ((len + 4) != res)
+                return b;
+        ucp = u + 4;
+        off = -1;
+        if (0 == sg_vpd_dev_id_iter(ucp, len, &off, VPD_ASSOC_LU,
+                                    3 /* NAA */, 1 /* binary */)) {
                 dlen = ucp[off + 3];
-                if (8 != dlen)
+                if (! ((8 == dlen) || (16 ==dlen)))
                         return b;
-                snprintf(b, b_len, "%02x%02x%02x%02x%02x%02x%02x%02x",
-                         ucp[off + 4], ucp[off + 5], ucp[off + 6],
-                         ucp[off + 7], ucp[off + 8], ucp[off + 9],
-                         ucp[off + 10], ucp[off + 11]);
+                cp = b;
+                for (k = 0; ((k < dlen) && (b_len > 1)); ++k) {
+                        snprintf(cp, b_len, "%02x", ucp[off + 4 + k]);
+                        cp += 2;
+                        b_len -= 2;
+                }
+        } else if (0 == sg_vpd_dev_id_iter(ucp, len, &off, VPD_ASSOC_LU,
+                                           2 /* EUI */, 1 /* binary */)) {
+                dlen = ucp[off + 3];
+                if (! ((8 == dlen) || (12 == dlen) || (16 ==dlen)))
+                        return b;
+                cp = b;
+                for (k = 0; ((k < dlen) && (b_len > 1)); ++k) {
+                        snprintf(cp, b_len, "%02x", ucp[off + 4 + k]);
+                        cp += 2;
+                        b_len -= 2;
+                }
+        } else if (0 == sg_vpd_dev_id_iter(ucp, len, &off, VPD_ASSOC_LU,
+                                           8 /* SCSI name string */,
+                                           3 /* UTF-8 */)) {
+                dlen = ucp[off + 3];
+                snprintf(b, b_len, "%.*s", dlen, ucp + off + 4);
         }
         return b;
 }
@@ -1561,8 +1601,7 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * op, */
                 if (get_value(buff, "sas_address", b + off, b_len - off))
                         return 1;
                 else
-                        fprintf(stderr, "_init: no sas_address, wd=%s\n",
-                                buff);
+                        pr2serr("_init: no sas_address, wd=%s\n", buff);
         }
 
         /* SAS class representation */
@@ -1575,8 +1614,7 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * op, */
                 if (get_value(buff, "device_name", b + off, b_len - off))
                         return 1;
                 else
-                        fprintf(stderr, "_init: no device_name, wd=%s\n",
-                                buff);
+                        pr2serr("_init: no device_name, wd=%s\n", buff);
         }
 
         /* SBP (FireWire) host */
@@ -1932,7 +1970,7 @@ transport_init_longer(const char * path_name,
                 break;
         default:
                 if (op->verbose > 1)
-                        fprintf(stderr, "No transport information\n");
+                        pr2serr("No transport information\n");
                 break;
         }
 }
@@ -1987,10 +2025,10 @@ transport_tport(const char * devname,
                                       b_len - off))
                                 return 1;
                         else
-                                fprintf(stderr, "_tport: no "
-                                        "sas_address, wd=%s\n", buff);
+                                pr2serr("%s: no sas_address, wd=%s\n",
+                                        __func__, buff);
                 } else
-                        fprintf(stderr, "_tport: down FAILED: %s\n", buff);
+                        pr2serr("%s: down FAILED: %s\n", __func__, buff);
                 return 0;
         }
 
@@ -2052,8 +2090,7 @@ transport_tport(const char * devname,
                 if (get_value(".", "sas_addr", b + off, b_len - off))
                         return 1;
                 else
-                        fprintf(stderr, "_tport: no sas_addr, "
-                                "wd=%s\n", buff);
+                        pr2serr("%s: no sas_addr, wd=%s\n", __func__, buff);
         } else if (get_value(buff, "ieee1394_id", wd, sizeof(wd))) {
                 /* IEEE1394 SBP device */
                 transport_id = TRANSPORT_SBP;
@@ -2112,7 +2149,7 @@ transport_tport(const char * devname,
                 if (ata_dev) {
                         off = strlen(b);
                         snprintf(b + off, b_len - off, "%s",
-                                 get_ata_devname(devname, wd, sizeof(wd)));
+                                 get_lu_name(devname, wd, sizeof(wd)));
                         return 1;
                 }
         }
@@ -2371,19 +2408,19 @@ transport_tport_longer(const char * devname,
                 break;
         case TRANSPORT_ATA:
                 printf("  transport=ata\n");
-                cp = get_ata_devname(devname, b2, sizeof(b2));
+                cp = get_lu_name(devname, b2, sizeof(b2));
                 if (strlen(cp) > 0)
                         printf("  wwn=%s\n", cp);
                 break;
         case TRANSPORT_SATA:
                 printf("  transport=sata\n");
-                cp = get_ata_devname(devname, b2, sizeof(b2));
+                cp = get_lu_name(devname, b2, sizeof(b2));
                 if (strlen(cp) > 0)
                         printf("  wwn=%s\n", cp);
                 break;
         default:
                 if (op->verbose > 1)
-                        fprintf(stderr, "No transport information\n");
+                        pr2serr("No transport information\n");
                 break;
         }
 }
@@ -2724,7 +2761,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
         } else
                 snprintf(value, sizeof(value), "[%s]", devname);
 
-        printf("%-*s", devname_len, value);
+        printf("%.*s", devname_len, value);
         if (! get_value(buff, "type", value, sizeof(value))) {
                 printf("type?   ");
         } else if (1 != sscanf(value, "%d", &type)) {
@@ -2736,7 +2773,36 @@ one_sdev_entry(const char * dir_name, const char * devname,
 
         if (op->wwn)
                 ++get_wwn;
-        else if (0 == op->transport) {
+        if (op->transport) {
+                if (transport_tport(devname, /* op, */
+                                    sizeof(value), value))
+                        printf("%-30s  ", value);
+                else
+                        printf("                                ");
+        } else if (op->unit) {
+                get_lu_name(devname, value, sizeof(value));
+                n = strlen(value);
+                if (1 == op->unit) {
+                        if (n < 31)
+                                printf("%-30s  ", value);
+                        else {
+                                value[30] = '_';
+                                value[31] = ' ';
+                                value[32] = '\0';
+                                printf("%-32s", value);
+                        }
+                } else if (2 == op->unit) {
+                        if (n < 33)
+                                printf("%-32s  ", value);
+                        else {
+                                value[n - 32] = '_';
+                                printf("%-32s", value + n - 32);
+                        }
+                } else {        /* -uuu, output in full, skip rest of line */
+                        printf("%-s\n", value);
+                        return;
+                }
+        } else {
                 if (get_value(buff, "vendor", value, sizeof(value)))
                         printf("%-8s ", value);
                 else
@@ -2751,12 +2817,6 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         printf("%-4s  ", value);
                 else
                         printf("rev?  ");
-        } else {
-                if (transport_tport(devname, /* op, */
-                                    sizeof(value), value))
-                        printf("%-30s  ", value);
-                else
-                        printf("                                ");
         }
 
         if (1 == non_sg_scan(buff, op)) {
@@ -2959,8 +3019,7 @@ sdev_scandir_select(const struct dirent * s)
                         struct addr_hctl s_hctl;
 
                         if (! parse_colon_list(s->d_name, &s_hctl)) {
-                                fprintf(stderr, "sdev_scandir_select: parse "
-                                        "failed\n");
+                                pr2serr("%s: parse failed\n", __func__);
                                 return 0;
                         }
                         if (((-1 == filter.h) || (s_hctl.h == filter.h)) &&
@@ -2992,11 +3051,11 @@ sdev_scandir_sort(const struct dirent ** a, const struct dirent ** b)
         struct addr_hctl right_hctl;
 
         if (! parse_colon_list(lnam, &left_hctl)) {
-                fprintf(stderr, "sdev_scandir_sort: left parse failed\n");
+                pr2serr("%s: left parse failed\n", __func__);
                 return -1;
         }
         if (! parse_colon_list(rnam, &right_hctl)) {
-                fprintf(stderr, "sdev_scandir_sort: right parse failed\n");
+                pr2serr("%s: right parse failed\n", __func__);
                 return 1;
         }
         return cmp_hctl(&left_hctl, &right_hctl);
@@ -3271,8 +3330,8 @@ one_filter_arg(const char * arg, struct addr_hctl * filtp)
                 val = -1;
                 val64 = (uint64_t)~0;
                 if (n > ((int)sizeof(buff) - 1)) {
-                        fprintf(stderr, "intermediate sting in %s too long "
-                                "(n=%d)\n", arg, n);
+                        pr2serr("intermediate sting in %s too long (n=%d)\n",
+                                arg, n);
                         return 1;
                 }
                 if ((n > 0) && ('-' != *cp) && ('*' != *cp) && ('?' != *cp)) {
@@ -3290,8 +3349,8 @@ one_filter_arg(const char * arg, struct addr_hctl * filtp)
                                 res = sscanf(buff, "%d", &val);
                         if ((1 != res) && (NULL == strchr(buff, ']'))) {
                                         ;
-                                fprintf(stderr, "cannot decode %s as an "
-                                        "integer\n", buff);
+                                pr2serr("cannot decode %s as an integer\n",
+                                        buff);
                                 return 1;
                         }
                 }
@@ -3301,8 +3360,7 @@ one_filter_arg(const char * arg, struct addr_hctl * filtp)
                 case 2: filtp->t = val; break;
                 case 3: filtp->l = val64; break;
                 default:
-                        fprintf(stderr, "expect three colons at most in %s\n",
-                                arg);
+                        pr2serr("expect three colons at most in %s\n", arg);
                         return 1;
                 }
         }
@@ -3319,7 +3377,7 @@ decode_filter_arg(const char * a1p, const char * a2p, const char * a3p,
         int n, rem;
 
         if ((NULL == a1p) || (NULL == filtp)) {
-                fprintf(stderr, "bad call to decode_filter\n");
+                pr2serr("bad call to decode_filter\n");
                 return 1;
         }
         filtp->h = -1;
@@ -3364,8 +3422,8 @@ decode_filter_arg(const char * a1p, const char * a2p, const char * a3p,
                 return one_filter_arg(b1, filtp);
         }
 err_out:
-        fprintf(stderr, "filter arguments exceed internal buffer size "
-                "(%d)\n", (int)sizeof(b1));
+        pr2serr("filter arguments exceed internal buffer size (%d)\n",
+                (int)sizeof(b1));
         return 1;
 }
 
@@ -3385,7 +3443,7 @@ main(int argc, char **argv)
         while (1) {
                 int option_index = 0;
 
-                c = getopt_long(argc, argv, "cdghHiklLpPstvVwxy:",
+                c = getopt_long(argc, argv, "cdghHiklLpPstuvVwxy:",
                                 long_options, &option_index);
                 if (c == -1)
                         break;
@@ -3430,11 +3488,14 @@ main(int argc, char **argv)
                 case 't':
                         ++opts.transport;
                         break;
+                case 'u':
+                        ++opts.unit;
+                        break;
                 case 'v':
                         ++opts.verbose;
                         break;
                 case 'V':
-                        fprintf(stderr, "version: %s\n", version_str);
+                        pr2serr("version: %s\n", version_str);
                         return 0;
                 case 'w':
                         ++opts.wwn;
@@ -3449,8 +3510,8 @@ main(int argc, char **argv)
                         usage();
                         return 1;
                 default:
-                        fprintf(stderr, "?? getopt returned character "
-                                "code 0x%x ??\n", c);
+                        pr2serr("?? getopt returned character code 0x%x ??\n",
+                                c);
                         usage();
                         return 1;
                }
@@ -3463,10 +3524,10 @@ main(int argc, char **argv)
                 const char * a4p = NULL;
 
                 if ((optind + 4) < argc) {
-                        fprintf(stderr, "unexpected non-option arguments: ");
+                        pr2serr("unexpected non-option arguments: ");
                         while (optind < argc)
-                                fprintf(stderr, "%s ", argv[optind++]);
-                        fprintf(stderr, "\n");
+                                pr2serr("%s ", argv[optind++]);
+                        pr2serr("\n");
                         return 1;
                 }
                 a1p = argv[optind++];
@@ -3488,11 +3549,24 @@ main(int argc, char **argv)
                 if (1 == sscanf(cp, "%d", &c))
                         opts.lunhex = c;
         }
-        if ((opts.transport > 0) &&
-            ((1 == opts.long_opt) || (2 == opts.long_opt))) {
-                fprintf(stderr, "please '--list' (rather than '--long') "
-                                "with --transport\n");
+        if (opts.transport && opts.unit) {
+                pr2serr("use '--transport' or '--unit' but not both\n");
                 return 1;
+        }
+        if (opts.transport &&
+            ((1 == opts.long_opt) || (2 == opts.long_opt))) {
+                pr2serr("please use '--list' (rather than '--long') with "
+                        "--transport\n");
+                return 1;
+        }
+        if (opts.unit) {
+                if (do_hosts)
+                        pr2serr("--unit ignored when --hosts given\n");
+                if ((1 == opts.long_opt) || (2 == opts.long_opt)) {
+                        pr2serr("please use '--list' (rather than '--long') "
+                                "with " "--unit\n");
+                        return 1;
+                }
         }
         if (opts.verbose > 1) {
                 printf(" sysfsroot: %s\n", sysfsroot);
