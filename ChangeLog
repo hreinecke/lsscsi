@@ -1,6 +1,6 @@
 Linux utility for listing SCSI devices.
 
-Version 0.28 2014/09/04 [svn: r118]
+Version 0.28 2014/09/23 [svn: r119]
   - fix handling of scsi_level 0 (no compliance)
   - add SRP transport identifier
   - add --unit option for LU identifier (>= lk 3.15)

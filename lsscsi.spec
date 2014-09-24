@@ -53,8 +53,8 @@ fi
 
 
 %changelog
-* Mon Aug 25 2014 - dgilbert at interlog dot com
-- upgrade automake to version 1.14.1
+* Tue Sep 23 2014 - dgilbert at interlog dot com
+- add --unit to find LU names
   * lsscsi-0.28
 * Sat Mar 16 2013 - dgilbert at interlog dot com
 - rework buffers for large systems, add --lunhex and --scsi_id

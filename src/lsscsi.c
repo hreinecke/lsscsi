@@ -33,7 +33,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.28  2014/09/04 [svn: r118]";
+static const char * version_str = "0.28  2014/09/23 [svn: r119]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -101,7 +101,7 @@ struct addr_hctl {
 struct addr_hctl filter;
 static int filter_active = 0;
 
-struct lsscsi_opt_coll {
+struct lsscsi_opts {
         int long_opt;           /* --long */
         int classic;
         int generic;
@@ -186,7 +186,7 @@ static struct option long_options[] = {
 
 
 /* Device node list: contains the information needed to match a node with a
-   sysfs class device. */
+ * sysfs class device. */
 #define DEV_NODE_LIST_ENTRIES 16
 enum dev_type { BLK_DEV, CHR_DEV};
 
@@ -565,7 +565,7 @@ enclosure_device_scandir_select(const struct dirent * s)
  * Else return 0.
  */
 static int
-enclosure_device_scan(const char * dir_name, const struct lsscsi_opt_coll * op)
+enclosure_device_scan(const char * dir_name, const struct lsscsi_opts * op)
 {
         struct dirent ** namelist;
         int num, k;
@@ -587,7 +587,7 @@ enclosure_device_scan(const char * dir_name, const struct lsscsi_opt_coll * op)
 
 /* scan for directory entry that is either a symlink or a directory */
 static int
-scan_for_first(const char * dir_name, const struct lsscsi_opt_coll * op)
+scan_for_first(const char * dir_name, const struct lsscsi_opts * op)
 {
         struct dirent ** namelist;
         int num, k;
@@ -652,7 +652,7 @@ non_sg_scandir_select(const struct dirent * s)
 }
 
 static int
-non_sg_scan(const char * dir_name, const struct lsscsi_opt_coll * op)
+non_sg_scan(const char * dir_name, const struct lsscsi_opts * op)
 {
         struct dirent ** namelist;
         int num, k;
@@ -1302,6 +1302,8 @@ get_usb_devname(const char * hname, const char * devname, char * b, int b_len)
 
 #define VPD_DEVICE_ID 0x83
 #define VPD_ASSOC_LU 0
+#define VPD_ASSOC_TPORT 1
+#define TPROTO_ISCSI 5
 
 /* Iterates to next designation descriptor in the device identification
  * VPD page. The 'initial_desig_desc' should point to start of first
@@ -1339,19 +1341,23 @@ sg_vpd_dev_id_iter(const unsigned char * initial_desig_desc, int page_len,
 }
 
 /* Fetch logical unit (LU) name given the device name in the
- * form: h:c:t:l tuple string (e.g. "2:0:1:0"). This is fetched via
- * sysfs (lk 3.15 and later) in vpd_pg83. For later ATA and SATA
- * devices this may be its WWN.
+ * form: h:c:t:l tuple string (e.g. "2:0:1:0"). This is fetched via sysfs
+ * (lk 3.15 and later) in vpd_pg83. For later ATA and SATA devices this
+ ( may be its WWN. Normally take the first found in this order:
+ * NAA, EUI-64 then SCSI name string. However if a SCSI name string
+ * is present and the protocol is iSCSI (target port checked) then
+ * the SCSI name string is preferred.
  */
 static char *
 get_lu_name(const char * devname, char * b, int b_len)
 {
         char buff[LMAX_DEVPATH];
         unsigned char u[512];
+        unsigned char u_sns[512];
         struct stat a_stat;
         unsigned char *ucp;
         char *cp;
-        int fd, res, len, dlen, off, k;
+        int fd, res, len, dlen, sns_dlen, off, k;
 
         if ((NULL == b) || (b_len < 1))
                 return b;
@@ -1376,6 +1382,24 @@ get_lu_name(const char * devname, char * b, int b_len)
         ucp = u + 4;
         off = -1;
         if (0 == sg_vpd_dev_id_iter(ucp, len, &off, VPD_ASSOC_LU,
+                                    8 /* SCSI name string (sns) */,
+                                    3 /* UTF-8 */)) {
+                sns_dlen = ucp[off + 3];
+                memcpy(u_sns, ucp + off + 4, sns_dlen);
+                /* now want to check if this is iSCSI */
+                off = -1;
+                if (0 == sg_vpd_dev_id_iter(ucp, len, &off, VPD_ASSOC_TPORT,
+                                            8 /* SCSI name string (sns) */,
+                                            3 /* UTF-8 */)) {
+                        if ((0x80 & ucp[1]) &&
+                            (TPROTO_ISCSI == (ucp[0] >> 4))) {
+                                snprintf(b, b_len, "%.*s", sns_dlen, u_sns);
+                                return b;
+                        }
+                }
+        } else
+                sns_dlen = 0;
+        if (0 == sg_vpd_dev_id_iter(ucp, len, &off, VPD_ASSOC_LU,
                                     3 /* NAA */, 1 /* binary */)) {
                 dlen = ucp[off + 3];
                 if (! ((8 == dlen) || (16 ==dlen)))
@@ -1397,12 +1421,8 @@ get_lu_name(const char * devname, char * b, int b_len)
                         cp += 2;
                         b_len -= 2;
                 }
-        } else if (0 == sg_vpd_dev_id_iter(ucp, len, &off, VPD_ASSOC_LU,
-                                           8 /* SCSI name string */,
-                                           3 /* UTF-8 */)) {
-                dlen = ucp[off + 3];
-                snprintf(b, b_len, "%.*s", dlen, ucp + off + 4);
-        }
+        } else if (sns_dlen > 0)
+                snprintf(b, b_len, "%.*s", sns_dlen, u_sns);
         return b;
 }
 
@@ -1448,7 +1468,7 @@ parse_colon_list(const char * colon_list, struct addr_hctl * outp)
 /* Print enclosure device link from the rport- or end_device- */
 static void
 print_enclosure_device(const char *devname, const char *path,
-                        const struct lsscsi_opt_coll * op)
+                       const struct lsscsi_opts * op)
 {
         struct addr_hctl hctl;
         char b[LMAX_PATH];
@@ -1468,7 +1488,8 @@ print_enclosure_device(const char *devname, const char *path,
  * by stripping prefix fe80:0000:0000:0000: from GID 0. An example:
  * 0002:c903:00a0:5de2.
  */
-static void get_local_srp_gid(const int h, char *b, int b_len)
+static void
+get_local_srp_gid(const int h, char *b, int b_len)
 {
         char buff[LMAX_DEVPATH];
         char value[LMAX_NAME];
@@ -1494,7 +1515,8 @@ static void get_local_srp_gid(const int h, char *b, int b_len)
  * SCSI host by stripping prefix fe80:0000:0000:0000: from its GID. An
  * example: 0002:c903:00a0:5de2.
  */
-static int get_srp_orig_dgid(const int h, char *b, int b_len)
+static int
+get_srp_orig_dgid(const int h, char *b, int b_len)
 {
         char buff[LMAX_DEVPATH];
         char value[LMAX_NAME];
@@ -1513,7 +1535,8 @@ static int get_srp_orig_dgid(const int h, char *b, int b_len)
  * by stripping prefix fe80:0000:0000:0000: from its GID. An example:
  * 0002:c903:00a0:5de2.
  */
-static int get_srp_dgid(const int h, char *b, int b_len)
+static int
+get_srp_dgid(const int h, char *b, int b_len)
 {
         char buff[LMAX_DEVPATH];
         char value[LMAX_NAME];
@@ -1528,9 +1551,9 @@ static int get_srp_dgid(const int h, char *b, int b_len)
 }
 
 /* Check host associated with 'devname' for known transport types. If so set
-   transport_id, place a string in 'b' and return 1. Otherwise return 0. */
+ * transport_id, place a string in 'b' and return 1. Otherwise return 0. */
 static int
-transport_init(const char * devname, /* const struct lsscsi_opt_coll * op, */
+transport_init(const char * devname, /* const struct lsscsi_opts * op, */
                int b_len, char * b)
 {
         char buff[LMAX_DEVPATH];
@@ -1696,8 +1719,7 @@ transport_init(const char * devname, /* const struct lsscsi_opt_coll * op, */
  * 'path_name' output additional information.
  */
 static void
-transport_init_longer(const char * path_name,
-                      const struct lsscsi_opt_coll * op)
+transport_init_longer(const char * path_name, const struct lsscsi_opts * op)
 {
         char buff[LMAX_PATH];
         char bname[LMAX_NAME];
@@ -1976,11 +1998,11 @@ transport_init_longer(const char * path_name,
 }
 
 /* Attempt to determine the transport type of the SCSI device (LU) associated
-   with 'devname'. If found set transport_id, place string in 'b' and return
-   1. Otherwise return 0. */
+ * with 'devname'. If found set transport_id, place string in 'b' and return
+ * 1. Otherwise return 0. */
 static int
-transport_tport(const char * devname,
-                /* const struct lsscsi_opt_coll * op, */ int b_len, char * b)
+transport_tport(const char * devname, /* const struct lsscsi_opts * op, */
+                int b_len, char * b)
 {
         char buff[LMAX_DEVPATH];
         char wd[LMAX_PATH];
@@ -2157,10 +2179,9 @@ transport_tport(const char * devname,
 }
 
 /* Given the transport_id of the SCSI device (LU) associated with 'devname'
-   output additional information. */
+ * output additional information. */
 static void
-transport_tport_longer(const char * devname,
-                       const struct lsscsi_opt_coll * op)
+transport_tport_longer(const char * devname, const struct lsscsi_opts * op)
 {
         char path_name[LMAX_DEVPATH];
         char buff[LMAX_DEVPATH];
@@ -2427,7 +2448,7 @@ transport_tport_longer(const char * devname,
 
 static void
 longer_d_entry(const char * path_name, const char * devname,
-               const struct lsscsi_opt_coll * op)
+               const struct lsscsi_opts * op)
 {
         char value[LMAX_NAME];
 
@@ -2550,7 +2571,7 @@ longer_d_entry(const char * path_name, const char * devname,
 
 static void
 one_classic_sdev_entry(const char * dir_name, const char * devname,
-                       const struct lsscsi_opt_coll * op)
+                       const struct lsscsi_opts * op)
 {
         struct addr_hctl hctl;
         char buff[LMAX_DEVPATH];
@@ -2718,7 +2739,7 @@ lun_word_flip(uint64_t in)
 /* List one SCSI device (LU) on a line. */
 static void
 one_sdev_entry(const char * dir_name, const char * devname,
-               const struct lsscsi_opt_coll * op)
+               const struct lsscsi_opts * op)
 {
         char buff[LMAX_DEVPATH];
         char wd[LMAX_PATH];
@@ -2783,20 +2804,20 @@ one_sdev_entry(const char * dir_name, const char * devname,
                 get_lu_name(devname, value, sizeof(value));
                 n = strlen(value);
                 if (1 == op->unit) {
-                        if (n < 31)
-                                printf("%-30s  ", value);
+                        if (n < 33)
+                                printf("%-32s  ", value);
                         else {
-                                value[30] = '_';
-                                value[31] = ' ';
-                                value[32] = '\0';
-                                printf("%-32s", value);
+                                value[32] = '_';
+                                value[33] = ' ';
+                                value[34] = '\0';
+                                printf("%-34s", value);
                         }
                 } else if (2 == op->unit) {
                         if (n < 33)
                                 printf("%-32s  ", value);
                         else {
                                 value[n - 32] = '_';
-                                printf("%-32s", value + n - 32);
+                                printf("%-32s  ", value + n - 32);
                         }
                 } else {        /* -uuu, output in full, skip rest of line */
                         printf("%-s\n", value);
@@ -3063,7 +3084,7 @@ sdev_scandir_sort(const struct dirent ** a, const struct dirent ** b)
 
 /* List SCSI devices (LUs). */
 static void
-list_sdevices(const struct lsscsi_opt_coll * op)
+list_sdevices(const struct lsscsi_opts * op)
 {
         char buff[LMAX_DEVPATH];
         char name[LMAX_NAME];
@@ -3100,7 +3121,7 @@ list_sdevices(const struct lsscsi_opt_coll * op)
 
 /* List host (initiator) attributes when --long given (one or more times). */
 static void
-longer_h_entry(const char * path_name, const struct lsscsi_opt_coll * op)
+longer_h_entry(const char * path_name, const struct lsscsi_opts * op)
 {
         char value[LMAX_NAME];
 
@@ -3179,7 +3200,7 @@ longer_h_entry(const char * path_name, const struct lsscsi_opt_coll * op)
 
 static void
 one_host_entry(const char * dir_name, const char * devname,
-               const struct lsscsi_opt_coll * op)
+               const struct lsscsi_opts * op)
 {
         char buff[LMAX_DEVPATH];
         char value[LMAX_NAME];
@@ -3276,7 +3297,7 @@ host_scandir_sort(const struct dirent ** a, const struct dirent ** b)
 }
 
 static void
-list_hosts(const struct lsscsi_opt_coll * op)
+list_hosts(const struct lsscsi_opts * op)
 {
         char buff[LMAX_DEVPATH];
         char name[LMAX_NAME];
@@ -3434,12 +3455,14 @@ main(int argc, char **argv)
         int c;
         int do_sdevices = 1;
         int do_hosts = 0;
-        struct lsscsi_opt_coll opts;
+        struct lsscsi_opts opts;
+        struct lsscsi_opts * op;
         const char * cp;
 
+        op = &opts;
         cp = getenv("LSSCSI_LUNHEX_OPT");
         invalidate_hctl(&filter);
-        memset(&opts, 0, sizeof(opts));
+        memset(op, 0, sizeof(opts));
         while (1) {
                 int option_index = 0;
 
@@ -3450,13 +3473,13 @@ main(int argc, char **argv)
 
                 switch (c) {
                 case 'c':
-                        ++opts.classic;
+                        ++op->classic;
                         break;
                 case 'd':
-                        ++opts.dev_maj_min;
+                        ++op->dev_maj_min;
                         break;
                 case 'g':
-                        ++opts.generic;
+                        ++op->generic;
                         break;
                 case 'h':
                         usage();
@@ -3465,43 +3488,43 @@ main(int argc, char **argv)
                         ++do_hosts;
                         break;
                 case 'i':
-                        ++opts.scsi_id;
+                        ++op->scsi_id;
                         break;
                 case 'k':
-                        ++opts.kname;
+                        ++op->kname;
                         break;
                 case 'l':
-                        ++opts.long_opt;
+                        ++op->long_opt;
                         break;
                 case 'L':
-                        opts.long_opt += 3;
+                        op->long_opt += 3;
                         break;
                 case 'p':
-                        ++opts.protection;
+                        ++op->protection;
                         break;
                 case 'P':
-                        ++opts.protmode;
+                        ++op->protmode;
                         break;
                 case 's':
-                        ++opts.size;
+                        ++op->size;
                         break;
                 case 't':
-                        ++opts.transport;
+                        ++op->transport;
                         break;
                 case 'u':
-                        ++opts.unit;
+                        ++op->unit;
                         break;
                 case 'v':
-                        ++opts.verbose;
+                        ++op->verbose;
                         break;
                 case 'V':
                         pr2serr("version: %s\n", version_str);
                         return 0;
                 case 'w':
-                        ++opts.wwn;
+                        ++op->wwn;
                         break;
                 case 'x':
-                        ++opts.lunhex;
+                        ++op->lunhex;
                         break;
                 case 'y':       /* sysfsroot <dir> */
                         sysfsroot = optarg;
@@ -3545,36 +3568,36 @@ main(int argc, char **argv)
                     (filter.t != -1) || (filter.l != (uint64_t)~0))
                         filter_active = 1;
         }
-        if ((0 == opts.lunhex) && cp) {
+        if ((0 == op->lunhex) && cp) {
                 if (1 == sscanf(cp, "%d", &c))
-                        opts.lunhex = c;
+                        op->lunhex = c;
         }
-        if (opts.transport && opts.unit) {
+        if (op->transport && op->unit) {
                 pr2serr("use '--transport' or '--unit' but not both\n");
                 return 1;
         }
-        if (opts.transport &&
-            ((1 == opts.long_opt) || (2 == opts.long_opt))) {
+        if (op->transport &&
+            ((1 == op->long_opt) || (2 == op->long_opt))) {
                 pr2serr("please use '--list' (rather than '--long') with "
                         "--transport\n");
                 return 1;
         }
-        if (opts.unit) {
+        if (op->unit) {
                 if (do_hosts)
                         pr2serr("--unit ignored when --hosts given\n");
-                if ((1 == opts.long_opt) || (2 == opts.long_opt)) {
+                if ((1 == op->long_opt) || (2 == op->long_opt)) {
                         pr2serr("please use '--list' (rather than '--long') "
                                 "with " "--unit\n");
                         return 1;
                 }
         }
-        if (opts.verbose > 1) {
+        if (op->verbose > 1) {
                 printf(" sysfsroot: %s\n", sysfsroot);
         }
         if (do_hosts)
-                list_hosts(&opts);
+                list_hosts(op);
         else if (do_sdevices)
-                list_sdevices(&opts);
+                list_sdevices(op);
 
         free_dev_node_list();
 
