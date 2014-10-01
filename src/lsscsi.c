@@ -33,7 +33,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.28  2014/09/23 [svn: r119]";
+static const char * version_str = "0.28  2014/09/30 [svn: r120]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -2782,7 +2782,8 @@ one_sdev_entry(const char * dir_name, const char * devname,
         } else
                 snprintf(value, sizeof(value), "[%s]", devname);
 
-        printf("%.*s", devname_len, value);
+        /* left justified with field length of devname_len */
+        printf("%-*s", devname_len, value);
         if (! get_value(buff, "type", value, sizeof(value))) {
                 printf("type?   ");
         } else if (1 != sscanf(value, "%d", &type)) {
