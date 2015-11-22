@@ -53,8 +53,8 @@ fi
 
 
 %changelog
-* Wed Dec 24 2014 - dgilbert at interlog dot com
-- tba
+* Sun Nov 22 2015 - dgilbert at interlog dot com
+- minor tweaks
   * lsscsi-0.29
 * Tue Sep 23 2014 - dgilbert at interlog dot com
 - add --unit to find LU names

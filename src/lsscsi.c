@@ -2,7 +2,7 @@
  * in the Linux operating system. It is applicable to kernel versions
  * 2.6.1 and greater.
  *
- *  Copyright (C) 2003-2014 D. Gilbert
+ *  Copyright (C) 2003-2015 D. Gilbert
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 2, or (at your option)
@@ -33,7 +33,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.29  2014/12/24 [svn: r121]";
+static const char * version_str = "0.29  2015/11/22 [svn: r122]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -2001,7 +2001,7 @@ transport_init_longer(const char * path_name, const struct lsscsi_opts * op)
  * with 'devname'. If found set transport_id, place string in 'b' and return
  * 1. Otherwise return 0. */
 static int
-transport_tport(const char * devname, /* const struct lsscsi_opts * op, */
+transport_tport(const char * devname, const struct lsscsi_opts * op,
                 int b_len, char * b)
 {
         char buff[LMAX_DEVPATH];
@@ -2046,9 +2046,14 @@ transport_tport(const char * devname, /* const struct lsscsi_opts * op, */
                         if (get_value(buff, "sas_address", b + off,
                                       b_len - off))
                                 return 1;
-                        else
-                                pr2serr("%s: no sas_address, wd=%s\n",
-                                        __func__, buff);
+                        else {  /* non-SAS device in SAS domain */
+                                snprintf(b + off, b_len - off,
+                                         "0x0000000000000000");
+                                if (op->verbose > 1)
+                                        pr2serr("%s: no sas_address, wd=%s\n",
+                                                __func__, buff);
+                                return 1;
+                        }
                 } else
                         pr2serr("%s: down FAILED: %s\n", __func__, buff);
                 return 0;
@@ -2267,7 +2272,9 @@ transport_tport_longer(const char * devname, const struct lsscsi_opts * op)
                         printf("  port_state=%s\n", value);
                 if (get_value(buff, "roles", value, sizeof(value)))
                         printf("  roles=%s\n", value);
-                print_enclosure_device(devname, b2, op);
+// xxxxxxxxxxxx  following call to print_enclosure_device fails since b2 is
+// inappropriate, comment out since might be useless (check with FCP folks)
+                // print_enclosure_device(devname, b2, op);
                 if (get_value(buff, "scsi_target_id", value, sizeof(value)))
                         printf("  scsi_target_id=%s\n", value);
                 if (get_value(buff, "supported_classes", value,
@@ -2796,8 +2803,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
         if (op->wwn)
                 ++get_wwn;
         if (op->transport) {
-                if (transport_tport(devname, /* op, */
-                                    sizeof(value), value))
+                if (transport_tport(devname, op, sizeof(value), value))
                         printf("%-30s  ", value);
                 else
                         printf("                                ");
