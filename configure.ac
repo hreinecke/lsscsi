@@ -6,5 +6,8 @@ AM_CONFIG_HEADER(config.h)
 
 AC_PROG_CC
 AC_PROG_INSTALL
+
+AC_CANONICAL_HOST
+
 # AC_PROG_LIBTOOL
 AC_OUTPUT(Makefile src/Makefile doc/Makefile)

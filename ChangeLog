@@ -1,11 +1,11 @@
 Linux utility for listing SCSI devices.
 
-Version 0.29 2015/11/22 [svn: r122]
-  - autogen.sh: upgrade to 20091223 version
+Version 0.29 2015/11/22 [svn: r129]
   - print_enclosure_device() for FCP may be useless,
     comment out while checking ...
   - with '-t' print 0x0000000000000000 for non-SAS
     device in SAS domain
+  - autogen.sh: upgrade to 20091223 version
 
 Version 0.28 2014/09/30 [svn: r120]
   - fix handling of scsi_level 0 (no compliance)
