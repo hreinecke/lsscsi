@@ -27,13 +27,14 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <libgen.h>
+#include <sys/sysmacros.h>
 #include <linux/major.h>
 #include <linux/limits.h>
 #include <time.h>
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.29  2016/02/24 [svn: r129]";
+static const char * version_str = "0.29  2016/04/21 [svn: r130]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -2789,8 +2790,10 @@ one_sdev_entry(const char * dir_name, const char * devname,
         } else
                 snprintf(value, sizeof(value), "[%s]", devname);
 
-        /* left justified with field length of devname_len */
-        printf("%-*s", devname_len, value);
+        if ((int)strlen(value) >= devname_len)
+                 printf("%s ", value);  /* if very long, append a space */
+        else /* left justified with field length of devname_len */
+                printf("%-*s", devname_len, value);
         if (! get_value(buff, "type", value, sizeof(value))) {
                 printf("type?   ");
         } else if (1 != sscanf(value, "%d", &type)) {
