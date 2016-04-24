@@ -105,7 +105,12 @@ directory is searched. The matching id is printed following the device
 name (e.g.  /dev/sdc) and if there is no match "\-" is output.
 .TP
 \fB\-s\fR, \fB\-\-size\fR
-Print disk capacity in human readable form.
+Print disk capacity in human readable form. When given once, normal base
+10 SI units are used; for example MB, GB and TB stand for 10^6, 10^9 and
+10^12 bytes respectively. When given more than once, IEC 80000-3 prefixes
+for binary multiples are used; for example MiB, GiB and TiB stand for
+2^20, 2^30 and 2^40 bytes respectively. The output is rounded to 3
+significant figures in order to fit on a single line.
 .TP
 \fB\-t\fR, \fB\-\-transport\fR
 Output transport information. This will be a target related information or,

@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
@@ -34,7 +35,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.29  2016/04/21 [svn: r130]";
+static const char * version_str = "0.29  2016/04/24 [svn: r131]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -112,7 +113,8 @@ struct lsscsi_opts {
         int protection;         /* data integrity */
         int protmode;           /* data integrity */
         int scsi_id;            /* udev derived from /dev/disk/by-id/scsi* */
-        int size;
+        int ssize;              /* show storage size, once->base 10 (e.g. 3 GB
+                                 * twice (or more)->base 2 (e.g. 3.1 GiB) */
         int transport;
         int unit;               /* logical unit (LU) name: from vpd_pg83 */
         int verbose;
@@ -260,7 +262,8 @@ static const char * usage_message =
 "    --protection|-p   show target and initiator protection information\n"
 "    --protmode|-P     show negotiated protection information mode\n"
 "    --scsi_id|-i      show udev derived /dev/disk/by-id/scsi* entry\n"
-"    --size|-s         show disk size\n"
+"    --size|-s         show disk size, (once for decimal (e.g. 3 GB), "
+"                      twice for power of two (e.g. 2.7 GiB))\n"
 "    --sysfsroot=PATH|-y PATH    set sysfs mount point to PATH (def: /sys)\n"
 "    --transport|-t    transport information for target or, if '--hosts'\n"
 "                      given, for initiator\n"
@@ -2753,7 +2756,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
         char wd[LMAX_PATH];
         char extra[LMAX_DEVPATH];
         char value[LMAX_NAME];
-        int type, k, n, len, ta;
+        int type, k, n, vlen, ta;
         int devname_len = 13;
         int get_wwn = 0;
         struct addr_hctl hctl;
@@ -2763,10 +2766,10 @@ one_sdev_entry(const char * dir_name, const char * devname,
                 one_classic_sdev_entry(dir_name, devname, op);
                 return;
         }
-        len = sizeof(value);
+        vlen = sizeof(value);
         snprintf(buff, sizeof(buff), "%s/%s", dir_name, devname);
         if (op->lunhex && parse_colon_list(devname, &hctl)) {
-                snprintf(value, len, "[%d:%d:%d:0x",
+                snprintf(value, vlen, "[%d:%d:%d:0x",
                          hctl.h, hctl.c, hctl.t);
                 if (1 == op->lunhex) {
                         tag_lun(hctl.lun_arr, tag_arr);
@@ -2775,26 +2778,26 @@ one_sdev_entry(const char * dir_name, const char * devname,
                                 if (ta <= 0)
                                         break;
                                 n = strlen(value);
-                                snprintf(value + n, len - n, "%s%02x",
+                                snprintf(value + n, vlen - n, "%s%02x",
                                          ((ta > 1) ? "_" : ""),
                                          hctl.lun_arr[k]);
                         }
                         n = strlen(value);
-                        snprintf(value + n, len - n, "]");
+                        snprintf(value + n, vlen - n, "]");
                 } else {
                         n = strlen(value);
-                        snprintf(value + n, len - n, "%016" PRIx64 "]",
+                        snprintf(value + n, vlen - n, "%016" PRIx64 "]",
                                  lun_word_flip(hctl.l));
                 }
                 devname_len = 28;
         } else
-                snprintf(value, sizeof(value), "[%s]", devname);
+                snprintf(value, vlen, "[%s]", devname);
 
         if ((int)strlen(value) >= devname_len)
                  printf("%s ", value);  /* if very long, append a space */
         else /* left justified with field length of devname_len */
                 printf("%-*s", devname_len, value);
-        if (! get_value(buff, "type", value, sizeof(value))) {
+        if (! get_value(buff, "type", value, vlen)) {
                 printf("type?   ");
         } else if (1 != sscanf(value, "%d", &type)) {
                 printf("type??  ");
@@ -2806,12 +2809,12 @@ one_sdev_entry(const char * dir_name, const char * devname,
         if (op->wwn)
                 ++get_wwn;
         if (op->transport) {
-                if (transport_tport(devname, op, sizeof(value), value))
+                if (transport_tport(devname, op, vlen, value))
                         printf("%-30s  ", value);
                 else
                         printf("                                ");
         } else if (op->unit) {
-                get_lu_name(devname, value, sizeof(value));
+                get_lu_name(devname, value, vlen);
                 n = strlen(value);
                 if (1 == op->unit) {
                         if (n < 33)
@@ -2834,17 +2837,17 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         return;
                 }
         } else {
-                if (get_value(buff, "vendor", value, sizeof(value)))
+                if (get_value(buff, "vendor", value, vlen))
                         printf("%-8s ", value);
                 else
                         printf("vendor?  ");
 
-                if (get_value(buff, "model", value, sizeof(value)))
+                if (get_value(buff, "model", value, vlen))
                         printf("%-16s ", value);
                 else
                         printf("model?           ");
 
-                if (get_value(buff, "rev", value, sizeof(value)))
+                if (get_value(buff, "rev", value, vlen))
                         printf("%-4s  ", value);
                 else
                         printf("rev?  ");
@@ -2894,8 +2897,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
 
                         printf("%-9s", dev_node);
                         if (op->dev_maj_min) {
-                                if (get_value(wd, "dev", value,
-                                              sizeof(value)))
+                                if (get_value(wd, "dev", value, vlen))
                                         printf("[%s]", value);
                                 else
                                         printf("[dev?]");
@@ -2992,8 +2994,10 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         printf("  %-4s", "-");
         }
 
-        if (op->size) {
+        if (op->ssize) {
                 char blkdir[LMAX_DEVPATH];
+                enum string_size_units unit_val =
+                         (1 == op->ssize) ? STRING_UNITS_10 : STRING_UNITS_2;
 
                 my_strcopy(blkdir, buff, sizeof(blkdir));
 
@@ -3001,15 +3005,14 @@ one_sdev_entry(const char * dir_name, const char * devname,
                 if (type == 0 &&
                     block_scan(blkdir) &&
                     if_directory_chdir(blkdir, ".") &&
-                    get_value(".", "size", value, sizeof(value))) {
+                    get_value(".", "size", value, vlen)) {
                         uint64_t blocks = atoll(value);
 
                         blocks <<= 9;
                         if (blocks > 0 &&
-                            !string_get_size(blocks, STRING_UNITS_10, value,
-                                             sizeof(value))) {
+                            !string_get_size(blocks, unit_val, value, vlen))
                                 printf("  %6s", value);
-                        } else
+                        else
                                 printf("  %6s", "-");
                 } else
                         printf("  %6s", "-");
@@ -3516,7 +3519,7 @@ main(int argc, char **argv)
                         ++op->protmode;
                         break;
                 case 's':
-                        ++op->size;
+                        ++op->ssize;
                         break;
                 case 't':
                         ++op->transport;

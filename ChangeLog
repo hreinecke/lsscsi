@@ -1,6 +1,7 @@
 Linux utility for listing SCSI devices.
 
-Version 0.29 2016/04/21 [svn: r130]
+Version 0.29 2016/04/24 [svn: r131]
+  - if '-s' given twice, size is base 2 related
   - if very long [h:c:t:l] then append space
   - print_enclosure_device() for FCP may be useless,
     comment out while checking ...
