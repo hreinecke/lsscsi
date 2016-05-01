@@ -35,7 +35,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.29  2016/04/24 [svn: r132]";
+static const char * version_str = "0.29  2016/04/30 [svn: r132]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -1322,20 +1322,20 @@ int
 sg_vpd_dev_id_iter(const unsigned char * initial_desig_desc, int page_len,
                    int * off, int m_assoc, int m_desig_type, int m_code_set)
 {
-    const unsigned char * ucp;
+    const unsigned char * bp;
     int k, c_set, assoc, desig_type;
 
-    for (k = *off, ucp = initial_desig_desc ; (k + 3) < page_len; ) {
-        k = (k < 0) ? 0 : (k + ucp[k + 3] + 4);
+    for (k = *off, bp = initial_desig_desc ; (k + 3) < page_len; ) {
+        k = (k < 0) ? 0 : (k + bp[k + 3] + 4);
         if ((k + 4) > page_len)
             break;
-        c_set = (ucp[k] & 0xf);
+        c_set = (bp[k] & 0xf);
         if ((m_code_set >= 0) && (m_code_set != c_set))
             continue;
-        assoc = ((ucp[k + 1] >> 4) & 0x3);
+        assoc = ((bp[k + 1] >> 4) & 0x3);
         if ((m_assoc >= 0) && (m_assoc != assoc))
             continue;
-        desig_type = (ucp[k + 1] & 0xf);
+        desig_type = (bp[k + 1] & 0xf);
         if ((m_desig_type >= 0) && (m_desig_type != desig_type))
             continue;
         *off = k;
@@ -1359,7 +1359,7 @@ get_lu_name(const char * devname, char * b, int b_len)
         unsigned char u[512];
         unsigned char u_sns[512];
         struct stat a_stat;
-        unsigned char *ucp;
+        unsigned char *bp;
         char *cp;
         int fd, res, len, dlen, sns_dlen, off, k;
 
@@ -1383,47 +1383,67 @@ get_lu_name(const char * devname, char * b, int b_len)
         len = (u[2] << 8) + u[3];
         if ((len + 4) != res)
                 return b;
-        ucp = u + 4;
+        bp = u + 4;
+        cp = b;
         off = -1;
-        if (0 == sg_vpd_dev_id_iter(ucp, len, &off, VPD_ASSOC_LU,
+        if (0 == sg_vpd_dev_id_iter(bp, len, &off, VPD_ASSOC_LU,
                                     8 /* SCSI name string (sns) */,
                                     3 /* UTF-8 */)) {
-                sns_dlen = ucp[off + 3];
-                memcpy(u_sns, ucp + off + 4, sns_dlen);
+                sns_dlen = bp[off + 3];
+                memcpy(u_sns, bp + off + 4, sns_dlen);
                 /* now want to check if this is iSCSI */
                 off = -1;
-                if (0 == sg_vpd_dev_id_iter(ucp, len, &off, VPD_ASSOC_TPORT,
+                if (0 == sg_vpd_dev_id_iter(bp, len, &off, VPD_ASSOC_TPORT,
                                             8 /* SCSI name string (sns) */,
                                             3 /* UTF-8 */)) {
-                        if ((0x80 & ucp[1]) &&
-                            (TPROTO_ISCSI == (ucp[0] >> 4))) {
+                        if ((0x80 & bp[1]) &&
+                            (TPROTO_ISCSI == (bp[0] >> 4))) {
                                 snprintf(b, b_len, "%.*s", sns_dlen, u_sns);
                                 return b;
                         }
                 }
         } else
                 sns_dlen = 0;
-        if (0 == sg_vpd_dev_id_iter(ucp, len, &off, VPD_ASSOC_LU,
+        if (0 == sg_vpd_dev_id_iter(bp, len, &off, VPD_ASSOC_LU,
                                     3 /* NAA */, 1 /* binary */)) {
-                dlen = ucp[off + 3];
+                dlen = bp[off + 3];
                 if (! ((8 == dlen) || (16 ==dlen)))
                         return b;
-                cp = b;
                 for (k = 0; ((k < dlen) && (b_len > 1)); ++k) {
-                        snprintf(cp, b_len, "%02x", ucp[off + 4 + k]);
+                        snprintf(cp, b_len, "%02x", bp[off + 4 + k]);
                         cp += 2;
                         b_len -= 2;
                 }
-        } else if (0 == sg_vpd_dev_id_iter(ucp, len, &off, VPD_ASSOC_LU,
+        } else if (0 == sg_vpd_dev_id_iter(bp, len, &off, VPD_ASSOC_LU,
                                            2 /* EUI */, 1 /* binary */)) {
-                dlen = ucp[off + 3];
+                dlen = bp[off + 3];
                 if (! ((8 == dlen) || (12 == dlen) || (16 ==dlen)))
                         return b;
-                cp = b;
                 for (k = 0; ((k < dlen) && (b_len > 1)); ++k) {
-                        snprintf(cp, b_len, "%02x", ucp[off + 4 + k]);
+                        snprintf(cp, b_len, "%02x", bp[off + 4 + k]);
                         cp += 2;
                         b_len -= 2;
+                }
+        } else if (0 == sg_vpd_dev_id_iter(bp, len, &off, VPD_ASSOC_LU,
+                                           0xa /* UUID */,  1 /* binary */)) {
+                dlen = bp[off + 3];
+                if ((1 != ((bp[off + 4] >> 4) & 0xf)) || (18 != dlen)) {
+                        snprintf(cp, b_len, "??");
+                        cp += 2;
+                        b_len -= 2;
+                } else {
+                        for (k = 0; (k < 16) && (b_len > 1); ++k) {
+                                if ((4 == k) || (6 == k) || (8 == k) ||
+                                    (10 == k)) {
+                                        snprintf(cp, b_len, "-");
+                                        ++cp;
+                                        --b_len;
+                                }
+                                snprintf(cp, b_len, "%02x",
+                                         (unsigned int)bp[off + 6 + k]);
+                                cp += 2;
+                                b_len -= 2;
+                        }
                 }
         } else if (sns_dlen > 0)
                 snprintf(b, b_len, "%.*s", sns_dlen, u_sns);
@@ -2832,10 +2852,8 @@ one_sdev_entry(const char * dir_name, const char * devname,
                                 value[n - 32] = '_';
                                 printf("%-32s  ", value + n - 32);
                         }
-                } else {        /* -uuu, output in full, skip rest of line */
-                        printf("%-s\n", value);
-                        return;
-                }
+                } else     /* -uuu, output in full, append rest of line */
+                        printf("%-s  ", value);
         } else {
                 if (get_value(buff, "vendor", value, vlen))
                         printf("%-8s ", value);
