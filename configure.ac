@@ -1,6 +1,6 @@
 AC_INIT(lsscsi, 0.29, dgilbert@interlog.com)
 
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AM_MAINTAINER_MODE
 AM_CONFIG_HEADER(config.h)
 

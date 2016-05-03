@@ -1,14 +1,14 @@
-.TH lsscsi "8" "April 2016" "lsscsi\-0.29" LSSCSI
+.TH lsscsi "8" "May 2016" "lsscsi\-0.29" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
 .B lsscsi
 [\fI\-\-classic\fR] [\fI\-\-device\fR] [\fI\-\-generic\fR] [\fI\-\-help\fR]
 [\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-lunhex\fR]
-[\fI\-\-long\fR] [\fI\-\-protection\fR] [\fI\-\-protmode\fR]
-[\fI\-\-scsi_id\fR] [\fI\-\-size\fR] [\fI\-\-sysfsroot=PATH\fR]
-[\fI\-\-transport\fR] [\fI\-\-unit\fR] [\fI\-\-verbose\fR] [\fI\-\-version\fR]
-[\fI\-\-wwn\fR] [\fIH:C:T:L\fR]
+[\fI\-\-long\fR] [\fI\-\-long_unit\fR] [\fI\-\-protection\fR]
+[\fI\-\-protmode\fR] [\fI\-\-scsi_id\fR] [\fI\-\-size\fR]
+[\fI\-\-sysfsroot=PATH\fR] [\fI\-\-transport\fR] [\fI\-\-unit\fR]
+[\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fI\-\-wwn\fR] [\fIH:C:T:L\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
@@ -79,6 +79,13 @@ used multiple times for more output in which case the shorter option
 form is more convenient (e.g. '\-lll'). When used three times (i.e. '\-lll')
 outputs SCSI device (host) attributes one per line; preceded by
 two spaces; in the form "<attribute_name>=<value>".
+.TP
+\fB\-U\fR, \fB\-\-long_unit\fR
+Output logical unit name in full, if available. It replaces the normal
+vendor, product and revision strings given in the single logical unit per
+line mode. If the logical unit name is long (e.g. a UUID) then following
+fields are pushed further to the right as required. This option is
+functionally equivalent to the '\-uuu' option.
 .TP
 \fB\-x\fR, \fB\-\-lunhex\fR
 when this option is used once the LUN in the tuple (at the start of each

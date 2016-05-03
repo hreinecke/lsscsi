@@ -1,10 +1,10 @@
 Linux utility for listing SCSI devices.
 
-Version 0.29 2016/04/30 [svn: r133]
+Version 0.29 2016/05/03 [svn: r134]
   - '-u' now decodes locally assigned UUIDs
-  - change '-uuu' to output the full lu name
-    followed by the normal fields (which were
-    skipped before)
+  - change '-uuu' to output the full lu name followed
+    by the normal fields (which were skipped before)
+  - add 'U' option, same action as '-uuu'
   - if '-s' given twice, size is base 2 related
   - if very long [h:c:t:l] then append space
   - print_enclosure_device() for FCP may be useless,

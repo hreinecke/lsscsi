@@ -35,7 +35,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.29  2016/04/30 [svn: r132]";
+static const char * version_str = "0.29  2016/05/03 [svn: r134]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -181,6 +181,8 @@ static struct option long_options[] = {
         {"sysfsroot", 1, 0, 'y'},
         {"transport", 0, 0, 't'},
         {"unit", 0, 0, 'u'},
+        {"long_unit", 0, 0, 'U'},
+        {"long-unit", 0, 0, 'U'},
         {"verbose", 0, 0, 'v'},
         {"version", 0, 0, 'V'},
         {"wwn", 0, 0, 'w'},
@@ -3497,7 +3499,7 @@ main(int argc, char **argv)
         while (1) {
                 int option_index = 0;
 
-                c = getopt_long(argc, argv, "cdghHiklLpPstuvVwxy:",
+                c = getopt_long(argc, argv, "cdghHiklLpPstuUvVwxy:",
                                 long_options, &option_index);
                 if (c == -1)
                         break;
@@ -3544,6 +3546,9 @@ main(int argc, char **argv)
                         break;
                 case 'u':
                         ++op->unit;
+                        break;
+                case 'U':
+                        op->unit += 3;
                         break;
                 case 'v':
                         ++op->verbose;
