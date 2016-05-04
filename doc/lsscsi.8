@@ -83,9 +83,10 @@ two spaces; in the form "<attribute_name>=<value>".
 \fB\-U\fR, \fB\-\-long_unit\fR
 Output logical unit name in full, if available. It replaces the normal
 vendor, product and revision strings given in the single logical unit per
-line mode. If the logical unit name is long (e.g. a UUID) then following
-fields are pushed further to the right as required. This option is
-functionally equivalent to the '\-uuu' option.
+line mode. If no logical unit name is found "none" is printed. If the
+logical unit name is long (e.g. a UUID) then following fields are pushed
+further to the right as required. This option is functionally equivalent to
+the '\-uuu' option.
 .TP
 \fB\-x\fR, \fB\-\-lunhex\fR
 when this option is used once the LUN in the tuple (at the start of each
@@ -133,10 +134,10 @@ the section on transports below.
 Output logical unit name, if available. If this option is given once or
 twice, then the 30 character field where the vendor, product and revision
 strings are usually placed is expanded to 32 characters and replaced by the
-logical unit name. The first found of the NAA, EUI-64 or SCSI name string
-is output unless a SCSI name string is found and the associated target
-port indicates the iSCSI protocol, in which case the SCSI name string is
-preferred.
+logical unit name. If no logical unit name is found "none" is printed.
+The first found of the NAA, EUI-64 or SCSI name string is output unless a
+SCSI name string is found and the associated target port indicates the
+iSCSI protocol, in which case the SCSI name string is preferred.
 .br
 If the name cannot fit in the 32 character field then it is truncated to
 the right and a trailing '_' character is used to alert the reader to the

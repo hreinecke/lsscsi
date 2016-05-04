@@ -1,7 +1,8 @@
 Linux utility for listing SCSI devices.
 
-Version 0.29 2016/05/03 [svn: r134]
+Version 0.29 2016/05/03 [svn: r135]
   - '-u' now decodes locally assigned UUIDs
+  - if no lu name found, print 'none'
   - change '-uuu' to output the full lu name followed
     by the normal fields (which were skipped before)
   - add 'U' option, same action as '-uuu'

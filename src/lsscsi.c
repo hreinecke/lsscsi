@@ -35,7 +35,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.29  2016/05/03 [svn: r134]";
+static const char * version_str = "0.29  2016/05/03 [svn: r135]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -1349,7 +1349,7 @@ sg_vpd_dev_id_iter(const unsigned char * initial_desig_desc, int page_len,
 /* Fetch logical unit (LU) name given the device name in the
  * form: h:c:t:l tuple string (e.g. "2:0:1:0"). This is fetched via sysfs
  * (lk 3.15 and later) in vpd_pg83. For later ATA and SATA devices this
- ( may be its WWN. Normally take the first found in this order:
+ * may be its WWN. Normally take the first found in this order:
  * NAA, EUI-64 then SCSI name string. However if a SCSI name string
  * is present and the protocol is iSCSI (target port checked) then
  * the SCSI name string is preferred.
@@ -2838,7 +2838,9 @@ one_sdev_entry(const char * dir_name, const char * devname,
         } else if (op->unit) {
                 get_lu_name(devname, value, vlen);
                 n = strlen(value);
-                if (1 == op->unit) {
+                if (n < 1)      /* left justified "none" means no lu name */
+                        printf("%-32s  ", "none");
+                else if (1 == op->unit) {
                         if (n < 33)
                                 printf("%-32s  ", value);
                         else {
