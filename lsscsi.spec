@@ -53,7 +53,7 @@ fi
 
 
 %changelog
-* Thu Apr 21 2016 - dgilbert at interlog dot com
+* Fri May 13 2016 - dgilbert at interlog dot com
 - minor tweaks
   * lsscsi-0.29
 * Tue Sep 23 2014 - dgilbert at interlog dot com

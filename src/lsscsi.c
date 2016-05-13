@@ -35,7 +35,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.29  2016/05/03 [svn: r135]";
+static const char * version_str = "0.29  2016/05/13 [svn: r136]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -1352,10 +1352,11 @@ sg_vpd_dev_id_iter(const unsigned char * initial_desig_desc, int page_len,
  * may be its WWN. Normally take the first found in this order:
  * NAA, EUI-64 then SCSI name string. However if a SCSI name string
  * is present and the protocol is iSCSI (target port checked) then
- * the SCSI name string is preferred.
+ * the SCSI name string is preferred. If none of the above are present
+ * then check for T10 Vendor ID (designator_type=1) and use if available.
  */
 static char *
-get_lu_name(const char * devname, char * b, int b_len)
+get_lu_name(const char * devname, char * b, int b_len, bool want_prefix)
 {
         char buff[LMAX_DEVPATH];
         unsigned char u[512];
@@ -1363,7 +1364,7 @@ get_lu_name(const char * devname, char * b, int b_len)
         struct stat a_stat;
         unsigned char *bp;
         char *cp;
-        int fd, res, len, dlen, sns_dlen, off, k;
+        int fd, res, len, dlen, sns_dlen, off, k, n;
 
         if ((NULL == b) || (b_len < 1))
                 return b;
@@ -1406,11 +1407,18 @@ get_lu_name(const char * devname, char * b, int b_len)
                 }
         } else
                 sns_dlen = 0;
+
         if (0 == sg_vpd_dev_id_iter(bp, len, &off, VPD_ASSOC_LU,
                                     3 /* NAA */, 1 /* binary */)) {
                 dlen = bp[off + 3];
                 if (! ((8 == dlen) || (16 ==dlen)))
                         return b;
+                if (want_prefix) {
+                        if ((n = snprintf(cp, b_len, "naa.")) >= b_len)
+                            n = b_len - 1;
+                        cp += n;
+                        b_len -= n;
+                }
                 for (k = 0; ((k < dlen) && (b_len > 1)); ++k) {
                         snprintf(cp, b_len, "%02x", bp[off + 4 + k]);
                         cp += 2;
@@ -1421,6 +1429,12 @@ get_lu_name(const char * devname, char * b, int b_len)
                 dlen = bp[off + 3];
                 if (! ((8 == dlen) || (12 == dlen) || (16 ==dlen)))
                         return b;
+                if (want_prefix) {
+                        if ((n = snprintf(cp, b_len, "eui.")) >= b_len)
+                            n = b_len - 1;
+                        cp += n;
+                        b_len -= n;
+                }
                 for (k = 0; ((k < dlen) && (b_len > 1)); ++k) {
                         snprintf(cp, b_len, "%02x", bp[off + 4 + k]);
                         cp += 2;
@@ -1434,6 +1448,13 @@ get_lu_name(const char * devname, char * b, int b_len)
                         cp += 2;
                         b_len -= 2;
                 } else {
+                        if (want_prefix) {
+                                if ((n = snprintf(cp, b_len, "uuid.")) >=
+                                    b_len)
+                                    n = b_len - 1;
+                                cp += n;
+                                b_len -= n;
+                        }
                         for (k = 0; (k < 16) && (b_len > 1); ++k) {
                                 if ((4 == k) || (6 == k) || (8 == k) ||
                                     (10 == k)) {
@@ -1449,6 +1470,20 @@ get_lu_name(const char * devname, char * b, int b_len)
                 }
         } else if (sns_dlen > 0)
                 snprintf(b, b_len, "%.*s", sns_dlen, u_sns);
+        else if ((0 == sg_vpd_dev_id_iter(bp, len, &off, VPD_ASSOC_LU,
+                                          0x1 /* T10 vendor ID */,  -1)) &&
+                 ((bp[off] & 0xf) > 1 /* ASCII or UTF */)) {
+                dlen = bp[off + 3];
+                if (dlen < 8)
+                        return b;       /* must have 8 byte T10 vendor id */
+                if (want_prefix) {
+                        if ((n = snprintf(cp, b_len, "t10.")) >= b_len)
+                            n = b_len - 1;
+                        cp += n;
+                        b_len -= n;
+                }
+                snprintf(b, b_len, "%.*s", dlen, bp + off + 4);
+        }
         return b;
 }
 
@@ -2202,7 +2237,7 @@ transport_tport(const char * devname, const struct lsscsi_opts * op,
                 if (ata_dev) {
                         off = strlen(b);
                         snprintf(b + off, b_len - off, "%s",
-                                 get_lu_name(devname, wd, sizeof(wd)));
+                                 get_lu_name(devname, wd, sizeof(wd), false));
                         return 1;
                 }
         }
@@ -2462,13 +2497,13 @@ transport_tport_longer(const char * devname, const struct lsscsi_opts * op)
                 break;
         case TRANSPORT_ATA:
                 printf("  transport=ata\n");
-                cp = get_lu_name(devname, b2, sizeof(b2));
+                cp = get_lu_name(devname, b2, sizeof(b2), false);
                 if (strlen(cp) > 0)
                         printf("  wwn=%s\n", cp);
                 break;
         case TRANSPORT_SATA:
                 printf("  transport=sata\n");
-                cp = get_lu_name(devname, b2, sizeof(b2));
+                cp = get_lu_name(devname, b2, sizeof(b2), false);
                 if (strlen(cp) > 0)
                         printf("  wwn=%s\n", cp);
                 break;
@@ -2836,7 +2871,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                 else
                         printf("                                ");
         } else if (op->unit) {
-                get_lu_name(devname, value, vlen);
+                get_lu_name(devname, value, vlen, op->unit > 3);
                 n = strlen(value);
                 if (n < 1)      /* left justified "none" means no lu name */
                         printf("%-32s  ", "none");

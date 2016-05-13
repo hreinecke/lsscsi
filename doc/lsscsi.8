@@ -87,6 +87,12 @@ line mode. If no logical unit name is found "none" is printed. If the
 logical unit name is long (e.g. a UUID) then following fields are pushed
 further to the right as required. This option is functionally equivalent to
 the '\-uuu' option.
+.br
+If the option is used twice (e.g. '\-UU') then EUI, NAA, UUID and T10 vendor
+ID formats are prefixed by "eui.", "naa.", "uuid." and "t10." respectively.
+Note that SCSI name format used by iSCSI should already be prefixed
+by 'iqn.'. Using the '\-\-unit' option 4 or more times (e.g. '\-uuuu') will
+have the same action as '\-UU'.
 .TP
 \fB\-x\fR, \fB\-\-lunhex\fR
 when this option is used once the LUN in the tuple (at the start of each
@@ -135,14 +141,16 @@ Output logical unit name, if available. If this option is given once or
 twice, then the 30 character field where the vendor, product and revision
 strings are usually placed is expanded to 32 characters and replaced by the
 logical unit name. If no logical unit name is found "none" is printed.
-The first found of the NAA, EUI-64 or SCSI name string is output unless a
+The first found of the NAA, EUI\-64 or SCSI name string is output unless a
 SCSI name string is found and the associated target port indicates the
-iSCSI protocol, in which case the SCSI name string is preferred.
+iSCSI protocol, in which case the SCSI name string is preferred. Finally
+if there is no match on the above and a T10 Vendor ID descriptor is found
+then it is used.
 .br
 If the name cannot fit in the 32 character field then it is truncated to
 the right and a trailing '_' character is used to alert the reader to the
 truncation. The 32 character width is chosen since that is large enough to
-hold 16 byte NAA or EUI-64 identifiers. However SCSI name strings as used
+hold 16 byte NAA or EUI\-64 identifiers. However SCSI name strings as used
 by iSCSI can be larger than that.
 .br
 If this option is used twice then this field is also 32 character wide. If
