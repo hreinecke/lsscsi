@@ -1,6 +1,6 @@
 Linux utility for listing SCSI devices.
 
-Version 0.29 2016/05/13 [svn: r136]
+Version 0.29 2016/05/14 [svn: r137]
   - '-u' now decodes locally assigned UUIDs (spc5r08)
   - as last try use T10 Vendor ID for lu name
   - if no lu name found, print 'none'

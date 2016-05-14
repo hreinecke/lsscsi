@@ -35,7 +35,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.29  2016/05/13 [svn: r136]";
+static const char * version_str = "0.29  2016/05/14 [svn: r137]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -243,11 +243,12 @@ static int iscsi_tsession_num;
 static char errpath[LMAX_PATH];
 
 
-static const char * usage_message =
+static const char * usage_message1 =
 "Usage: lsscsi   [--classic] [--device] [--generic] [--help] [--hosts]\n"
-            "\t\t[--kname] [--list] [--lunhex] [--long] [--protection]\n"
-            "\t\t[--scsi_id] [--size] [--sysfsroot=PATH] [--transport]\n"
-            "\t\t[--unit] [--verbose] [--version] [--wwn] [<h:c:t:l>]\n"
+            "\t\t[--kname] [--list] [--long] [--long-unit] [--lunhex]\n"
+            "\t\t[--protection] [--scsi_id] [--size] [--sysfsroot=PATH]\n"
+            "\t\t[--transport] [--unit] [--verbose] [--version] [--wwn]\n"
+            "\t\t[<h:c:t:l>]\n"
 "  where:\n"
 "    --classic|-c      alternate output similar to 'cat /proc/scsi/scsi'\n"
 "    --device|-d       show device node's major + minor numbers\n"
@@ -258,13 +259,17 @@ static const char * usage_message =
 "    --list|-L         additional information output one\n"
 "                      attribute=value per line\n"
 "    --long|-l         additional information output\n"
+"    --long-unit|-U    print LU name in full, use twice to prefix with\n"
+"                      '.naa', 'eui.', 'uuid.' or 't10.'\n"
 "    --lunhex|-x       show LUN part of tuple as hex number in T10 "
-"format;\n"
+"format;\n";
+
+static const char * usage_message2 =
 "                      use twice to get full 16 digit hexadecimal LUN\n"
 "    --protection|-p   show target and initiator protection information\n"
 "    --protmode|-P     show negotiated protection information mode\n"
 "    --scsi_id|-i      show udev derived /dev/disk/by-id/scsi* entry\n"
-"    --size|-s         show disk size, (once for decimal (e.g. 3 GB), "
+"    --size|-s         show disk size, (once for decimal (e.g. 3 GB),\n"
 "                      twice for power of two (e.g. 2.7 GiB))\n"
 "    --sysfsroot=PATH|-y PATH    set sysfs mount point to PATH (def: /sys)\n"
 "    --transport|-t    transport information for target or, if '--hosts'\n"
@@ -274,7 +279,9 @@ static const char * usage_message =
 "    --version|-V      output version string and exit\n"
 "    --wwn|-w          output WWN for disks (from /dev/disk/by-id/wwn*)\n"
 "    <h:c:t:l>         filter output list (def: '*:*:*:*' (all))\n\n"
-"List SCSI devices or hosts, optionally with additional information\n";
+"List SCSI devices or hosts, optionally with additional information. Many\n"
+"storage devices (e.g. SATA disks and USB keys) use SCSI protocols and\n"
+"hence are also listed by this utility.\n";
 
 
 #ifdef __GNUC__
@@ -300,7 +307,7 @@ pr2serr(const char * fmt, ...)
 static void
 usage(void)
 {
-        pr2serr("%s", usage_message);
+        pr2serr("%s%s", usage_message1, usage_message2);
 }
 
 /* Copies (dest_maxlen - 1) or less chars from src to dest. Less chars are

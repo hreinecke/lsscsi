@@ -4,8 +4,8 @@ lsscsi \- list SCSI devices (or hosts) and their attributes
 .SH SYNOPSIS
 .B lsscsi
 [\fI\-\-classic\fR] [\fI\-\-device\fR] [\fI\-\-generic\fR] [\fI\-\-help\fR]
-[\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-lunhex\fR]
-[\fI\-\-long\fR] [\fI\-\-long_unit\fR] [\fI\-\-protection\fR]
+[\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-long\fR]
+[\fI\-\-long\-unit\fR] [\fI\-\-lunhex\fR] [\fI\-\-protection\fR]
 [\fI\-\-protmode\fR] [\fI\-\-scsi_id\fR] [\fI\-\-size\fR]
 [\fI\-\-sysfsroot=PATH\fR] [\fI\-\-transport\fR] [\fI\-\-unit\fR]
 [\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fI\-\-wwn\fR] [\fIH:C:T:L\fR]
@@ -80,7 +80,7 @@ form is more convenient (e.g. '\-lll'). When used three times (i.e. '\-lll')
 outputs SCSI device (host) attributes one per line; preceded by
 two spaces; in the form "<attribute_name>=<value>".
 .TP
-\fB\-U\fR, \fB\-\-long_unit\fR
+\fB\-U\fR, \fB\-\-long\-unit\fR
 Output logical unit name in full, if available. It replaces the normal
 vendor, product and revision strings given in the single logical unit per
 line mode. If no logical unit name is found "none" is printed. If the
@@ -93,6 +93,8 @@ ID formats are prefixed by "eui.", "naa.", "uuid." and "t10." respectively.
 Note that SCSI name format used by iSCSI should already be prefixed
 by 'iqn.'. Using the '\-\-unit' option 4 or more times (e.g. '\-uuuu') will
 have the same action as '\-UU'.
+.br
+\fI\-\-long_unit\fR is also an acceptable form when invoking this option.
 .TP
 \fB\-x\fR, \fB\-\-lunhex\fR
 when this option is used once the LUN in the tuple (at the start of each
@@ -125,6 +127,10 @@ Print disk capacity in human readable form. When given once, normal base
 for binary multiples are used; for example MiB, GiB and TiB stand for
 2^20, 2^30 and 2^40 bytes respectively. The output is rounded to 3
 significant figures in order to fit on a single line.
+.TP
+\fB\-y\fR, \fB\-\-sysfsroot\fR=\fIPATH\fR
+assumes sysfs is mounted at PATH instead of the default '/sys' . If this
+option is given PATH should be an absolute path (i.e. start with '/').
 .TP
 \fB\-t\fR, \fB\-\-transport\fR
 Output transport information. This will be a target related information or,
@@ -176,11 +182,9 @@ outputs version information then exits.
 outputs the WWN for disks instead of manufacturer, model and revision (or
 instead of transport information). The World Wide Name (WWN) is typically
 64 bits long (16 hex digits) but could be up to 128 bits long. To indicate
-the WWN is hexadecimal, it is prefixed by "0x".
-.TP
-\fB\-y\fR, \fB\-\-sysfsroot\fR=\fIPATH\fR
-assumes sysfs is mounted at PATH instead of the default '/sys' . If this
-option is given PATH should be an absolute path (i.e. start with '/').
+the WWN is hexadecimal, it is prefixed by "0x". The ATA/SATA WWN is
+referred to as LU name in SCSI jargon; hence this option is more or less
+superseded by the \fI\-\-unit\fR and \fI\-\-long\-unit\fR options.
 .SH TRANSPORTS
 This utility lists SCSI devices which are known as logical units (LU) in
 the SCSI Architecture Model (ref: SAM\-4 at http://www.t10.org) or hosts
