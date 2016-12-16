@@ -1062,7 +1062,7 @@ exit:
 }
 
 /* Allocate disk_wwn_node_list and collect info on every node in
- * /dev/disk/by-id/wwn* that does not contain "part" . Returns
+ * /dev/disk/by-id/scsi-* that does not contain "part" . Returns
  * number of wwn nodes collected, 0 for already collected and
  * -1 for error. */
 static int
@@ -1097,11 +1097,14 @@ collect_disk_wwn_nodes(void)
                 dep = readdir(dirp);
                 if (dep == NULL)
                         break;
-                if (memcmp("wwn-", dep->d_name, 4))
-                        continue;       /* needs to start with "wwn-" */
+                if (memcmp("scsi-", dep->d_name, 4))
+                        continue;       /* needs to start with "scsi-" */
                 if (strstr(dep->d_name, "part"))
                         continue;       /* skip if contains "part" */
-
+                if (dep->d_name[5] != 3 &&
+                    dep->d_name[5] != 2 &&
+                    dep->d_name[5] != 8)
+                        continue;       /* skip for invalid identifier */
                 snprintf(device_path, PATH_MAX, "%s/%s", dev_disk_byid_dir,
                          dep->d_name);
                 device_path [PATH_MAX] = '\0';
@@ -1125,8 +1128,9 @@ collect_disk_wwn_nodes(void)
                 }
 
                 cur_ent = &cur_list->nodes[cur_list->count];
-                my_strcopy(cur_ent->wwn, dep->d_name + 4,
-                           sizeof(cur_ent->wwn));
+                my_strcopy(cur_ent->wwn, "0x", 2);
+                my_strcopy(cur_ent->wwn + 2, dep->d_name + 5,
+                           sizeof(cur_ent->wwn - 2));
                 my_strcopy(cur_ent->disk_bname, basename(symlink_path),
                            sizeof(cur_ent->disk_bname));
                 cur_list->count++;
