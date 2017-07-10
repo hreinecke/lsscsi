@@ -14,3 +14,9 @@ causes blocks device names (e.g. /dev/sda) not to be found.
 
 Douglas Gilbert
 13th May 2016
+
+WATCHOUT:
+This is my unofficial mirror of lsscsi. The actual sources are
+maintained by Doug Gilbert privately and a not accessible via git.
+Please format any patches relative to this branch (and not 'master').
+I will forward these patches to Doug.
