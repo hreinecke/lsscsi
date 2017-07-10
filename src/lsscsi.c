@@ -209,8 +209,17 @@ struct dev_node_list {
 };
 static struct dev_node_list* dev_node_listhead = NULL;
 
+/* WWN here is extracted from /dev/disk/by-id/wwn-<WWN> which is
+ * created by udev 60-persistent-storage.rules using ID_WWN_WITH_EXTENSION.
+ * The udev ID_WWN_WITH_EXTENSION is the combination of char wwn[17] and
+ * char wwn_vendor_extension[17] from struct scsi_id_device. This macro
+ * defines the maximum length of char-array needed to store this wwn including
+ * the null-terminator.
+ */
+#define DISK_WWN_MAX_LEN 35
+
 struct disk_wwn_node_entry {
-       char wwn[32];
+       char wwn[DISK_WWN_MAX_LEN]; /* '0x' + wwn<128-bit> + <null-terminator> */
        char disk_bname[12];
 };
 
@@ -2939,14 +2948,15 @@ one_sdev_entry(const char * dir_name, const char * devname,
                 }
                 if (wd[0]) {
                         char dev_node[LMAX_NAME] = "";
-                        char wwn_str[34];
+                        char wwn_str[DISK_WWN_MAX_LEN];
                         enum dev_type typ;
 
                         typ = (FT_BLOCK == non_sg.ft) ? BLK_DEV : CHR_DEV;
                         if (get_wwn) {
                                 if ((BLK_DEV == typ) &&
                                     get_disk_wwn(wd, wwn_str, sizeof(wwn_str)))
-                                        printf("%-30s  ", wwn_str);
+                                        printf("%-*s  ", DISK_WWN_MAX_LEN - 1,
+                                               wwn_str);
                                 else
                                         printf("                          "
                                                "      ");
