@@ -2159,7 +2159,7 @@ transport_tport(const char * devname, const struct lsscsi_opts * op,
                 off = strlen(b);
                 if (get_value(buff, "port_name", b + off, b_len - off)) {
                         off = strlen(b);
-                        my_strcopy(b + off, ",", sizeof(b) - off);
+                        my_strcopy(b + off, ",", b_len - off);
                         off = strlen(b);
                 } else
                         return 0;
