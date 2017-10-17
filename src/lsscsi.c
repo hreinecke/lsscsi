@@ -2,7 +2,7 @@
  * in the Linux operating system. It is applicable to kernel versions
  * 2.6.1 and greater.
  *
- *  Copyright (C) 2003-2016 D. Gilbert
+ *  Copyright (C) 2003-2017 D. Gilbert
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 2, or (at your option)
@@ -35,7 +35,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.29  2016/05/14 [svn: r137]";
+static const char * version_str = "0.30  2017/09/15 [svn: r138]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -209,8 +209,18 @@ struct dev_node_list {
 };
 static struct dev_node_list* dev_node_listhead = NULL;
 
+/* WWN here is extracted from /dev/disk/by-id/wwn-<WWN> which is
+ * created by udev 60-persistent-storage.rules using ID_WWN_WITH_EXTENSION.
+ * The udev ID_WWN_WITH_EXTENSION is the combination of char wwn[17] and
+ * char wwn_vendor_extension[17] from struct scsi_id_device. This macro
+ * defines the maximum length of char-array needed to store this wwn including
+ * the null-terminator.
+ */
+#define DISK_WWN_MAX_LEN 35
+
 struct disk_wwn_node_entry {
-       char wwn[32];
+       char wwn[DISK_WWN_MAX_LEN]; /* '0x' + wwn<128-bit> + */
+                                   /* <null-terminator> */
        char disk_bname[12];
 };
 
@@ -1062,7 +1072,7 @@ exit:
 }
 
 /* Allocate disk_wwn_node_list and collect info on every node in
- * /dev/disk/by-id/wwn* that does not contain "part" . Returns
+ * /dev/disk/by-id/scsi-* that does not contain "part" . Returns
  * number of wwn nodes collected, 0 for already collected and
  * -1 for error. */
 static int
@@ -1097,10 +1107,14 @@ collect_disk_wwn_nodes(void)
                 dep = readdir(dirp);
                 if (dep == NULL)
                         break;
-                if (memcmp("wwn-", dep->d_name, 4))
-                        continue;       /* needs to start with "wwn-" */
+                if (memcmp("scsi-", dep->d_name, 5))
+                        continue;       /* needs to start with "scsi-" */
                 if (strstr(dep->d_name, "part"))
                         continue;       /* skip if contains "part" */
+                if (dep->d_name[5] != '3' &&
+                    dep->d_name[5] != '2' &&
+                    dep->d_name[5] != '8')
+                        continue;       /* skip for invalid identifier */
 
                 snprintf(device_path, PATH_MAX, "%s/%s", dev_disk_byid_dir,
                          dep->d_name);
@@ -1125,8 +1139,9 @@ collect_disk_wwn_nodes(void)
                 }
 
                 cur_ent = &cur_list->nodes[cur_list->count];
-                my_strcopy(cur_ent->wwn, dep->d_name + 4,
-                           sizeof(cur_ent->wwn));
+                my_strcopy(cur_ent->wwn, "0x", 2);
+                my_strcopy(cur_ent->wwn + 2, dep->d_name + 5,
+                           sizeof(cur_ent->wwn - 2));
                 my_strcopy(cur_ent->disk_bname, basename(symlink_path),
                            sizeof(cur_ent->disk_bname));
                 cur_list->count++;
@@ -2155,7 +2170,7 @@ transport_tport(const char * devname, const struct lsscsi_opts * op,
                 off = strlen(b);
                 if (get_value(buff, "port_name", b + off, b_len - off)) {
                         off = strlen(b);
-                        my_strcopy(b + off, ",", sizeof(b) - off);
+                        my_strcopy(b + off, ",", b_len - off);
                         off = strlen(b);
                 } else
                         return 0;
@@ -2939,14 +2954,15 @@ one_sdev_entry(const char * dir_name, const char * devname,
                 }
                 if (wd[0]) {
                         char dev_node[LMAX_NAME] = "";
-                        char wwn_str[34];
+                        char wwn_str[DISK_WWN_MAX_LEN];
                         enum dev_type typ;
 
                         typ = (FT_BLOCK == non_sg.ft) ? BLK_DEV : CHR_DEV;
                         if (get_wwn) {
                                 if ((BLK_DEV == typ) &&
                                     get_disk_wwn(wd, wwn_str, sizeof(wwn_str)))
-                                        printf("%-30s  ", wwn_str);
+                                        printf("%-*s  ", DISK_WWN_MAX_LEN - 1,
+                                               wwn_str);
                                 else
                                         printf("                          "
                                                "      ");

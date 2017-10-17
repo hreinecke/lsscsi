@@ -1,5 +1,5 @@
 %define name    lsscsi
-%define version 0.29
+%define version 0.30
 %define release 1
 
 Summary: 	List SCSI devices (or hosts) and associated information
@@ -53,6 +53,9 @@ fi
 
 
 %changelog
+* Fri Sep 15 2017 - dgilbert at interlog dot com
+- minor tweaks
+  * lsscsi-0.30
 * Fri May 13 2016 - dgilbert at interlog dot com
 - minor tweaks
   * lsscsi-0.29
