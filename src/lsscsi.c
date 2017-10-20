@@ -24,18 +24,20 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <fcntl.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
 #include <libgen.h>
 #include <sys/sysmacros.h>
+#ifndef major
+#include <sys/types.h>
+#endif
 #include <linux/major.h>
 #include <linux/limits.h>
 #include <time.h>
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.30  2017/09/15 [svn: r138]";
+static const char * version_str = "0.30  2017/09/20 [svn: r138]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -101,24 +103,24 @@ struct addr_hctl {
 };
 
 struct addr_hctl filter;
-static int filter_active = 0;
+static bool filter_active = false;
 
 struct lsscsi_opts {
+        bool classic;
+        bool dev_maj_min;        /* --device */
+        bool generic;
+        bool kname;
+        bool protection;        /* data integrity */
+        bool protmode;          /* data integrity */
+        bool scsi_id;           /* udev derived from /dev/disk/by-id/scsi* */
+        bool transport_info;
+        bool wwn;
         int long_opt;           /* --long */
-        int classic;
-        int generic;
-        int dev_maj_min;        /* --device */
-        int kname;
         int lunhex;
-        int protection;         /* data integrity */
-        int protmode;           /* data integrity */
-        int scsi_id;            /* udev derived from /dev/disk/by-id/scsi* */
         int ssize;              /* show storage size, once->base 10 (e.g. 3 GB
                                  * twice (or more)->base 2 (e.g. 3.1 GiB) */
-        int transport;
         int unit;               /* logical unit (LU) name: from vpd_pg83 */
         int verbose;
-        int wwn;
 };
 
 
@@ -246,8 +248,15 @@ static struct item_t enclosure_device;
 static char sas_low_phy[LMAX_NAME];
 static char sas_hold_end_device[LMAX_NAME];
 
+/* Code analyzer states that the following two pointers may reference local
+ * (auto or stack based) locations and thus may be dangling. However they
+ * are only use by iscsi_target_scan() (plus functions it * calls) which is
+ * invoked only in transport_tport(). And the local (auto or stack based)
+ * locations flagged by the analyzer are defined in the function scope of
+ * transport_tport(). Hence there is no problem.  */
 static const char * iscsi_dir_name;
 static const struct addr_hctl * iscsi_target_hct;
+
 static int iscsi_tsession_num;
 
 static char errpath[LMAX_PATH];
@@ -362,15 +371,20 @@ enum string_size_units {
  * @buf:        buffer to format to
  * @len:        length of buffer
  *
- * This function returns a string formatted to 3 significant figures
- * giving the size in the required units.  Returns 0 on success or
- * error on failure.  @buf is always zero terminated.
+ * This function yields a string formatted to 3 significant figures
+ * giving the size in the required units.  Returns true on success or
+ * false on failure.  @buf is always zero terminated.
  *
  */
-static int
+static bool
 string_get_size(uint64_t size, const enum string_size_units units, char *buf,
                 int len)
 {
+        int i, j;
+        unsigned int res;
+        uint64_t sf_cap;
+        uint64_t remainder = 0;
+        char tmp[8];
         const char *units_10[] = { "B", "kB", "MB", "GB", "TB", "PB",
                                    "EB", "ZB", "YB", NULL};
         const char *units_2[] = {"B", "KiB", "MiB", "GiB", "TiB", "PiB",
@@ -385,11 +399,6 @@ string_get_size(uint64_t size, const enum string_size_units units, char *buf,
                 [STRING_UNITS_10] = 1000,
                 [STRING_UNITS_2] = 1024,
         };
-        int i, j;
-        unsigned int res;
-        uint64_t sf_cap;
-        uint64_t remainder = 0;
-        char tmp[8];
 
         tmp[0] = '\0';
         i = 0;
@@ -400,7 +409,7 @@ string_get_size(uint64_t size, const enum string_size_units units, char *buf,
                 }
 
                 sf_cap = size;
-                for (j = 0; sf_cap*10 < 1000; j++)
+                for (j = 0; (sf_cap * 10) < 1000; ++j)
                         sf_cap *= 10;
 
                 if (j) {
@@ -415,7 +424,7 @@ string_get_size(uint64_t size, const enum string_size_units units, char *buf,
         res = size;
         snprintf(buf, len, "%u%s%s", res, tmp, units_str[units][i]);
 
-        return 0;
+        return true;
 }
 
 
@@ -455,7 +464,7 @@ invalidate_hctl(struct addr_hctl * p)
  * a directory name starting with dot). Else return 0.
  */
 static int
-first_scandir_select(const struct dirent * s)
+first_dir_scan_select(const struct dirent * s)
 {
         if (FT_OTHER != aa_first.ft)
                 return 0;
@@ -469,7 +478,7 @@ first_scandir_select(const struct dirent * s)
 }
 
 static int
-sub_scandir_select(const struct dirent * s)
+sub_dir_scan_select(const struct dirent * s)
 {
         if (s->d_type == DT_LNK)
                 return 1;
@@ -481,7 +490,7 @@ sub_scandir_select(const struct dirent * s)
 }
 
 static int
-sd_scandir_select(const struct dirent * s)
+sd_dir_scan_select(const struct dirent * s)
 {
         if (s->d_type != DT_LNK && s->d_type != DT_DIR)
                 return 0;
@@ -499,7 +508,7 @@ sd_scandir_select(const struct dirent * s)
  * directory name starting with dot) that contains "block". Else return 0.
  */
 static int
-block_scandir_select(const struct dirent * s)
+block_dir_scan_select(const struct dirent * s)
 {
         if (s->d_type != DT_LNK && s->d_type != DT_DIR)
                 return 0;
@@ -518,8 +527,8 @@ typedef int (* dirent_select_fn) (const struct dirent *);
 static int
 sub_scan(char * dir_name, const char * sub_str, dirent_select_fn fn)
 {
-        struct dirent ** namelist;
         int num, i, len;
+        struct dirent ** namelist;
 
         num = scandir(dir_name, &namelist, fn, NULL);
         if (num <= 0)
@@ -534,7 +543,7 @@ sub_scan(char * dir_name, const char * sub_str, dirent_select_fn fn)
         free(namelist);
 
         if (num && strstr(dir_name, sub_str) == 0) {
-                num = scandir(dir_name, &namelist, sub_scandir_select, NULL);
+                num = scandir(dir_name, &namelist, sub_dir_scan_select, NULL);
                 if (num <= 0)
                         return 0;
                 len = strlen(dir_name);
@@ -556,7 +565,7 @@ sub_scan(char * dir_name, const char * sub_str, dirent_select_fn fn)
 static int
 block_scan(char * dir_name)
 {
-        return sub_scan(dir_name, "block:", block_scandir_select);
+        return sub_scan(dir_name, "block:", block_dir_scan_select);
 }
 
 /* Scan for scsi_disk:h:c:i:l or scsi_disk/h:c:i:l directory in
@@ -565,11 +574,11 @@ block_scan(char * dir_name)
 static int
 sd_scan(char * dir_name)
 {
-        return sub_scan(dir_name, "scsi_disk:", sd_scandir_select);
+        return sub_scan(dir_name, "scsi_disk:", sd_dir_scan_select);
 }
 
 static int
-enclosure_device_scandir_select(const struct dirent * s)
+enclosure_device_dir_scan_select(const struct dirent * s)
 {
         if ((DT_LNK != s->d_type) &&
             ((DT_DIR != s->d_type) || ('.' == s->d_name[0])))
@@ -590,10 +599,10 @@ enclosure_device_scandir_select(const struct dirent * s)
 static int
 enclosure_device_scan(const char * dir_name, const struct lsscsi_opts * op)
 {
-        struct dirent ** namelist;
         int num, k;
+        struct dirent ** namelist;
 
-        num = scandir(dir_name, &namelist, enclosure_device_scandir_select,
+        num = scandir(dir_name, &namelist, enclosure_device_dir_scan_select,
                       NULL);
         if (num < 0) {
                 if (op->verbose > 0) {
@@ -612,11 +621,11 @@ enclosure_device_scan(const char * dir_name, const struct lsscsi_opts * op)
 static int
 scan_for_first(const char * dir_name, const struct lsscsi_opts * op)
 {
-        struct dirent ** namelist;
         int num, k;
+        struct dirent ** namelist;
 
         aa_first.ft = FT_OTHER;
-        num = scandir(dir_name, &namelist, first_scandir_select, NULL);
+        num = scandir(dir_name, &namelist, first_dir_scan_select, NULL);
         if (num < 0) {
                 if (op->verbose > 0) {
                         snprintf(errpath, LMAX_PATH, "scandir: %s", dir_name);
@@ -631,7 +640,7 @@ scan_for_first(const char * dir_name, const struct lsscsi_opts * op)
 }
 
 static int
-non_sg_scandir_select(const struct dirent * s)
+non_sg_dir_scan_select(const struct dirent * s)
 {
         int len;
 
@@ -677,11 +686,11 @@ non_sg_scandir_select(const struct dirent * s)
 static int
 non_sg_scan(const char * dir_name, const struct lsscsi_opts * op)
 {
-        struct dirent ** namelist;
         int num, k;
+        struct dirent ** namelist;
 
         non_sg.ft = FT_OTHER;
-        num = scandir(dir_name, &namelist, non_sg_scandir_select, NULL);
+        num = scandir(dir_name, &namelist, non_sg_dir_scan_select, NULL);
         if (num < 0) {
                 if (op->verbose > 0) {
                         snprintf(errpath, LMAX_PATH, "scandir: %s", dir_name);
@@ -697,7 +706,7 @@ non_sg_scan(const char * dir_name, const struct lsscsi_opts * op)
 
 
 static int
-sg_scandir_select(const struct dirent * s)
+sg_dir_scan_select(const struct dirent * s)
 {
         if (FT_OTHER != aa_sg.ft)
                 return 0;
@@ -716,11 +725,11 @@ sg_scandir_select(const struct dirent * s)
 static int
 sg_scan(const char * dir_name)
 {
-        struct dirent ** namelist;
         int num, k;
+        struct dirent ** namelist;
 
         aa_sg.ft = FT_OTHER;
-        num = scandir(dir_name, &namelist, sg_scandir_select, NULL);
+        num = scandir(dir_name, &namelist, sg_dir_scan_select, NULL);
         if (num < 0)
                 return -1;
         for (k = 0; k < num; ++k)
@@ -731,7 +740,7 @@ sg_scan(const char * dir_name)
 
 
 static int
-sas_port_scandir_select(const struct dirent * s)
+sas_port_dir_scan_select(const struct dirent * s)
 {
         if ((DT_LNK != s->d_type) && (DT_DIR != s->d_type))
                 return 0;
@@ -743,11 +752,11 @@ sas_port_scandir_select(const struct dirent * s)
 static int
 sas_port_scan(const char * dir_name, struct dirent ***port_list)
 {
-        struct dirent ** namelist;
         int num;
+        struct dirent ** namelist;
 
         namelist = NULL;
-        num = scandir(dir_name, &namelist, sas_port_scandir_select, NULL);
+        num = scandir(dir_name, &namelist, sas_port_dir_scan_select, NULL);
         if (num < 0) {
                 *port_list = NULL;
                 return -1;
@@ -758,10 +767,10 @@ sas_port_scan(const char * dir_name, struct dirent ***port_list)
 
 
 static int
-sas_low_phy_scandir_select(const struct dirent * s)
+sas_low_phy_dir_scan_select(const struct dirent * s)
 {
-        char * cp;
         int n, m;
+        char * cp;
 
         if ((DT_LNK != s->d_type) && (DT_DIR != s->d_type))
                 return 0;
@@ -792,7 +801,7 @@ sas_low_phy_scan(const char * dir_name, struct dirent ***phy_list)
         int num, k;
 
         memset(sas_low_phy, 0, sizeof(sas_low_phy));
-        num = scandir(dir_name, &namelist, sas_low_phy_scandir_select, NULL);
+        num = scandir(dir_name, &namelist, sas_low_phy_dir_scan_select, NULL);
         if (num < 0)
                 return -1;
         if (!phy_list) {
@@ -806,10 +815,10 @@ sas_low_phy_scan(const char * dir_name, struct dirent ***phy_list)
 }
 
 static int
-iscsi_target_scandir_select(const struct dirent * s)
+iscsi_target_dir_scan_select(const struct dirent * s)
 {
-        char buff[LMAX_PATH];
         int off;
+        char buff[LMAX_PATH];
         struct stat a_stat;
 
         if ((DT_LNK != s->d_type) && (DT_DIR != s->d_type))
@@ -832,13 +841,14 @@ iscsi_target_scandir_select(const struct dirent * s)
 static int
 iscsi_target_scan(const char * dir_name, const struct addr_hctl * hctl)
 {
-        struct dirent ** namelist;
         int num, k;
+        struct dirent ** namelist;
 
         iscsi_dir_name = dir_name;
         iscsi_target_hct = hctl;
         iscsi_tsession_num = -1;
-        num = scandir(dir_name, &namelist, iscsi_target_scandir_select, NULL);
+        num = scandir(dir_name, &namelist, iscsi_target_dir_scan_select,
+                      NULL);
         if (num < 0)
                 return -1;
         for (k = 0; k < num; ++k)
@@ -849,8 +859,8 @@ iscsi_target_scan(const char * dir_name, const struct addr_hctl * hctl)
 
 
 /* If 'dir_name'/'base_name' is a directory chdir to it. If that is successful
-   return 1, else 0 */
-static int
+   return true, else false */
+static bool
 if_directory_chdir(const char * dir_name, const char * base_name)
 {
         char b[LMAX_PATH];
@@ -858,84 +868,84 @@ if_directory_chdir(const char * dir_name, const char * base_name)
 
         snprintf(b, sizeof(b), "%s/%s", dir_name, base_name);
         if (stat(b, &a_stat) < 0)
-                return 0;
+                return false;
         if (S_ISDIR(a_stat.st_mode)) {
                 if (chdir(b) < 0)
-                        return 0;
-                return 1;
+                        return false;
+                return true;
         }
-        return 0;
+        return false;
 }
 
 /* If 'dir_name'/generic is a directory chdir to it. If that is successful
-   return 1. Otherwise look a directory of the form
-   'dir_name'/scsi_generic:sg<n> and if found chdir to it and return 1.
-   Otherwise return 0. */
-static int
+   return true. Otherwise look a directory of the form
+   'dir_name'/scsi_generic:sg<n> and if found chdir to it and return true.
+   Otherwise return false. */
+static bool
 if_directory_ch2generic(const char * dir_name)
 {
         char b[LMAX_PATH];
-        struct stat a_stat;
         const char * old_name = "generic";
+        struct stat a_stat;
 
         snprintf(b, sizeof(b), "%s/%s", dir_name, old_name);
         if ((stat(b, &a_stat) >= 0) && S_ISDIR(a_stat.st_mode)) {
                 if (chdir(b) < 0)
-                        return 0;
-                return 1;
+                        return false;
+                return true;
         }
         /* No "generic", so now look for "scsi_generic:sg<n>" */
         if (1 != sg_scan(dir_name))
-                return 0;
+                return false;
         snprintf(b, sizeof(b), "%s/%s", dir_name, aa_sg.name);
         if (stat(b, &a_stat) < 0)
-                return 0;
+                return false;
         if (S_ISDIR(a_stat.st_mode)) {
                 if (chdir(b) < 0)
-                        return 0;
-                return 1;
+                        return false;
+                return true;
         }
-        return 0;
+        return false;
 }
 
 /* If 'dir_name'/'base_name' is found places corresponding value in 'value'
- * and returns 1 . Else returns 0.
+ * and returns true . Else returns false.
  */
-static int
+static bool
 get_value(const char * dir_name, const char * base_name, char * value,
           int max_value_len)
 {
-        char b[LMAX_PATH];
-        FILE * f;
         int len;
+        FILE * f;
+        char b[LMAX_PATH];
 
         snprintf(b, sizeof(b), "%s/%s", dir_name, base_name);
         if (NULL == (f = fopen(b, "r"))) {
-                return 0;
+                return false;
         }
         if (NULL == fgets(value, max_value_len, f)) {
                 /* assume empty */
                 value[0] = '\0';
                 fclose(f);
-                return 1;
+                return true;
         }
         len = strlen(value);
         if ((len > 0) && (value[len - 1] == '\n'))
                 value[len - 1] = '\0';
         fclose(f);
-        return 1;
+        return true;
 }
 
 /* Allocate dev_node_list and collect info on every node in /dev. */
 static void
 collect_dev_nodes(void)
 {
-        DIR *dirp;
         struct dirent *dep;
-        char device_path[LMAX_DEVPATH];
-        struct stat stats;
+        DIR *dirp;
         struct dev_node_list *cur_list, *prev_list;
         struct dev_node_entry *cur_ent;
+        char device_path[LMAX_DEVPATH];
+        struct stat stats;
 
         if (dev_node_listhead)
                 return; /* already collected nodes */
@@ -1016,17 +1026,17 @@ free_dev_node_list(void)
 
 /* Given a path to a class device, find the most recent device node with
  * matching major/minor. Outputs to node which is assumed to be at least
- * LMAX_NAME bytes long. Returns 1 if match found, 0 otherwise. */
-static int
+ * LMAX_NAME bytes long. Returns true if match found, false otherwise. */
+static bool
 get_dev_node(const char * wd, char * node, enum dev_type type)
 {
-        struct dev_node_list *cur_list;
-        struct dev_node_entry *cur_ent;
-        char value[LMAX_NAME];
+        bool match_found = false;
+        unsigned int k = 0;
         unsigned int maj, min;
         time_t newest_mtime = 0;
-        int match_found = 0;
-        unsigned int k = 0;
+        struct dev_node_entry *cur_ent;
+        struct dev_node_list *cur_list;
+        char value[LMAX_NAME];
 
         /* assume 'node' is at least 2 bytes long */
         memcpy(node, "-", 2);
@@ -1058,12 +1068,12 @@ get_dev_node(const char * wd, char * node, enum dev_type type)
                 if ((maj == cur_ent->maj) &&
                     (min == cur_ent->min) &&
                     (type == cur_ent->type)) {
-                        if ((!match_found) ||
+                        if ((! match_found) ||
                             (difftime(cur_ent->mtime,newest_mtime) > 0)) {
                                 newest_mtime = cur_ent->mtime;
                                 my_strcopy(node, cur_ent->name, LMAX_NAME);
                         }
-                        match_found = 1;
+                        match_found = true;
                 }
         }
 
@@ -1170,15 +1180,15 @@ free_disk_wwn_node_list(void)
 }
 
 /* Given a path to a class device, find the most recent device node with
-   matching major/minor. Returns 1 if match found, 0 otherwise. */
-static int
+   matching major/minor. Returns true if match found, false otherwise. */
+static bool
 get_disk_wwn(const char *wd, char * wwn_str, int max_wwn_str_len)
 {
+        unsigned int k = 0;
+        char * bn;
         struct disk_wwn_node_list *cur_list;
         struct disk_wwn_node_entry *cur_ent;
         char name[LMAX_PATH];
-        char * bn;
-        unsigned int k = 0;
 
         my_strcopy(name, wd, sizeof(name));
         name[sizeof(name) - 1] = '\0';
@@ -1186,7 +1196,7 @@ get_disk_wwn(const char *wd, char * wwn_str, int max_wwn_str_len)
         if (disk_wwn_node_listhead == NULL) {
                 collect_disk_wwn_nodes();
                 if (disk_wwn_node_listhead == NULL)
-                        return 0;
+                        return false;
         }
         cur_list = disk_wwn_node_listhead;
         while (1) {
@@ -1201,10 +1211,10 @@ get_disk_wwn(const char *wd, char * wwn_str, int max_wwn_str_len)
                 if (0 == strcmp(cur_ent->disk_bname, bn)) {
                         my_strcopy(wwn_str, cur_ent->wwn, max_wwn_str_len);
                         wwn_str[max_wwn_str_len - 1] = '\0';
-                        return 1;
+                        return true;
                 }
         }
-        return 0;
+        return false;
 }
 
 /*
@@ -1256,11 +1266,11 @@ out:
 static char *
 get_disk_scsi_id(const char *dev_node)
 {
-        char sys_block[64];
-        char holder[16];
         char *scsi_id = NULL;
         DIR *dir;
         struct dirent *entry;
+        char holder[LMAX_PATH + 6];
+        char sys_block[LMAX_PATH];
 
         scsi_id = lookup_dev(dev_disk_byid_dir, "scsi-", dev_node);
         if (scsi_id)
@@ -1380,13 +1390,13 @@ sg_vpd_dev_id_iter(const unsigned char * initial_desig_desc, int page_len,
 static char *
 get_lu_name(const char * devname, char * b, int b_len, bool want_prefix)
 {
+        int fd, res, len, dlen, sns_dlen, off, k, n;
+        unsigned char *bp;
+        char *cp;
         char buff[LMAX_DEVPATH];
         unsigned char u[512];
         unsigned char u_sns[512];
         struct stat a_stat;
-        unsigned char *bp;
-        char *cp;
-        int fd, res, len, dlen, sns_dlen, off, k, n;
 
         if ((NULL == b) || (b_len < 1))
                 return b;
@@ -1467,8 +1477,8 @@ get_lu_name(const char * devname, char * b, int b_len, bool want_prefix)
                 dlen = bp[off + 3];
                 if ((1 != ((bp[off + 4] >> 4) & 0xf)) || (18 != dlen)) {
                         snprintf(cp, b_len, "??");
-                        cp += 2;
-                        b_len -= 2;
+                        /* cp += 2; */
+                        /* b_len -= 2; */
                 } else {
                         if (want_prefix) {
                                 if ((n = snprintf(cp, b_len, "uuid.")) >=
@@ -1504,15 +1514,15 @@ get_lu_name(const char * devname, char * b, int b_len, bool want_prefix)
                         cp += n;
                         b_len -= n;
                 }
-                snprintf(b, b_len, "%.*s", dlen, bp + off + 4);
+                snprintf(cp, b_len, "%.*s", dlen, bp + off + 4);
         }
         return b;
 }
 
 /*  Parse colon_list into host/channel/target/lun ("hctl") array,
- *  return 1 if successful, else 0.
+ *  return true if successful, else false.
  */
-static int
+static bool
 parse_colon_list(const char * colon_list, struct addr_hctl * outp)
 {
         int k;
@@ -1521,31 +1531,31 @@ parse_colon_list(const char * colon_list, struct addr_hctl * outp)
         const char * elem_end;
 
         if ((! colon_list) || (! outp))
-                return 0;
+                return false;
         if (1 != sscanf(colon_list, "%d", &outp->h))
-                return 0;
+                return false;
         if (NULL == (elem_end = strchr(colon_list, ':')))
-                return 0;
+                return false;
         colon_list = elem_end + 1;
         if (1 != sscanf(colon_list, "%d", &outp->c))
-                return 0;
+                return false;
         if (NULL == (elem_end = strchr(colon_list, ':')))
-                return 0;
+                return false;
         colon_list = elem_end + 1;
         if (1 != sscanf(colon_list, "%d", &outp->t))
-                return 0;
+                return false;
         if (NULL == (elem_end = strchr(colon_list, ':')))
-                return 0;
+                return false;
         colon_list = elem_end + 1;
         if (1 != sscanf(colon_list, "%" SCNu64 , &outp->l))
-                return 0;
+                return false;
         z = outp->l;
         for (k = 0; k < 4; ++k, z >>= 16) {
                 u = z & 0xffff;
                 outp->lun_arr[(2 * k) + 1] = u & 0xff;
                 outp->lun_arr[2 * k] = (u >> 8) & 0xff;
         }
-        return 1;
+        return true;
 }
 
 /* Print enclosure device link from the rport- or end_device- */
@@ -1553,8 +1563,8 @@ static void
 print_enclosure_device(const char *devname, const char *path,
                        const struct lsscsi_opts * op)
 {
-        struct addr_hctl hctl;
         char b[LMAX_PATH];
+        struct addr_hctl hctl;
 
         if (parse_colon_list(devname, &hctl)) {
                 snprintf(b, sizeof(b),
@@ -1574,9 +1584,9 @@ print_enclosure_device(const char *devname, const char *path,
 static void
 get_local_srp_gid(const int h, char *b, int b_len)
 {
+        int port;
         char buff[LMAX_DEVPATH];
         char value[LMAX_NAME];
-        int port;
 
         snprintf(buff, sizeof(buff), "%s%shost%d", sysfsroot, scsi_host, h);
         if (!get_value(buff, "local_ib_port", value, sizeof(value)))
@@ -1596,9 +1606,9 @@ get_local_srp_gid(const int h, char *b, int b_len)
 /*
  * Obtain the original GUID of the remote InfiniBand port associated with a
  * SCSI host by stripping prefix fe80:0000:0000:0000: from its GID. An
- * example: 0002:c903:00a0:5de2.
+ * example: 0002:c903:00a0:5de2. Returns true on success, else false.
  */
-static int
+static bool
 get_srp_orig_dgid(const int h, char *b, int b_len)
 {
         char buff[LMAX_DEVPATH];
@@ -1608,17 +1618,17 @@ get_srp_orig_dgid(const int h, char *b, int b_len)
         if (get_value(buff, "orig_dgid", value, sizeof(value)) &&
             strlen(value) > 20) {
                 snprintf(b, b_len, "%s", value + 20);
-                return 1;
+                return true;
         }
-        return 0;
+        return false;
 }
 
 /*
  * Obtain the GUID of the remote InfiniBand port associated with a SCSI host
  * by stripping prefix fe80:0000:0000:0000: from its GID. An example:
- * 0002:c903:00a0:5de2.
+ * 0002:c903:00a0:5de2. Returns true on success else false.
  */
-static int
+static bool
 get_srp_dgid(const int h, char *b, int b_len)
 {
         char buff[LMAX_DEVPATH];
@@ -1628,14 +1638,15 @@ get_srp_dgid(const int h, char *b, int b_len)
         if (get_value(buff, "dgid", value, sizeof(value)) &&
             strlen(value) > 20) {
                 snprintf(b, b_len, "%s", value + 20);
-                return 1;
+                return true;
         }
-        return 0;
+        return false;
 }
 
 /* Check host associated with 'devname' for known transport types. If so set
- * transport_id, place a string in 'b' and return 1. Otherwise return 0. */
-static int
+ * transport_id, place a string in 'b' and return true. Otherwise return
+ * false. */
+static bool
 transport_init(const char * devname, /* const struct lsscsi_opts * op, */
                int b_len, char * b)
 {
@@ -1650,7 +1661,7 @@ transport_init(const char * devname, /* const struct lsscsi_opts * op, */
         if ((stat(buff, &a_stat) >= 0) && S_ISDIR(a_stat.st_mode)) {
                 transport_id = TRANSPORT_SPI;
                 snprintf(b, b_len, "spi:");
-                return 1;
+                return true;
         }
 
         /* FC host */
@@ -1672,11 +1683,11 @@ transport_init(const char * devname, /* const struct lsscsi_opts * op, */
                         my_strcopy(b + off, ",", b_len - off);
                         off = strlen(b);
                 } else
-                        return 0;
+                        return false;
                 if (get_value(buff, "port_id", b + off, b_len - off))
-                        return 1;
+                        return true;
                 else
-                        return 0;
+                        return false;
         }
 
         /* SRP host */
@@ -1688,7 +1699,7 @@ transport_init(const char * devname, /* const struct lsscsi_opts * op, */
                 snprintf(b, b_len, "srp:");
                 if (sscanf(devname, "host%d", &h) == 1)
                         get_local_srp_gid(h, b + strlen(b), b_len - strlen(b));
-                return 1;
+                return true;
         }
 
         /* SAS host */
@@ -1699,13 +1710,13 @@ transport_init(const char * devname, /* const struct lsscsi_opts * op, */
                 off = strlen(buff);
                 snprintf(buff + off, sizeof(buff) - off, "/device");
                 if (sas_low_phy_scan(buff, NULL) < 1)
-                        return 0;
+                        return false;
                 snprintf(buff, sizeof(buff), "%s%s%s", sysfsroot, sas_phy,
                          sas_low_phy);
                 snprintf(b, b_len, "sas:");
                 off = strlen(b);
                 if (get_value(buff, "sas_address", b + off, b_len - off))
-                        return 1;
+                        return true;
                 else
                         pr2serr("_init: no sas_address, wd=%s\n", buff);
         }
@@ -1718,7 +1729,7 @@ transport_init(const char * devname, /* const struct lsscsi_opts * op, */
                 snprintf(b, b_len, "sas:");
                 off = strlen(b);
                 if (get_value(buff, "device_name", b + off, b_len - off))
-                        return 1;
+                        return true;
                 else
                         pr2serr("_init: no device_name, wd=%s\n", buff);
         }
@@ -1755,7 +1766,7 @@ transport_init(const char * devname, /* const struct lsscsi_opts * op, */
                     strlen(buff2) != 18)
                         break;
                 snprintf(b, b_len, "sbp:%s", buff2 + 2);
-                return 1;
+                return true;
         } while (0);
 
         /* iSCSI host */
@@ -1766,7 +1777,7 @@ transport_init(const char * devname, /* const struct lsscsi_opts * op, */
 // >>>       Can anything useful be placed after "iscsi:" in single line
 //           host output?
 //           Hmmm, probably would like SAM-4 ",i,0x" notation here.
-                return 1;
+                return true;
         }
 
         /* USB host? */
@@ -1774,7 +1785,7 @@ transport_init(const char * devname, /* const struct lsscsi_opts * op, */
         if (cp) {
                 transport_id = TRANSPORT_USB;
                 snprintf(b, b_len, "usb:%s", cp);
-                return 1;
+                return true;
         }
 
         /* ATA or SATA host, crude check: driver name */
@@ -1783,19 +1794,19 @@ transport_init(const char * devname, /* const struct lsscsi_opts * op, */
                 if (0 == strcmp("ahci", wd)) {
                         transport_id = TRANSPORT_SATA;
                         snprintf(b, b_len, "sata:");
-                        return 1;
+                        return true;
                 } else if (strstr(wd, "ata")) {
                         if (0 == memcmp("sata", wd, 4)) {
                                 transport_id = TRANSPORT_SATA;
                                 snprintf(b, b_len, "sata:");
-                                return 1;
+                                return true;
                         }
                         transport_id = TRANSPORT_ATA;
                         snprintf(b, b_len, "ata:");
-                        return 1;
+                        return true;
                 }
         }
-        return 0;
+        return false;
 }
 
 /* Given the transport_id of a SCSI host (initiator) associated with
@@ -2082,24 +2093,25 @@ transport_init_longer(const char * path_name, const struct lsscsi_opts * op)
 
 /* Attempt to determine the transport type of the SCSI device (LU) associated
  * with 'devname'. If found set transport_id, place string in 'b' and return
- * 1. Otherwise return 0. */
-static int
+ * true. Otherwise return false. */
+static bool
 transport_tport(const char * devname, const struct lsscsi_opts * op,
                 int b_len, char * b)
 {
+        bool ata_dev;
+        int off, n;
+        char * cp;
         char buff[LMAX_DEVPATH];
         char wd[LMAX_PATH];
         char nm[LMAX_NAME];
         char tpgt[LMAX_NAME];
-        char * cp;
         struct addr_hctl hctl;
-        int off, n, ata_dev;
         struct stat a_stat;
 
         if (! parse_colon_list(devname, &hctl))
-                return 0;
+                return false;
 
-        /* SAS host? */
+        /* check for SAS host */
         snprintf(buff, sizeof(buff), "%s%shost%d", sysfsroot, sas_host,
                  hctl.h);
         if ((stat(buff, &a_stat) >= 0) && S_ISDIR(a_stat.st_mode)) {
@@ -2109,14 +2121,14 @@ transport_tport(const char * devname, const struct lsscsi_opts * op,
                          class_scsi_dev, devname);
                 if (if_directory_chdir(buff, "device")) {
                         if (NULL == getcwd(wd, sizeof(wd)))
-                                return 0;
+                                return false;
                         cp = strrchr(wd, '/');
                         if (NULL == cp)
-                                return 0;
+                                return false;
                         *cp = '\0';
                         cp = strrchr(wd, '/');
                         if (NULL == cp)
-                                return 0;
+                                return false;
                         *cp = '\0';
                         cp = basename(wd);
                         my_strcopy(sas_hold_end_device, cp,
@@ -2128,30 +2140,30 @@ transport_tport(const char * devname, const struct lsscsi_opts * op,
                         off = strlen(b);
                         if (get_value(buff, "sas_address", b + off,
                                       b_len - off))
-                                return 1;
+                                return true;
                         else {  /* non-SAS device in SAS domain */
                                 snprintf(b + off, b_len - off,
                                          "0x0000000000000000");
                                 if (op->verbose > 1)
                                         pr2serr("%s: no sas_address, wd=%s\n",
                                                 __func__, buff);
-                                return 1;
+                                return true;
                         }
                 } else
                         pr2serr("%s: down FAILED: %s\n", __func__, buff);
-                return 0;
+                return false;
         }
 
-        /* SPI host? */
+        /* not SAS, so check for SPI host */
         snprintf(buff, sizeof(buff), "%s%shost%d", sysfsroot, spi_host,
                  hctl.h);
         if ((stat(buff, &a_stat) >= 0) && S_ISDIR(a_stat.st_mode)) {
                 transport_id = TRANSPORT_SPI;
                 snprintf(b, b_len, "spi:%d", hctl.t);
-                return 1;
+                return true;
         }
 
-        /* FC host? */
+        /* no, so check for FC host */
         snprintf(buff, sizeof(buff), "%s%shost%d", sysfsroot, fc_host,
                  hctl.h);
         if ((stat(buff, &a_stat) >= 0) && S_ISDIR(a_stat.st_mode)) {
@@ -2173,21 +2185,21 @@ transport_tport(const char * devname, const struct lsscsi_opts * op,
                         my_strcopy(b + off, ",", b_len - off);
                         off = strlen(b);
                 } else
-                        return 0;
+                        return false;
                 if (get_value(buff, "port_id", b + off, b_len - off))
-                        return 1;
+                        return true;
                 else
-                        return 0;
+                        return false;
         }
 
-        /* SRP host? */
+        /* no, so check for SRP host */
         snprintf(buff, sizeof(buff), "%s%shost%d", sysfsroot, srp_host,
                  hctl.h);
         if (stat(buff, &a_stat) >= 0 && S_ISDIR(a_stat.st_mode)) {
                 transport_id = TRANSPORT_SRP;
                 snprintf(b, b_len, "srp:");
                 get_local_srp_gid(hctl.h, b + strlen(b), b_len - strlen(b));
-                return 1;
+                return true;
         }
 
         /* SAS class representation or SBP? */
@@ -2198,14 +2210,14 @@ transport_tport(const char * devname, const struct lsscsi_opts * op,
                 snprintf(b, b_len, "sas:");
                 off = strlen(b);
                 if (get_value(".", "sas_addr", b + off, b_len - off))
-                        return 1;
+                        return true;
                 else
                         pr2serr("%s: no sas_addr, wd=%s\n", __func__, buff);
         } else if (get_value(buff, "ieee1394_id", wd, sizeof(wd))) {
                 /* IEEE1394 SBP device */
                 transport_id = TRANSPORT_SBP;
                 snprintf(b, b_len, "sbp:%s", wd);
-                return 1;
+                return true;
         }
 
         /* iSCSI device? */
@@ -2213,20 +2225,20 @@ transport_tport(const char * devname, const struct lsscsi_opts * op,
                  iscsi_host, hctl.h);
         if ((stat(buff, &a_stat) >= 0) && S_ISDIR(a_stat.st_mode)) {
                 if (1 != iscsi_target_scan(buff, &hctl))
-                        return 0;
+                        return false;
                 transport_id = TRANSPORT_ISCSI;
                 snprintf(buff, sizeof(buff), "%s%ssession%d", sysfsroot,
                          iscsi_session, iscsi_tsession_num);
                 if (! get_value(buff, "targetname", nm, sizeof(nm)))
-                        return 0;
+                        return false;
                 if (! get_value(buff, "tpgt", tpgt, sizeof(tpgt)))
-                        return 0;
+                        return false;
                 n = atoi(tpgt);
                 // output target port name as per sam4r08, annex A, table A.3
                 snprintf(b, b_len, "%s,t,0x%x", nm, n);
 // >>>       That reference says maximum length of targetname is 223 bytes
 //           (UTF-8) excluding trailing null.
-                return 1;
+                return true;
         }
 
         /* USB device? */
@@ -2234,18 +2246,18 @@ transport_tport(const char * devname, const struct lsscsi_opts * op,
         if (cp) {
                 transport_id = TRANSPORT_USB;
                 snprintf(b, b_len, "usb:%s", cp);
-                return 1;
+                return true;
         }
 
         /* ATA or SATA device, crude check: driver name */
         snprintf(buff, sizeof(buff), "%s%shost%d", sysfsroot, scsi_host,
                  hctl.h);
         if (get_value(buff, "proc_name", wd, sizeof(wd))) {
-                ata_dev = 0;
+                ata_dev = false;
                 if (0 == strcmp("ahci", wd)) {
                         transport_id = TRANSPORT_SATA;
                         snprintf(b, b_len, "sata:");
-                        ata_dev = 1;
+                        ata_dev = true;
                 } else if (strstr(wd, "ata")) {
                         if (0 == memcmp("sata", wd, 4)) {
                                 transport_id = TRANSPORT_SATA;
@@ -2254,16 +2266,16 @@ transport_tport(const char * devname, const struct lsscsi_opts * op,
                                 transport_id = TRANSPORT_ATA;
                                 snprintf(b, b_len, "ata:");
                         }
-                        ata_dev = 1;
+                        ata_dev = true;
                 }
                 if (ata_dev) {
                         off = strlen(b);
                         snprintf(b + off, b_len - off, "%s",
                                  get_lu_name(devname, wd, sizeof(wd), false));
-                        return 1;
+                        return true;
                 }
         }
-        return 0;
+        return false;
 }
 
 /* Given the transport_id of the SCSI device (LU) associated with 'devname'
@@ -2271,13 +2283,13 @@ transport_tport(const char * devname, const struct lsscsi_opts * op,
 static void
 transport_tport_longer(const char * devname, const struct lsscsi_opts * op)
 {
+        char * cp;
         char path_name[LMAX_DEVPATH];
         char buff[LMAX_DEVPATH];
         char b2[LMAX_DEVPATH];
         char wd[LMAX_PATH];
         char value[LMAX_NAME];
         struct addr_hctl hctl;
-        char * cp;
 
 #if 0
         snprintf(buff, sizeof(buff), "%s/scsi_device:%s", path_name, devname);
@@ -2374,7 +2386,7 @@ transport_tport_longer(const char * devname, const struct lsscsi_opts * op)
                 break;
         case TRANSPORT_SRP:
                 printf("  transport=srp\n");
-                if (!parse_colon_list(devname, &hctl))
+                if (! parse_colon_list(devname, &hctl))
                         break;
                 if (get_srp_orig_dgid(hctl.h, value, sizeof(value)))
                         printf("  orig_dgid=%s\n", value);
@@ -2542,7 +2554,7 @@ longer_d_entry(const char * path_name, const char * devname,
 {
         char value[LMAX_NAME];
 
-        if (op->transport > 0) {
+        if (op->transport_info) {
                 transport_tport_longer(devname, op);
                 return;
         }
@@ -2663,12 +2675,12 @@ static void
 one_classic_sdev_entry(const char * dir_name, const char * devname,
                        const struct lsscsi_opts * op)
 {
-        struct addr_hctl hctl;
+        int type, scsi_level;
         char buff[LMAX_DEVPATH];
         char wd[LMAX_PATH];
         char dev_node[LMAX_NAME];
         char value[LMAX_NAME];
-        int type, scsi_level;
+        struct addr_hctl hctl;
 
         snprintf(buff, sizeof(buff), "%s/%s", dir_name, devname);
         if (! parse_colon_list(devname, &hctl))
@@ -2748,7 +2760,8 @@ tag_lun_helper(int * tag_arr, int kk, int num)
 static void
 tag_lun(const unsigned char * lunp, int * tag_arr)
 {
-        int k, a_method, bus_id, len_fld, e_a_method, next_level;
+        bool next_level;
+        int k, a_method, bus_id, len_fld, e_a_method;
         unsigned char not_spec[2] = {0xff, 0xff};
 
         if (NULL == tag_arr)
@@ -2763,13 +2776,13 @@ tag_lun(const unsigned char * lunp, int * tag_arr)
                 return;
         }
         for (k = 0; k < 4; ++k, lunp += 2) {
-                next_level = 0;
+                next_level = false;
                 a_method = (lunp[0] >> 6) & 0x3;
                 switch (a_method) {
                 case 0:         /* peripheral device addressing method */
                         bus_id = lunp[0] & 0x3f;
                         if (bus_id)
-                            next_level = 1;
+                            next_level = true;
                         tag_lun_helper(tag_arr, k, 2);
                         break;
                 case 1:         /* flat space addressing method */
@@ -2831,15 +2844,15 @@ static void
 one_sdev_entry(const char * dir_name, const char * devname,
                const struct lsscsi_opts * op)
 {
-        char buff[LMAX_DEVPATH];
-        char wd[LMAX_PATH];
-        char extra[LMAX_DEVPATH];
-        char value[LMAX_NAME];
+        bool get_wwn = false;
         int type, k, n, vlen, ta;
         int devname_len = 13;
-        int get_wwn = 0;
-        struct addr_hctl hctl;
+        char buff[LMAX_DEVPATH];
+        char extra[LMAX_DEVPATH];
         int tag_arr[16];
+        char value[LMAX_NAME];
+        char wd[LMAX_PATH];
+        struct addr_hctl hctl;
 
         if (op->classic) {
                 one_classic_sdev_entry(dir_name, devname, op);
@@ -2863,7 +2876,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         }
                         n = strlen(value);
                         snprintf(value + n, vlen - n, "]");
-                } else {
+                } else {        /* lunhex > 1 */
                         n = strlen(value);
                         snprintf(value + n, vlen - n, "%016" PRIx64 "]",
                                  lun_word_flip(hctl.l));
@@ -2886,8 +2899,8 @@ one_sdev_entry(const char * dir_name, const char * devname,
                 printf("%s ", scsi_short_device_types[type]);
 
         if (op->wwn)
-                ++get_wwn;
-        if (op->transport) {
+                get_wwn = true;
+        if (op->transport_info) {
                 if (transport_tport(devname, op, vlen, value))
                         printf("%-30s  ", value);
                 else
@@ -3090,7 +3103,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
 
                         blocks <<= 9;
                         if (blocks > 0 &&
-                            !string_get_size(blocks, unit_val, value, vlen))
+                            string_get_size(blocks, unit_val, value, vlen))
                                 printf("  %6s", value);
                         else
                                 printf("  %6s", "-");
@@ -3114,7 +3127,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
 }
 
 static int
-sdev_scandir_select(const struct dirent * s)
+sdev_dir_scan_select(const struct dirent * s)
 {
 /* Following no longer needed but leave for early lk 2.6 series */
         if (strstr(s->d_name, "mt"))
@@ -3179,14 +3192,14 @@ sdev_scandir_sort(const struct dirent ** a, const struct dirent ** b)
 static void
 list_sdevices(const struct lsscsi_opts * op)
 {
+        int num, k;
+        struct dirent ** namelist;
         char buff[LMAX_DEVPATH];
         char name[LMAX_NAME];
-        struct dirent ** namelist;
-        int num, k;
 
         snprintf(buff, sizeof(buff), "%s%s", sysfsroot, bus_scsi_devs);
 
-        num = scandir(buff, &namelist, sdev_scandir_select,
+        num = scandir(buff, &namelist, sdev_dir_scan_select,
                       sdev_scandir_sort);
         if (num < 0) {  /* scsi mid level may not be loaded */
                 if (op->verbose > 0) {
@@ -3218,7 +3231,7 @@ longer_h_entry(const char * path_name, const struct lsscsi_opts * op)
 {
         char value[LMAX_NAME];
 
-        if (op->transport > 0) {
+        if (op->transport_info) {
                 transport_init_longer(path_name, op);
                 return;
         }
@@ -3295,12 +3308,12 @@ static void
 one_host_entry(const char * dir_name, const char * devname,
                const struct lsscsi_opts * op)
 {
+        unsigned int host_id;
+        const char * nullname1 = "<NULL>";
+        const char * nullname2 = "(null)";
         char buff[LMAX_DEVPATH];
         char value[LMAX_NAME];
         char wd[LMAX_PATH];
-        const char * nullname1 = "<NULL>";
-        const char * nullname2 = "(null)";
-        unsigned int host_id;
 
         if (op->classic) {
                 // one_classic_host_entry(dir_name, devname, op);
@@ -3323,7 +3336,7 @@ one_host_entry(const char * dir_name, const char * devname,
 
         } else
                 printf("  proc_name=????  ");
-        if (op->transport > 0) {
+        if (op->transport_info) {
                 if (transport_init(devname, /* op, */ sizeof(value), value))
                         printf("%s\n", value);
                 else
@@ -3347,7 +3360,7 @@ one_host_entry(const char * dir_name, const char * devname,
 }
 
 static int
-host_scandir_select(const struct dirent * s)
+host_dir_scan_select(const struct dirent * s)
 {
         int h;
 
@@ -3374,9 +3387,9 @@ host_scandir_select(const struct dirent * s)
 static int
 host_scandir_sort(const struct dirent ** a, const struct dirent ** b)
 {
+        unsigned int l, r;
         const char * lnam = (*a)->d_name;
         const char * rnam = (*b)->d_name;
-        unsigned int l, r;
 
         if (1 != sscanf(lnam, "host%u", &l))
                 return -1;
@@ -3392,14 +3405,14 @@ host_scandir_sort(const struct dirent ** a, const struct dirent ** b)
 static void
 list_hosts(const struct lsscsi_opts * op)
 {
+        int num, k;
+        struct dirent ** namelist;
         char buff[LMAX_DEVPATH];
         char name[LMAX_NAME];
-        struct dirent ** namelist;
-        int num, k;
 
         snprintf(buff, sizeof(buff), "%s%s", sysfsroot, scsi_host);
 
-        num = scandir(buff, &namelist, host_scandir_select,
+        num = scandir(buff, &namelist, host_dir_scan_select,
                       host_scandir_sort);
         if (num < 0) {
                 snprintf(name, sizeof(name), "scandir: %s", buff);
@@ -3418,21 +3431,21 @@ list_hosts(const struct lsscsi_opts * op)
         free(namelist);
 }
 
-/* Return 0 if able to decode, otherwise 1 */
-static int
+/* Return true if able to decode, otherwise false */
+static bool
 one_filter_arg(const char * arg, struct addr_hctl * filtp)
 {
+        int val, k, n, res;
+        uint64_t val64;
         const char * cp;
         const char * cpe;
         char buff[64];
-        int val, k, n, res;
-        uint64_t val64;
 
         cp = arg;
         while ((*cp == ' ') || (*cp == '\t') || (*cp == '['))
                 ++cp;
         if ('\0' == *cp)
-                return 0;
+                return true;
         for (k = 0; *cp; cp = cpe + 1, ++k) {
                 cpe = strchr(cp, ':');
                 if (cpe)
@@ -3446,7 +3459,7 @@ one_filter_arg(const char * arg, struct addr_hctl * filtp)
                 if (n > ((int)sizeof(buff) - 1)) {
                         pr2serr("intermediate sting in %s too long (n=%d)\n",
                                 arg, n);
-                        return 1;
+                        return false;
                 }
                 if ((n > 0) && ('-' != *cp) && ('*' != *cp) && ('?' != *cp)) {
                         memcpy(buff, cp, n);
@@ -3465,7 +3478,7 @@ one_filter_arg(const char * arg, struct addr_hctl * filtp)
                                         ;
                                 pr2serr("cannot decode %s as an integer\n",
                                         buff);
-                                return 1;
+                                return false;
                         }
                 }
                 switch (k) {
@@ -3475,24 +3488,24 @@ one_filter_arg(const char * arg, struct addr_hctl * filtp)
                 case 3: filtp->l = val64; break;
                 default:
                         pr2serr("expect three colons at most in %s\n", arg);
-                        return 1;
+                        return false;
                 }
         }
-        return 0;
+        return true;
 }
 
-/* Return 0 if able to decode, otherwise 1 */
-static int
+/* Return true if able to decode, otherwise false */
+static bool
 decode_filter_arg(const char * a1p, const char * a2p, const char * a3p,
                   const char * a4p, struct addr_hctl * filtp)
 {
-        char b1[256];
-        char * b1p;
         int n, rem;
+        char * b1p;
+        char b1[256];
 
         if ((NULL == a1p) || (NULL == filtp)) {
                 pr2serr("bad call to decode_filter\n");
-                return 1;
+                return false;
         }
         filtp->h = -1;
         filtp->c = -1;
@@ -3501,7 +3514,7 @@ decode_filter_arg(const char * a1p, const char * a2p, const char * a3p,
         if ((0 == strncmp("host", a1p, 4)) &&
             (1 == sscanf(a1p, "host%d", &n)) && ( n >= 0)) {
                 filtp->h = n;
-                return 0;
+                return true;
         }
         if ((NULL == a2p) || strchr(a1p, ':'))
                 return one_filter_arg(a1p, filtp);
@@ -3538,19 +3551,19 @@ decode_filter_arg(const char * a1p, const char * a2p, const char * a3p,
 err_out:
         pr2serr("filter arguments exceed internal buffer size (%d)\n",
                 (int)sizeof(b1));
-        return 1;
+        return false;
 }
 
 
 int
 main(int argc, char **argv)
 {
+        bool do_sdevices = true;
+        bool do_hosts = false;  /* checked before do_sdevices */
         int c;
-        int do_sdevices = 1;
-        int do_hosts = 0;
-        struct lsscsi_opts opts;
-        struct lsscsi_opts * op;
         const char * cp;
+        struct lsscsi_opts * op;
+        struct lsscsi_opts opts;
 
         op = &opts;
         cp = getenv("LSSCSI_LUNHEX_OPT");
@@ -3566,25 +3579,25 @@ main(int argc, char **argv)
 
                 switch (c) {
                 case 'c':
-                        ++op->classic;
+                        op->classic = true;
                         break;
                 case 'd':
-                        ++op->dev_maj_min;
+                        op->dev_maj_min = true;
                         break;
                 case 'g':
-                        ++op->generic;
+                        op->generic = true;
                         break;
                 case 'h':
                         usage();
                         return 0;
                 case 'H':
-                        ++do_hosts;
+                        do_hosts = true;
                         break;
                 case 'i':
-                        ++op->scsi_id;
+                        op->scsi_id = true;
                         break;
                 case 'k':
-                        ++op->kname;
+                        op->kname = true;
                         break;
                 case 'l':
                         ++op->long_opt;
@@ -3593,16 +3606,16 @@ main(int argc, char **argv)
                         op->long_opt += 3;
                         break;
                 case 'p':
-                        ++op->protection;
+                        op->protection = true;
                         break;
                 case 'P':
-                        ++op->protmode;
+                        op->protmode = true;
                         break;
                 case 's':
                         ++op->ssize;
                         break;
                 case 't':
-                        ++op->transport;
+                        op->transport_info = true;
                         break;
                 case 'u':
                         ++op->unit;
@@ -3617,7 +3630,7 @@ main(int argc, char **argv)
                         pr2serr("version: %s\n", version_str);
                         return 0;
                 case 'w':
-                        ++op->wwn;
+                        op->wwn = true;
                         break;
                 case 'x':
                         ++op->lunhex;
@@ -3658,21 +3671,21 @@ main(int argc, char **argv)
                                         a4p = argv[optind++];
                         }
                 }
-                if (decode_filter_arg(a1p, a2p, a3p, a4p, &filter))
+                if (! decode_filter_arg(a1p, a2p, a3p, a4p, &filter))
                         return 1;
                 if ((filter.h != -1) || (filter.c != -1) ||
                     (filter.t != -1) || (filter.l != (uint64_t)~0))
-                        filter_active = 1;
+                        filter_active = true;
         }
         if ((0 == op->lunhex) && cp) {
                 if (1 == sscanf(cp, "%d", &c))
                         op->lunhex = c;
         }
-        if (op->transport && op->unit) {
+        if (op->transport_info && op->unit) {
                 pr2serr("use '--transport' or '--unit' but not both\n");
                 return 1;
         }
-        if (op->transport &&
+        if (op->transport_info &&
             ((1 == op->long_opt) || (2 == op->long_opt))) {
                 pr2serr("please use '--list' (rather than '--long') with "
                         "--transport\n");

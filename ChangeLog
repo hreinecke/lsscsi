@@ -1,12 +1,13 @@
 Linux utility for listing SCSI devices.
 
-Version 0.30 2017/09/15 [svn: r138]
+Version 0.30 2017/10/20 [svn: r139]
   - '-w' now decodes 128 bit WWN without truncation
   - /dev/disk/by-id/wwn- is not guaranteed to be
     persistent (or stable); instead use
     /dev/disk/by-id/scsi-
   - '-t' on a FC host was not printing the comma
     separator resulting in garbled output, fix
+  - change many two valued ints to bools
 
 Version 0.29 2016/05/14 [svn: r137]
   - '-u' now decodes locally assigned UUIDs (spc5r08)
