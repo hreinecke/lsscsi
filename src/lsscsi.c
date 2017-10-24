@@ -37,7 +37,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.30  2017/09/20 [svn: r138]";
+static const char * version_str = "0.30  2017/10/23 [svn: r138]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -797,8 +797,8 @@ sas_low_phy_dir_scan_select(const struct dirent * s)
 static int
 sas_low_phy_scan(const char * dir_name, struct dirent ***phy_list)
 {
-        struct dirent ** namelist=NULL;
         int num, k;
+        struct dirent ** namelist=NULL;
 
         memset(sas_low_phy, 0, sizeof(sas_low_phy));
         num = scandir(dir_name, &namelist, sas_low_phy_dir_scan_select, NULL);
@@ -884,8 +884,8 @@ if_directory_chdir(const char * dir_name, const char * base_name)
 static bool
 if_directory_ch2generic(const char * dir_name)
 {
-        char b[LMAX_PATH];
         const char * old_name = "generic";
+        char b[LMAX_PATH];
         struct stat a_stat;
 
         snprintf(b, sizeof(b), "%s/%s", dir_name, old_name);
@@ -1090,13 +1090,13 @@ collect_disk_wwn_nodes(void)
 {
         int k;
         int num = 0;
+        struct disk_wwn_node_list *cur_list, *prev_list;
+        struct disk_wwn_node_entry *cur_ent;
         DIR *dirp;
         struct dirent *dep;
         char device_path[PATH_MAX + 1];
         char symlink_path[PATH_MAX + 1];
         struct stat stats;
-        struct disk_wwn_node_list *cur_list, *prev_list;
-        struct disk_wwn_node_entry *cur_ent;
 
         if (disk_wwn_node_listhead)
                 return num; /* already collected nodes */
@@ -1229,11 +1229,11 @@ get_disk_wwn(const char *wd, char * wwn_str, int max_wwn_str_len)
 static char *
 lookup_dev(const char *dir, const char *pfx, const char *dev)
 {
-        struct stat stats;
         unsigned st_rdev;
         DIR *dirp;
         struct dirent *entry;
         char *result = NULL;
+        struct stat stats;
 
         if (stat(dev, &stats) < 0)
                 goto out;
@@ -1305,12 +1305,12 @@ out:
 static char *
 get_usb_devname(const char * hname, const char * devname, char * b, int b_len)
 {
-        char buff[LMAX_DEVPATH];
-        char bf2[LMAX_PATH];
         int len;
-        const char * np;
-        char * cp;
         char * c2p;
+        char * cp;
+        const char * np;
+        char bf2[LMAX_PATH];
+        char buff[LMAX_DEVPATH];
 
         if (hname) {
                 snprintf(buff, sizeof(buff), "%s%s", sysfsroot, scsi_host);
@@ -1650,10 +1650,10 @@ static bool
 transport_init(const char * devname, /* const struct lsscsi_opts * op, */
                int b_len, char * b)
 {
-        char buff[LMAX_DEVPATH];
-        char wd[LMAX_PATH];
         int off;
         char * cp;
+        char buff[LMAX_DEVPATH];
+        char wd[LMAX_PATH];
         struct stat a_stat;
 
         /* SPI host */
@@ -1815,16 +1815,16 @@ transport_init(const char * devname, /* const struct lsscsi_opts * op, */
 static void
 transport_init_longer(const char * path_name, const struct lsscsi_opts * op)
 {
-        char buff[LMAX_PATH];
-        char bname[LMAX_NAME];
-        char value[LMAX_NAME];
+        int i, j, len;
+        int phynum;
+        int portnum;
         char * cp;
         struct stat a_stat;
         struct dirent ** phylist;
         struct dirent ** portlist;
-        int phynum;
-        int portnum;
-        int i, j, len;
+        char buff[LMAX_PATH];
+        char bname[LMAX_NAME];
+        char value[LMAX_NAME];
 
         my_strcopy(buff, path_name, sizeof(buff));
         cp = basename(buff);
@@ -2826,8 +2826,8 @@ tag_lun(const unsigned char * lunp, int * tag_arr)
 static uint64_t
 lun_word_flip(uint64_t in)
 {
-        uint64_t res = 0;
         int k;
+        uint64_t res = 0;
 
         for (k = 0; ; ++k) {
                 res |= (in & 0xffff);

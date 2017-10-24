@@ -1,6 +1,6 @@
 Linux utility for listing SCSI devices.
 
-Version 0.30 2017/10/20 [svn: r139]
+Version 0.30 2017/10/23 [svn: r139]
   - '-w' now decodes 128 bit WWN without truncation
   - /dev/disk/by-id/wwn- is not guaranteed to be
     persistent (or stable); instead use
