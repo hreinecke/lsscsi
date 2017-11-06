@@ -37,7 +37,7 @@
 #define __STDC_FORMAT_MACROS 1
 #include <inttypes.h>
 
-static const char * version_str = "0.30  2017/10/23 [svn: r138]";
+static const char * version_str = "0.30  2017/10/24 [svn: r141]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
