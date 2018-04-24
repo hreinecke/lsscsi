@@ -1,4 +1,3 @@
-PROPS-END
 #ifndef SG_UNALIGNED_H
 #define SG_UNALIGNED_H
 
@@ -42,6 +41,12 @@ extern "C" {
  * (a GNU extension) has been detected by ./configure . To force the
  * generic version, use './configure --disable-fast-lebe ' . */
 
+/* Note: Assumes that the source and destination locations do not overlap.
+ * An example of overlapping source and destination:
+ *     sg_put_unaligned_le64(j, ((uint8_t *)&j) + 1);
+ * Best not to do things like that.
+ */
+
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"     /* need this to see if HAVE_BYTESWAP_H */
@@ -60,7 +65,7 @@ extern "C" {
 
 // #warning ">>>>>> Doing Little endian special unaligneds"
 
-static inline uint16_t __get_unaligned_be16(const uint8_t *p)
+static inline uint16_t sg_get_unaligned_be16(const void *p)
 {
         uint16_t u;
 
@@ -68,7 +73,7 @@ static inline uint16_t __get_unaligned_be16(const uint8_t *p)
         return bswap_16(u);
 }
 
-static inline uint32_t __get_unaligned_be32(const uint8_t *p)
+static inline uint32_t sg_get_unaligned_be32(const void *p)
 {
         uint32_t u;
 
@@ -76,7 +81,7 @@ static inline uint32_t __get_unaligned_be32(const uint8_t *p)
         return bswap_32(u);
 }
 
-static inline uint64_t __get_unaligned_be64(const uint8_t *p)
+static inline uint64_t sg_get_unaligned_be64(const void *p)
 {
         uint64_t u;
 
@@ -84,28 +89,28 @@ static inline uint64_t __get_unaligned_be64(const uint8_t *p)
         return bswap_64(u);
 }
 
-static inline void __put_unaligned_be16(uint16_t val, uint8_t *p)
+static inline void sg_put_unaligned_be16(uint16_t val, void *p)
 {
         uint16_t u = bswap_16(val);
 
         memcpy(p, &u, 2);
 }
 
-static inline void __put_unaligned_be32(uint32_t val, uint8_t *p)
+static inline void sg_put_unaligned_be32(uint32_t val, void *p)
 {
         uint32_t u = bswap_32(val);
 
         memcpy(p, &u, 4);
 }
 
-static inline void __put_unaligned_be64(uint64_t val, uint8_t *p)
+static inline void sg_put_unaligned_be64(uint64_t val, void *p)
 {
         uint64_t u = bswap_64(val);
 
         memcpy(p, &u, 8);
 }
 
-static inline uint16_t __get_unaligned_le16(const uint8_t *p)
+static inline uint16_t sg_get_unaligned_le16(const void *p)
 {
         uint16_t u;
 
@@ -113,7 +118,7 @@ static inline uint16_t __get_unaligned_le16(const uint8_t *p)
         return u;
 }
 
-static inline uint32_t __get_unaligned_le32(const uint8_t *p)
+static inline uint32_t sg_get_unaligned_le32(const void *p)
 {
         uint32_t u;
 
@@ -121,7 +126,7 @@ static inline uint32_t __get_unaligned_le32(const uint8_t *p)
         return u;
 }
 
-static inline uint64_t __get_unaligned_le64(const uint8_t *p)
+static inline uint64_t sg_get_unaligned_le64(const void *p)
 {
         uint64_t u;
 
@@ -129,17 +134,17 @@ static inline uint64_t __get_unaligned_le64(const uint8_t *p)
         return u;
 }
 
-static inline void __put_unaligned_le16(uint16_t val, uint8_t *p)
+static inline void sg_put_unaligned_le16(uint16_t val, void *p)
 {
         memcpy(p, &val, 2);
 }
 
-static inline void __put_unaligned_le32(uint32_t val, uint8_t *p)
+static inline void sg_put_unaligned_le32(uint32_t val, void *p)
 {
         memcpy(p, &val, 4);
 }
 
-static inline void __put_unaligned_le64(uint64_t val, uint8_t *p)
+static inline void sg_put_unaligned_le64(uint64_t val, void *p)
 {
         memcpy(p, &val, 8);
 }
@@ -152,7 +157,7 @@ static inline void __put_unaligned_le64(uint64_t val, uint8_t *p)
 
 // #warning ">>>>>> Doing BIG endian special unaligneds"
 
-static inline uint16_t __get_unaligned_le16(const uint8_t *p)
+static inline uint16_t sg_get_unaligned_le16(const void *p)
 {
         uint16_t u;
 
@@ -160,7 +165,7 @@ static inline uint16_t __get_unaligned_le16(const uint8_t *p)
         return bswap_16(u);
 }
 
-static inline uint32_t __get_unaligned_le32(const uint8_t *p)
+static inline uint32_t sg_get_unaligned_le32(const void *p)
 {
         uint32_t u;
 
@@ -168,7 +173,7 @@ static inline uint32_t __get_unaligned_le32(const uint8_t *p)
         return bswap_32(u);
 }
 
-static inline uint64_t __get_unaligned_le64(const uint8_t *p)
+static inline uint64_t sg_get_unaligned_le64(const void *p)
 {
         uint64_t u;
 
@@ -176,28 +181,28 @@ static inline uint64_t __get_unaligned_le64(const uint8_t *p)
         return bswap_64(u);
 }
 
-static inline void __put_unaligned_le16(uint16_t val, uint8_t *p)
+static inline void sg_put_unaligned_le16(uint16_t val, void *p)
 {
         uint16_t u = bswap_16(val);
 
         memcpy(p, &u, 2);
 }
 
-static inline void __put_unaligned_le32(uint32_t val, uint8_t *p)
+static inline void sg_put_unaligned_le32(uint32_t val, void *p)
 {
         uint32_t u = bswap_32(val);
 
         memcpy(p, &u, 4);
 }
 
-static inline void __put_unaligned_le64(uint64_t val, uint8_t *p)
+static inline void sg_put_unaligned_le64(uint64_t val, void *p)
 {
         uint64_t u = bswap_64(val);
 
         memcpy(p, &u, 8);
 }
 
-static inline uint16_t __get_unaligned_be16(const uint8_t *p)
+static inline uint16_t sg_get_unaligned_be16(const void *p)
 {
         uint16_t u;
 
@@ -205,7 +210,7 @@ static inline uint16_t __get_unaligned_be16(const uint8_t *p)
         return u;
 }
 
-static inline uint32_t __get_unaligned_be32(const uint8_t *p)
+static inline uint32_t sg_get_unaligned_be32(const void *p)
 {
         uint32_t u;
 
@@ -213,7 +218,7 @@ static inline uint32_t __get_unaligned_be32(const uint8_t *p)
         return u;
 }
 
-static inline uint64_t __get_unaligned_be64(const uint8_t *p)
+static inline uint64_t sg_get_unaligned_be64(const void *p)
 {
         uint64_t u;
 
@@ -221,17 +226,17 @@ static inline uint64_t __get_unaligned_be64(const uint8_t *p)
         return u;
 }
 
-static inline void __put_unaligned_be16(uint16_t val, uint8_t *p)
+static inline void sg_put_unaligned_be16(uint16_t val, void *p)
 {
         memcpy(p, &val, 2);
 }
 
-static inline void __put_unaligned_be32(uint32_t val, uint8_t *p)
+static inline void sg_put_unaligned_be32(uint32_t val, void *p)
 {
         memcpy(p, &val, 4);
 }
 
-static inline void __put_unaligned_be64(uint64_t val, uint8_t *p)
+static inline void sg_put_unaligned_be64(uint64_t val, void *p)
 {
         memcpy(p, &val, 8);
 }
@@ -248,140 +253,78 @@ static inline void __put_unaligned_be64(uint64_t val, uint8_t *p)
 
 // #warning ">>>>>> Doing GENERIC unaligneds"
 
-static inline uint16_t __get_unaligned_be16(const uint8_t *p)
-{
-        return p[0] << 8 | p[1];
-}
-
-static inline uint32_t __get_unaligned_be32(const uint8_t *p)
-{
-        return p[0] << 24 | p[1] << 16 | p[2] << 8 | p[3];
-}
-
-static inline uint64_t __get_unaligned_be64(const uint8_t *p)
-{
-        return (uint64_t)__get_unaligned_be32(p) << 32 |
-               __get_unaligned_be32(p + 4);
-}
-
-static inline void __put_unaligned_be16(uint16_t val, uint8_t *p)
-{
-        *p++ = (uint8_t)(val >> 8);
-        *p++ = (uint8_t)val;
-}
-
-static inline void __put_unaligned_be32(uint32_t val, uint8_t *p)
-{
-        __put_unaligned_be16(val >> 16, p);
-        __put_unaligned_be16(val, p + 2);
-}
-
-static inline void __put_unaligned_be64(uint64_t val, uint8_t *p)
-{
-        __put_unaligned_be32(val >> 32, p);
-        __put_unaligned_be32(val, p + 4);
-}
-
-
-static inline uint16_t __get_unaligned_le16(const uint8_t *p)
-{
-        return p[1] << 8 | p[0];
-}
-
-static inline uint32_t __get_unaligned_le32(const uint8_t *p)
-{
-        return p[3] << 24 | p[2] << 16 | p[1] << 8 | p[0];
-}
-
-static inline uint64_t __get_unaligned_le64(const uint8_t *p)
-{
-        return (uint64_t)__get_unaligned_le32(p + 4) << 32 |
-               __get_unaligned_le32(p);
-}
-
-static inline void __put_unaligned_le16(uint16_t val, uint8_t *p)
-{
-        *p++ = val;
-        *p++ = val >> 8;
-}
-
-static inline void __put_unaligned_le32(uint32_t val, uint8_t *p)
-{
-        __put_unaligned_le16(val >> 16, p + 2);
-        __put_unaligned_le16(val, p);
-}
-
-static inline void __put_unaligned_le64(uint64_t val, uint8_t *p)
-{
-        __put_unaligned_le32(val >> 32, p + 4);
-        __put_unaligned_le32(val, p);
-}
-
-#endif          /* #ifndef GOT_UNALIGNED_SPECIALS */
-
-
-/* These are the end user function, essentially dummies just doing a
- * cast to the __ functions that do the work. Hopefully the compiler
- * inlines these functions (as instructed). */
 static inline uint16_t sg_get_unaligned_be16(const void *p)
 {
-        return __get_unaligned_be16((const uint8_t *)p);
+        return ((const uint8_t *)p)[0] << 8 | ((const uint8_t *)p)[1];
 }
 
 static inline uint32_t sg_get_unaligned_be32(const void *p)
 {
-        return __get_unaligned_be32((const uint8_t *)p);
+        return ((const uint8_t *)p)[0] << 24 | ((const uint8_t *)p)[1] << 16 |
+                ((const uint8_t *)p)[2] << 8 | ((const uint8_t *)p)[3];
 }
 
 static inline uint64_t sg_get_unaligned_be64(const void *p)
 {
-        return __get_unaligned_be64((const uint8_t *)p);
+        return (uint64_t)sg_get_unaligned_be32(p) << 32 |
+               sg_get_unaligned_be32((const uint8_t *)p + 4);
 }
 
 static inline void sg_put_unaligned_be16(uint16_t val, void *p)
 {
-        __put_unaligned_be16(val, (uint8_t *)p);
+        ((uint8_t *)p)[0] = (uint8_t)(val >> 8);
+        ((uint8_t *)p)[1] = (uint8_t)val;
 }
 
 static inline void sg_put_unaligned_be32(uint32_t val, void *p)
 {
-        __put_unaligned_be32(val, (uint8_t *)p);
+        sg_put_unaligned_be16(val >> 16, p);
+        sg_put_unaligned_be16(val, (uint8_t *)p + 2);
 }
 
 static inline void sg_put_unaligned_be64(uint64_t val, void *p)
 {
-        __put_unaligned_be64(val, (uint8_t *)p);
+        sg_put_unaligned_be32(val >> 32, p);
+        sg_put_unaligned_be32(val, (uint8_t *)p + 4);
 }
+
 
 static inline uint16_t sg_get_unaligned_le16(const void *p)
 {
-        return __get_unaligned_le16((const uint8_t *)p);
+        return ((const uint8_t *)p)[1] << 8 | ((const uint8_t *)p)[0];
 }
 
 static inline uint32_t sg_get_unaligned_le32(const void *p)
 {
-        return __get_unaligned_le32((const uint8_t *)p);
+        return ((const uint8_t *)p)[3] << 24 | ((const uint8_t *)p)[2] << 16 |
+                ((const uint8_t *)p)[1] << 8 | ((const uint8_t *)p)[0];
 }
 
 static inline uint64_t sg_get_unaligned_le64(const void *p)
 {
-        return __get_unaligned_le64((const uint8_t *)p);
+        return (uint64_t)sg_get_unaligned_le32((const uint8_t *)p + 4) << 32 |
+               sg_get_unaligned_le32(p);
 }
 
 static inline void sg_put_unaligned_le16(uint16_t val, void *p)
 {
-        __put_unaligned_le16(val, (uint8_t *)p);
+        ((uint8_t *)p)[0] = val & 0xff;
+        ((uint8_t *)p)[1] = val >> 8;
 }
 
 static inline void sg_put_unaligned_le32(uint32_t val, void *p)
 {
-        __put_unaligned_le32(val, (uint8_t *)p);
+        sg_put_unaligned_le16(val >> 16, (uint8_t *)p + 2);
+        sg_put_unaligned_le16(val, p);
 }
 
 static inline void sg_put_unaligned_le64(uint64_t val, void *p)
 {
-        __put_unaligned_le64(val, (uint8_t *)p);
+        sg_put_unaligned_le32(val >> 32, (uint8_t *)p + 4);
+        sg_put_unaligned_le32(val, p);
 }
+
+#endif          /* #ifndef GOT_UNALIGNED_SPECIALS */
 
 /* Following are lesser used conversions that don't have specializations
  * for endianness; big endian first. In summary these are the 24, 48 bit and
@@ -397,8 +340,8 @@ static inline uint32_t sg_get_unaligned_be24(const void *p)
 /* Assume 48 bit value placed in uint64_t */
 static inline uint64_t sg_get_unaligned_be48(const void *p)
 {
-        return (uint64_t)__get_unaligned_be16((const uint8_t *)p) << 32 |
-               __get_unaligned_be32((const uint8_t *)p + 2);
+        return (uint64_t)sg_get_unaligned_be16(p) << 32 |
+               sg_get_unaligned_be32((const uint8_t *)p + 2);
 }
 
 /* Returns 0 if 'num_bytes' is less than or equal to 0 or greater than
@@ -426,30 +369,24 @@ static inline void sg_put_unaligned_be24(uint32_t val, void *p)
 }
 
 /* Assume 48 bit value placed in uint64_t */
-static inline void __put_unaligned_be48(uint64_t val, uint8_t *p)
-{
-        __put_unaligned_be16(val >> 32, p);
-        __put_unaligned_be32(val, p + 2);
-}
-
-/* Assume 48 bit value placed in uint64_t */
 static inline void sg_put_unaligned_be48(uint64_t val, void *p)
 {
-        __put_unaligned_be48(val, (uint8_t *)p);
+        sg_put_unaligned_be16(val >> 32, p);
+        sg_put_unaligned_be32(val, (uint8_t *)p + 2);
 }
 
 /* Now little endian, get 24+48 then put 24+48 */
 static inline uint32_t sg_get_unaligned_le24(const void *p)
 {
-        return (uint32_t)__get_unaligned_le16((const uint8_t *)p) |
+        return (uint32_t)sg_get_unaligned_le16(p) |
                ((const uint8_t *)p)[2] << 16;
 }
 
 /* Assume 48 bit value placed in uint64_t */
 static inline uint64_t sg_get_unaligned_le48(const void *p)
 {
-        return (uint64_t)__get_unaligned_le16((const uint8_t *)p + 4) << 32 |
-               __get_unaligned_le32((const uint8_t *)p);
+        return (uint64_t)sg_get_unaligned_le16((const uint8_t *)p + 4) << 32 |
+               sg_get_unaligned_le32(p);
 }
 
 static inline void sg_put_unaligned_le24(uint32_t val, void *p)
@@ -493,7 +430,7 @@ static inline uint64_t sg_get_unaligned_le(int num_bytes, const void *p)
 static inline void sg_nz_put_unaligned_be16(uint16_t val, void *p)
 {
         if (val)
-                __put_unaligned_be16(val, (uint8_t *)p);
+                sg_put_unaligned_be16(val, p);
 }
 
 static inline void sg_nz_put_unaligned_be24(uint32_t val, void *p)
@@ -508,19 +445,19 @@ static inline void sg_nz_put_unaligned_be24(uint32_t val, void *p)
 static inline void sg_nz_put_unaligned_be32(uint32_t val, void *p)
 {
         if (val)
-                __put_unaligned_be32(val, (uint8_t *)p);
+                sg_put_unaligned_be32(val, p);
 }
 
 static inline void sg_nz_put_unaligned_be64(uint64_t val, void *p)
 {
         if (val)
-            __put_unaligned_be64(val, (uint8_t *)p);
+            sg_put_unaligned_be64(val, p);
 }
 
 static inline void sg_nz_put_unaligned_le16(uint16_t val, void *p)
 {
         if (val)
-                __put_unaligned_le16(val, (uint8_t *)p);
+                sg_put_unaligned_le16(val, p);
 }
 
 static inline void sg_nz_put_unaligned_le24(uint32_t val, void *p)
@@ -535,13 +472,13 @@ static inline void sg_nz_put_unaligned_le24(uint32_t val, void *p)
 static inline void sg_nz_put_unaligned_le32(uint32_t val, void *p)
 {
         if (val)
-                __put_unaligned_le32(val, (uint8_t *)p);
+                sg_put_unaligned_le32(val, p);
 }
 
 static inline void sg_nz_put_unaligned_le64(uint64_t val, void *p)
 {
         if (val)
-            __put_unaligned_le64(val, (uint8_t *)p);
+            sg_put_unaligned_le64(val, p);
 }
 
 

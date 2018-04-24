@@ -1,20 +1,21 @@
-.TH lsscsi "8" "October 2017" "lsscsi\-0.30" LSSCSI
+.TH lsscsi "8" "April 2018" "lsscsi\-0.30" LSSCSI
 .SH NAME
-lsscsi \- list SCSI devices (or hosts) and their attributes
+lsscsi \- list SCSI devices (or hosts), list NVMe devices
 .SH SYNOPSIS
 .B lsscsi
 [\fI\-\-classic\fR] [\fI\-\-device\fR] [\fI\-\-generic\fR] [\fI\-\-help\fR]
 [\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-long\fR]
 [\fI\-\-long\-unit\fR] [\fI\-\-lunhex\fR] [\fI\-\-protection\fR]
-[\fI\-\-protmode\fR] [\fI\-\-scsi_id\fR] [\fI\-\-size\fR]
+[\fI\-\-no\-nvme\fR] [\fI\-\-protmode\fR] [\fI\-\-scsi_id\fR] [\fI\-\-size\fR]
 [\fI\-\-sysfsroot=PATH\fR] [\fI\-\-transport\fR] [\fI\-\-unit\fR]
 [\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fI\-\-wwn\fR] [\fIH:C:T:L\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
 Uses information in sysfs (Linux kernel series 2.6 and later) to list SCSI
-devices (or hosts) currently attached to the system. Options can be used to
-control the amount and form of information provided for each device.
+devices (or hosts) currently attached to the system. Many non\-SCSI storage
+devices (but not all) used the SCSI subsystem in Linux. In lsscsi version
+0.30 support was added to list NVMe devices.
 .PP
 If a \fIH:C:T:L\fR argument is given then it acts as a filter and only
 devices that match it are listed. The colons don't have to be present,
@@ -28,6 +29,22 @@ interpreted.  A leading '[' and trailing ']' are permitted (e.g. '[1:0:0]'
 matches all LUNs on 1:0:0). May also be used to filter \fI\-\-hosts\fR
 in which case only the \fIH\fR is active and may be either a number
 or in the form "host<n>" where <n> is a host number.
+.PP
+For NVMe devices and controllers almost all of the previous paragraph
+applies. The main difference is that "N" appears in the 'H' (first) position.
+The 'C' position for NVMe is the controller's "char" device minor number
+which is the first number that appears in a typical NVMe controller
+name, for example: "/dev/nvme2". The 'T' position for NVMe is the "CNTLID"
+value. The final 'L' position is the NVMe namespace identifier which is
+typically a sequential value starting at 1. The leading explicit "N" for
+NVMe devices is converted internally into a large value (32,767) that should
+not interfere with any SCSI host number; it also means means that the
+numeric sort used to show hosts (controllers) and devices (LUs or logical
+units) will always place NVMe devices and controllers after those that use
+the SCSI subsystem. To filter using a \fIH:C:T:L\fR argument for NVMe
+controllers, "hostN", "hostN:<num>", "N" or "N:<num>" may be used; when
+no "<num>" is given, only NVMe contollers will be listed (i.e. it lists no
+SCSI hosts (HBAs)).
 .PP
 By default in this utility device node names (e.g. "/dev/sda"
 or "/dev/root_disk") are obtained by noting the major and minor numbers for
@@ -55,14 +72,18 @@ major and minor numbers are shown in brackets (e.g. "/dev/sda[8:0]").
 .TP
 \fB\-g\fR, \fB\-\-generic\fR
 Output the SCSI generic device file name. Note that if the sg driver
-is a module it may need to be loaded otherwise '\-' may appear.
+is a module it may need to be loaded otherwise '\-' may appear. NVMe
+has no generic devices, NVMe admin, nvm and MI commands are sent to
+the containing controller whose device name is shown when the
+\fI\-\-hosts\fR option is used.
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Output the usage message and exit.
 .TP
 \fB\-H\fR, \fB\-\-hosts\fR
-List the SCSI hosts currently attached to the system. If this option is
-not given then SCSI devices are listed.
+List the SCSI hosts and NVMe controllers currently attached to
+the system. If this option is not given then SCSI devices (logical
+units (LUs)) followed by NVMe devices are listed.
 .TP
 \fB\-k\fR, \fB\-\-kname\fR
 Use Linux default algorithm for naming devices (e.g. block major 8,
@@ -79,6 +100,14 @@ used multiple times for more output in which case the shorter option
 form is more convenient (e.g. '\-lll'). When used three times (i.e. '\-lll')
 outputs SCSI device (host) attributes one per line; preceded by
 two spaces; in the form "<attribute_name>=<value>".
+.TP
+\fB\-N\fR, \fB\-\-no\-nvme\fR
+this option excludes NVMe devices and controllers for the output. This option
+may be needed to stop NVMe device output interfering with specific format
+output like that produced when the \fI\-\-classic\fR option is used.
+.br
+To only show NVMe devices, use 'lsscsi N', to only show NVMe controllers,
+use 'lsscsi \-H N'.
 .TP
 \fB\-U\fR, \fB\-\-long\-unit\fR
 Output logical unit name in full, if available. It replaces the normal
@@ -105,6 +134,13 @@ shown with a "_" character separating the levels. For example the
 two level LUN: 0x0355006600000000 will appear as 0x0355_0066. If this
 option is given twice (e.g. using the short form: '\-xx') then the full
 16 hexadecimal digits are shown for each LUN, prefixed by "0x".
+.PP
+For NVMe, the namespace identifier (nsid) is shown in the "L" position. The
+nsid is a 32 bit unsigned quantities with 0x0 and 0xffffffff reserved.
+Without this option, the nsid is shown in decimal. When this option is used
+once the nsid is output in hex with a lead 0x and with up to 3 leading zeros.
+When this option ia used twice the nsid is output in hex with up to 7 leading
+zeros.
 .TP
 \fB\-p\fR, \fB\-\-protection\fR
 Output target (DIF) and initiator (DIX) protection types.
@@ -123,7 +159,7 @@ name (e.g.  /dev/sdc) and if there is no match "\-" is output.
 \fB\-s\fR, \fB\-\-size\fR
 Print disk capacity in human readable form. When given once, normal base
 10 SI units are used; for example MB, GB and TB stand for 10^6, 10^9 and
-10^12 bytes respectively. When given more than once, IEC 80000-3 prefixes
+10^12 bytes respectively. When given more than once, IEC 80000\-3 prefixes
 for binary multiples are used; for example MiB, GiB and TiB stand for
 2^20, 2^30 and 2^40 bytes respectively. The output is rounded to 3
 significant figures in order to fit on a single line.
@@ -187,9 +223,9 @@ referred to as LU name in SCSI jargon; hence this option is more or less
 superseded by the \fI\-\-unit\fR and \fI\-\-long\-unit\fR options.
 .SH TRANSPORTS
 This utility lists SCSI devices which are known as logical units (LU) in
-the SCSI Architecture Model (ref: SAM\-4 at http://www.t10.org) or hosts
+the SCSI Architecture Model (ref: SAM\-5 at http://www.t10.org) or hosts
 when the \fI\-\-hosts\fR option is given. A host is called an initiator in
-SAM\-4. A SCSI command travels out via an initiator, across some transport
+SAM\-5. A SCSI command travels out via an initiator, across some transport
 to a target and then onwards to a logical unit. A target device may contain
 several logical units. A target device has one or more ports that can be
 viewed as transport end points. Each FC and SAS disk is a single target
@@ -349,10 +385,11 @@ Written by Doug Gilbert
 .SH "REPORTING BUGS"
 Report bugs to <dgilbert at interlog dot com>.
 .SH COPYRIGHT
-Copyright \(co 2003\-2017 Douglas Gilbert
+Copyright \(co 2003\-2018 Douglas Gilbert
 .br
 This software is distributed under the GPL version 2. There is NO
 warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 .SH "SEE ALSO"
 .B lspci
 .B lsusb
+.B lsblk

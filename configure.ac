@@ -13,6 +13,7 @@ AC_CANONICAL_HOST
 ifdef([AM_PROG_AR], [AM_PROG_AR], [])
 
 AC_CHECK_HEADERS([linux/nvme_ioctl.h], [AC_DEFINE_UNQUOTED(HAVE_NVME, 1, [Found NVMe])], [], [])
+AC_CHECK_HEADERS([byteswap.h], [], [], [])
 
 # AC_PROG_LIBTOOL
 

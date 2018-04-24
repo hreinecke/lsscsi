@@ -1,6 +1,7 @@
 Linux utility for listing SCSI devices.
 
-Version 0.30 2018/04/04 [svn: r142]
+Version 0.30 2018/04/24 [svn: r143]
+  - add support for NVMe devices and controllers
   - '-w' now decodes 128 bit WWN without truncation
   - /dev/disk/by-id/wwn- is not guaranteed to be
     persistent (or stable); instead use
@@ -9,7 +10,6 @@ Version 0.30 2018/04/04 [svn: r142]
     separator resulting in garbled output, fix
   - change many two valued ints to bools
   - debian: bump compat file contents from 7 to 10
-  - experiment with added NVMe support
 
 Version 0.29 2016/05/14 [svn: r137]
   - '-u' now decodes locally assigned UUIDs (spc5r08)

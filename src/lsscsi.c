@@ -1,6 +1,7 @@
-/* This is a utility program for listing SCSI devices and hosts (HBAs)
- * in the Linux operating system. It is applicable to kernel versions
- * 2.6.1 and greater.
+/* This is a utility program for listing storage devices and hosts (HBAs)
+ * that use the SCSI subsystems in the Linux operating system. It is
+ * applicable to kernel versions 2.6.1 and greater. In lsscsi version 0.30
+ * support was added to additionally list NVMe devices and controllers.
  *
  *  Copyright (C) 2003-2018 D. Gilbert
  *  This program is free software; you can redistribute it and/or modify
@@ -44,7 +45,7 @@
 #include "sg_unaligned.h"
 
 
-static const char * version_str = "0.30  2018/04/04 [svn: r142]";
+static const char * version_str = "0.30  2018/04/24 [svn: r143]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -64,7 +65,7 @@ static const char * version_str = "0.30  2018/04/04 [svn: r142]";
 #define TRANSPORT_SRP 11
 #define TRANSPORT_PCIE 12       /* most likely NVMe */
 
-#define NVME_HOST_NUM 0x7fff    /* don't expect SCSI host numbers this high */
+#define NVME_HOST_NUM 0x7fff    /* 32767, high to avoid SCSI host numbers */
 
 #ifdef PATH_MAX
 #define LMAX_PATH PATH_MAX
@@ -105,10 +106,10 @@ static const char * srp_host = "/class/srp_host/";
 static const char * dev_dir = "/dev";
 static const char * dev_disk_byid_dir = "/dev/disk/by-id";
 #if (HAVE_NVME && (! IGNORE_NVME))
-static const char * bus_pci_prefix = "/bus/pci";
-static const char * bus_pcie_devs = "/bus/pci_express/devices";
+/* static const char * bus_pci_prefix = "/bus/pci"; */
+/* static const char * bus_pcie_devs = "/bus/pci_express/devices"; */
 static const char * class_nvme = "/class/nvme/";
-static const char * class_nvme_subsys = "/class/nvme-subsystem/";
+/* static const char * class_nvme_subsys = "/class/nvme-subsystem/"; */
 #endif
 
 
@@ -123,8 +124,8 @@ struct addr_hctl {
         int h;          /* if h==0x7fff, display as 'N' for NVMe */
         int c;
         int t;
-        uint64_t l;               /* Linux word flipped */
-        uint8_t lun_arr[8];       /* T10, SAM-5 order */
+        uint64_t l;           /* SCSI: Linux word flipped; NVME: uint32_t */
+        uint8_t lun_arr[8];   /* T10, SAM-5 order; NVME: little endian */
 };
 
 struct addr_hctl filter;
@@ -135,6 +136,7 @@ struct lsscsi_opts {
         bool dev_maj_min;        /* --device */
         bool generic;
         bool kname;
+        bool no_nvme;
         bool protection;        /* data integrity */
         bool protmode;          /* data integrity */
         bool scsi_id;           /* udev derived from /dev/disk/by-id/scsi* */
@@ -193,28 +195,30 @@ static const char * scsi_short_device_types[] =
 
 /* '--name' ('-n') option removed in version 0.11 and can now be reused */
 static struct option long_options[] = {
-        {"classic", 0, 0, 'c'},
-        {"device", 0, 0, 'd'},
-        {"generic", 0, 0, 'g'},
-        {"help", 0, 0, 'h'},
-        {"hosts", 0, 0, 'H'},
-        {"kname", 0, 0, 'k'},
-        {"long", 0, 0, 'l'},
-        {"list", 0, 0, 'L'},
-        {"lunhex", 0, 0, 'x'},
-        {"protection", 0, 0, 'p'},
-        {"protmode", 0, 0, 'P'},
-        {"scsi_id", 0, 0, 'i'},
-        {"scsi-id", 0, 0, 'i'}, /* convenience, not documented */
-        {"size", 0, 0, 's'},
-        {"sysfsroot", 1, 0, 'y'},
-        {"transport", 0, 0, 't'},
-        {"unit", 0, 0, 'u'},
-        {"long_unit", 0, 0, 'U'},
-        {"long-unit", 0, 0, 'U'},
-        {"verbose", 0, 0, 'v'},
-        {"version", 0, 0, 'V'},
-        {"wwn", 0, 0, 'w'},
+        {"classic", no_argument, 0, 'c'},
+        {"device", no_argument, 0, 'd'},
+        {"generic", no_argument, 0, 'g'},
+        {"help", no_argument, 0, 'h'},
+        {"hosts", no_argument, 0, 'H'},
+        {"kname", no_argument, 0, 'k'},
+        {"long", no_argument, 0, 'l'},
+        {"list", no_argument, 0, 'L'},
+        {"lunhex", no_argument, 0, 'x'},
+        {"no-nvme", no_argument, 0, 'N'},
+        {"no_nvme", no_argument, 0, 'N'},
+        {"protection", no_argument, 0, 'p'},
+        {"protmode", no_argument, 0, 'P'},
+        {"scsi_id", no_argument, 0, 'i'},
+        {"scsi-id", no_argument, 0, 'i'}, /* convenience, not documented */
+        {"size", no_argument, 0, 's'},
+        {"sysfsroot", required_argument, 0, 'y'},
+        {"transport", no_argument, 0, 't'},
+        {"unit", no_argument, 0, 'u'},
+        {"long_unit", no_argument, 0, 'U'},
+        {"long-unit", no_argument, 0, 'U'},
+        {"verbose", no_argument, 0, 'v'},
+        {"version", no_argument, 0, 'V'},
+        {"wwn", no_argument, 0, 'w'},
         {0, 0, 0, 0}
 };
 
@@ -292,9 +296,9 @@ static char errpath[LMAX_PATH];
 static const char * usage_message1 =
 "Usage: lsscsi   [--classic] [--device] [--generic] [--help] [--hosts]\n"
             "\t\t[--kname] [--list] [--long] [--long-unit] [--lunhex]\n"
-            "\t\t[--protection] [--scsi_id] [--size] [--sysfsroot=PATH]\n"
-            "\t\t[--transport] [--unit] [--verbose] [--version] [--wwn]\n"
-            "\t\t[<h:c:t:l>]\n"
+            "\t\t[--no-nvme] [--protection] [--scsi_id] [--size]\n"
+            "\t\t[--sysfsroot=PATH] [--transport] [--unit] [--verbose]\n"
+            "\t\t[--version] [--wwn]  [<h:c:t:l>]\n"
 "  where:\n"
 "    --classic|-c      alternate output similar to 'cat /proc/scsi/scsi'\n"
 "    --device|-d       show device node's major + minor numbers\n"
@@ -312,6 +316,7 @@ static const char * usage_message1 =
 
 static const char * usage_message2 =
 "                      use twice to get full 16 digit hexadecimal LUN\n"
+"    --no-nvme|-N      exclude NVMe devices from output\n"
 "    --protection|-p   show target and initiator protection information\n"
 "    --protmode|-P     show negotiated protection information mode\n"
 "    --scsi_id|-i      show udev derived /dev/disk/by-id/scsi* entry\n"
@@ -481,7 +486,7 @@ name_eq2value(const char * dirp, const char * fname, const char * name,
                 return b;
         }
         len += 20;
-        full_name = calloc(1, len);
+        full_name = (char *)calloc(1, len);
         if (dirp && fname)
                 snprintf(full_name, len - 2, "%s/%s", dirp, fname);
         else if (dirp)
@@ -598,18 +603,19 @@ lun_word_flip(uint64_t in)
         return res;
 }
 
-/* Set bits 3, 2, 1, 0 in sel_mask select the h, c, t, l components
- * respectively. Bits 4+5 convey the -lunhex option selecting l (LUN) in
+/* Bits 3, 2, 1, 0 in sel_mask select the h, c, t, l components respectively.
+ * Bits 4+5 of sel_mask convey the --lunhex option selecting l (LUN) in
  * hex. Generates string of the form %d:%d:%d with a colon between
  * components, returns 4th argument. */
 static char *
 tuple2string(const struct addr_hctl * tp, int sel_mask, int blen, char * b)
 {
         bool got1 = false;
+        bool is_nvme = (NVME_HOST_NUM == tp->h);
         int n = 0;
 
         if (0x8 & sel_mask) {
-                if (NVME_HOST_NUM == tp->h)
+                if (is_nvme)
                         n += scnpr(b + n, blen - n, "N");
                 else
                         n += scnpr(b + n, blen - n, "%d", tp->h);
@@ -623,7 +629,7 @@ tuple2string(const struct addr_hctl * tp, int sel_mask, int blen, char * b)
                 n += scnpr(b + n, blen - n, "%s%d", got1 ? ":" : "", tp->t);
                 got1 = true;
         }
-        if (0x1 & sel_mask) {
+        if ((! is_nvme ) && (0x1 & sel_mask)) {
                 int lunhex = (sel_mask >> 4) & 0x3;
 
                 if (1 == lunhex) {  /* -x (--lunhex) format */
@@ -650,6 +656,23 @@ tuple2string(const struct addr_hctl * tp, int sel_mask, int blen, char * b)
                 else
                         n += scnpr(b + n, blen - n, "%s%" PRIu64,
                                    got1 ? ":" : "", tp->l);
+        } else if (0x1 & sel_mask) {    /* now must be NVMe */
+                int lunhex = (sel_mask >> 4) & 0x3;
+
+                if (1 == lunhex) {  /* -x (--lunhex) format */
+                        n += scnpr(b + n, blen - n, "%s0x", got1 ? ":" : "");
+                        n += scnpr(b + n, blen - n, "%04" PRIx32,
+                                   (uint32_t)tp->l);
+                } else if (lunhex > 1) { /* -xx (--lunhex twice) */
+                        n += scnpr(b + n, blen - n, "%s0x", got1 ? ":" : "");
+                        n += scnpr(b + n, blen - n, "%08" PRIx32,
+                                   (uint32_t)tp->l);
+                } else if (UINT32_MAX == tp->l)
+                        n += scnpr(b + n, blen - n, "%s",
+                                   got1 ? ":-1" : "-1");
+                else
+                        n += scnpr(b + n, blen - n, "%s%" PRIu32,
+                                   got1 ? ":" : "", (uint32_t)tp->l);
         }
         return b;
 }
@@ -663,8 +686,10 @@ mk_nvme_tuple(struct addr_hctl * tp, int cdev_minor, int cntlid,
         tp->h = NVME_HOST_NUM;
         tp->c = cdev_minor;
         tp->t = cntlid;
+        // tp->l = nsid;
+        sg_put_unaligned_le32(nsid, tp->lun_arr);
+        memset(tp->lun_arr + 4, 0, 4);
         tp->l = nsid;
-        sg_put_unaligned_le64(nsid, tp->lun_arr);
 }
 
 #endif
@@ -682,7 +707,7 @@ do_div_rem(uint64_t * np, unsigned int base)
 }
 
 enum string_size_units {
-        STRING_UNITS_10,        /* use powers of 10^3 (standard SI) */
+        STRING_UNITS_10 = 0,    /* use powers of 10^3 (standard SI) */
         STRING_UNITS_2,         /* use binary powers of 2^10 */
 };
 
@@ -712,6 +737,10 @@ size2string(uint64_t size, const enum string_size_units units, char *buf,
                                  "EiB", "ZiB", "YiB", NULL };
         /* designated initializer are C99 but not yet C++; g++ and clang++
          * accept them (with noise) */
+#ifdef __cplusplus
+        const char **units_str[] = {units_10, units_2, };
+        const unsigned int divisor[] = {1000, 1024, };
+#else
         const char **units_str[] = {
                 [STRING_UNITS_10] =  units_10,
                 [STRING_UNITS_2] = units_2,
@@ -720,6 +749,7 @@ size2string(uint64_t size, const enum string_size_units units, char *buf,
                 [STRING_UNITS_10] = 1000,
                 [STRING_UNITS_2] = 1024,
         };
+#endif
 
         tmp[0] = '\0';
         i = 0;
@@ -1445,7 +1475,7 @@ collect_disk_wwn_nodes(void)
                 cur_ent = &cur_list->nodes[cur_list->count];
                 my_strcopy(cur_ent->wwn, "0x", 2);
                 my_strcopy(cur_ent->wwn + 2, dep->d_name + 5,
-                           sizeof(cur_ent->wwn - 2));
+                           sizeof(cur_ent->wwn) - 2);
                 my_strcopy(cur_ent->disk_bname, basename(symlink_path),
                            sizeof(cur_ent->disk_bname));
                 cur_list->count++;
@@ -1708,7 +1738,7 @@ get_lu_name(const char * devname, char * b, int b_len, bool want_prefix)
         close(fd);
         if (VPD_DEVICE_ID != u[1])
                 return b;
-        len = (u[2] << 8) + u[3];
+        len = sg_get_unaligned_be16(u + 2);
         if ((len + 4) != res)
                 return b;
         bp = u + 4;
@@ -1819,7 +1849,6 @@ static bool
 parse_colon_list(const char * colon_list, struct addr_hctl * outp)
 {
         int k;
-        unsigned short u;
         uint64_t z;
         const char * elem_end;
 
@@ -1848,11 +1877,8 @@ parse_colon_list(const char * colon_list, struct addr_hctl * outp)
         if (1 != sscanf(colon_list, "%" SCNu64 , &outp->l))
                 return false;
         z = outp->l;
-        for (k = 0; k < 4; ++k, z >>= 16) {
-                u = z & 0xffff;
-                outp->lun_arr[(2 * k) + 1] = u & 0xff;
-                outp->lun_arr[2 * k] = (u >> 8) & 0xff;
-        }
+        for (k = 0; k < 8; k += 2, z >>= 16)
+                sg_put_unaligned_be16((uint16_t)z, outp->lun_arr + k);
         return true;
 }
 
@@ -2972,6 +2998,85 @@ longer_d_entry(const char * path_name, const char * devname,
         }
 }
 
+#if (HAVE_NVME && (! IGNORE_NVME))
+
+/* NVMe longer data for namespace listing */
+static void
+longer_nd_entry(const char * path_name, const char * devname,
+                const struct lsscsi_opts * op)
+{
+        char value[LMAX_NAME];
+        const int vlen = sizeof(value);
+
+        if (devname) { ; }      /* suppress warning */
+        if (op->long_opt) {
+                bool sing = (op->long_opt > 2);
+                const char * sep = sing ? "\n" : "";
+
+                if (get_value(path_name, "capability", value, vlen))
+                        printf("  capability=%s%s", value, sep);
+                else
+                        printf("  capability=?%s", sep);
+                if (get_value(path_name, "ext_range", value, vlen))
+                        printf("  ext_range=%s%s", value, sep);
+                else
+                        printf("  ext_range=?%s", sep);
+                if (get_value(path_name, "hidden", value, vlen))
+                        printf("  hidden=%s%s", value, sep);
+                else
+                        printf("  hidden=?%s", sep);
+                if (get_value(path_name, "nsid", value, vlen))
+                        printf("  nsid=%s%s", value, sep);
+                else
+                        printf("  nsid=?%s", sep);
+                if (get_value(path_name, "range", value, vlen))
+                        printf("  range=%s%s", value, sep);
+                else
+                        printf("  range=?%s", sep);
+                if (get_value(path_name, "removable", value, vlen))
+                        printf("  removable=%s%s", value, sep);
+                else
+                        printf("  removable=?%s", sep);
+                if (op->long_opt > 1) {
+                        if (! sing)
+                                printf("\n");
+                        if (get_value(path_name, "queue/nr_requests", value,
+                                      vlen))
+                                printf("  nr_requests=%s%s", value, sep);
+                        else
+                                printf("  nr_requests=?%s", sep);
+                        if (get_value(path_name, "queue/read_ahead_kb", value,
+                                      vlen))
+                                printf("  read_ahead_kb=%s%s", value, sep);
+                        else
+                                printf("  read_ahead_kb=?%s", sep);
+                        if (get_value(path_name, "queue/write_cache", value,
+                                      vlen))
+                                printf("  write_cache=%s%s", value, sep);
+                        else
+                                printf("  write_cache=?%s", sep);
+                        if (! sing)
+                                printf("\n");
+                        if (get_value(path_name, "queue/logical_block_size",
+                                      value, vlen))
+                                printf("  logical_block_size=%s%s", value,
+                                       sep);
+                        else
+                                printf("  logical_block_size=?%s", sep);
+                        if (get_value(path_name, "queue/physical_block_size",
+                                      value, vlen))
+                                printf("  physical_block_size=%s%s", value,
+                                       sep);
+                        else
+                                printf("  physical_block_size=?%s", sep);
+                }
+                if (! sing)
+                        printf("\n");
+        }
+}
+
+#endif
+
 static void
 one_classic_sdev_entry(const char * dir_name, const char * devname,
                        const struct lsscsi_opts * op)
@@ -3441,7 +3546,7 @@ static void
 one_ndev_entry(const char * nvme_ctl_abs, const char * nvme_ns_rel,
                const struct lsscsi_opts * op)
 {
-        int n, m, vlen;
+        int n, m;
         int cdev_minor = 0;
         int cntlid = 0;
         int vb = op->verbose;
@@ -3455,10 +3560,10 @@ one_ndev_entry(const char * nvme_ctl_abs, const char * nvme_ns_rel,
         char wd[LMAX_PATH];
         char devname[64];
         char ctl_model[48];
-        char b[64];
+        char b[80];
+        const int vlen = sizeof(value);
         struct addr_hctl hctl;
 
-        vlen = sizeof(value);
         snprintf(buff, sizeof(buff), "%s/%s", nvme_ctl_abs, nvme_ns_rel);
         if ((0 == strncmp(nvme_ns_rel, "nvme", 4)) &&
             (1 == sscanf(nvme_ns_rel + 4, "%d", &cdev_minor)))
@@ -3479,7 +3584,11 @@ one_ndev_entry(const char * nvme_ctl_abs, const char * nvme_ns_rel,
                 pr2serr("%s: unable to find %s under %s\n", __func__,
                         "cntlid", nvme_ctl_abs);
 
+#ifdef __cplusplus
+        cp = strrchr((char *)nvme_ns_rel, 'n');
+#else
         cp = strrchr(nvme_ns_rel, 'n');
+#endif
         if ((NULL == cp) || ('v' == *(cp + 1)) ||
             (1 != sscanf(cp + 1, "%u", &nsid))) {
                 if (vb)
@@ -3500,7 +3609,10 @@ one_ndev_entry(const char * nvme_ctl_abs, const char * nvme_ns_rel,
         else /* left justified with field length of devname_len */
                 printf("%-*s", devname_len, value);
 
-        printf("nvm     ");     /* NVMe namespace can only be NVM device */
+        if (vb) /* NVMe namespace can only be NVM device */
+                printf("dsk/nvm ");
+        else
+                printf("disk    ");
 
 
         if (op->wwn) {
@@ -3509,13 +3621,28 @@ one_ndev_entry(const char * nvme_ctl_abs, const char * nvme_ns_rel,
                 else
                         printf("%-41s  ", "wwid?");
         } else if (op->transport_info) {
-                if (transport_tport(devname, op, vlen, value))
-                        printf("%-30s  ", value);
-                else
-                        printf("                                ");
+                if (get_value(buff, "device/transport", value, vlen)) {
+                        const char * svp = "device/device/subsystem_vendor";
+                        const char * sdp = "device/device/subsystem_device";
+                        char bb[80];
+
+                        if (0 == strcmp("pcie" , value)) {
+
+                                if (get_value(buff, svp, b, sizeof(b)) &&
+                                    get_value(buff, sdp, bb, sizeof(bb))) {
+                                        snprintf(value , vlen, "pcie %s:%s",
+                                                 b, bb);
+                                        printf("%-41s  ", value);
+                                } else
+                                        printf("%-41s  ", "transport?");
+                        } else
+                                printf("%-41s  ", value);
+                } else
+                        printf("%-41s  ", "transport?");
         } else if (op->unit) {
                 if (get_value(buff, "wwid", value, vlen)) {
-                        if (0 == strncmp("eui.", value, 4))
+                        if ((op->unit < 4) &&
+                            (0 == strncmp("eui.", value, 4)))
                                 printf("%-41s  ", value + 4);
                         else
                                 printf("%-41s  ", value);
@@ -3535,18 +3662,6 @@ one_ndev_entry(const char * nvme_ctl_abs, const char * nvme_ns_rel,
                 printf("%-41s  ", ctl_model);
         }
 
-#if 0
-                if (get_value(buff, "model", value, vlen))
-                        printf("%-16s ", value);
-                else
-                        printf("model?           ");
-
-                if (get_value(buff, "rev", value, vlen))
-                        printf("%-4s  ", value);
-                else
-                        printf("rev?  ");
-#endif
-
         if (op->kname)
                 snprintf(dev_node, sizeof(dev_node), "%s/%s",
                          dev_dir, nvme_ns_rel);
@@ -3560,120 +3675,6 @@ one_ndev_entry(const char * nvme_ctl_abs, const char * nvme_ns_rel,
                 else
                         printf("[dev?]");
         }
-
-#if 0
-        if (1 == non_sg_scan(buff, op)) {
-                if (DT_DIR == non_sg.d_type) {
-                        snprintf(wd, sizeof(wd), "%s/%s", buff, non_sg.name);
-                        if (1 == scan_for_first(wd, op))
-                                my_strcopy(extra, aa_first.name,
-                                           sizeof(extra));
-                        else {
-                                printf("unexpected scan_for_first error");
-                                wd[0] = '\0';
-                        }
-                } else {
-                        my_strcopy(wd, buff, sizeof(wd));
-                        my_strcopy(extra, non_sg.name, sizeof(extra));
-                }
-                if (wd[0] && (if_directory_chdir(wd, extra))) {
-                        if (NULL == getcwd(wd, sizeof(wd))) {
-                                printf("getcwd error");
-                                wd[0] = '\0';
-                        }
-                }
-                if (wd[0]) {
-                        char wwn_str[DISK_WWN_MAX_LEN];
-                        enum dev_type typ;
-
-                        typ = (FT_BLOCK == non_sg.ft) ? BLK_DEV : CHR_DEV;
-                        if (get_wwn) {
-                                if ((BLK_DEV == typ) &&
-                                    get_disk_wwn(wd, wwn_str, sizeof(wwn_str)))
-                                        printf("%-*s  ", DISK_WWN_MAX_LEN - 1,
-                                               wwn_str);
-                                else
-                                        printf("                          "
-                                               "      ");
-
-                        }
-                        if (op->kname)
-                                snprintf(dev_node, sizeof(dev_node), "%s/%s",
-                                        dev_dir, basename(wd));
-                        else if (! get_dev_node(wd, dev_node, typ))
-                                snprintf(dev_node, sizeof(dev_node),
-                                         "-       ");
-
-                        printf("%-9s", dev_node);
-                        if (op->dev_maj_min) {
-                                if (get_value(wd, "dev", value, vlen))
-                                        printf("[%s]", value);
-                                else
-                                        printf("[dev?]");
-                        }
-
-                        if (op->scsi_id) {
-                                char *scsi_id;
-
-                                scsi_id = get_disk_scsi_id(dev_node);
-                                printf("  %s", scsi_id ? scsi_id : "-");
-                                free(scsi_id);
-                        }
-                }
-        } else {
-                if (get_wwn)
-                        printf("                                ");
-                if (op->scsi_id)
-                        printf("%-9s  -", "-");
-                else
-                        printf("%-9s", "-");
-        }
-
-        if (op->protection) {
-                char sddir[LMAX_DEVPATH];
-                char blkdir[LMAX_DEVPATH];
-
-                my_strcopy(sddir,  buff, sizeof(sddir));
-                my_strcopy(blkdir, buff, sizeof(blkdir));
-
-                if (sd_scan(sddir) &&
-                    if_directory_chdir(sddir, ".") &&
-                    get_value(".", "protection_type", value, sizeof(value))) {
-
-                        if (!strncmp(value, "0", 1))
-                                printf("  %-9s", "-");
-                        else
-                                printf("  DIF/Type%1s", value);
-
-                } else
-                        printf("  %-9s", "-");
-
-                if (block_scan(blkdir) &&
-                    if_directory_chdir(blkdir, "integrity") &&
-                    get_value(".", "format", value, sizeof(value)))
-                        printf("  %-16s", value);
-                else
-                        printf("  %-16s", "-");
-        }
-
-        if (op->protmode) {
-                char sddir[LMAX_DEVPATH];
-
-                my_strcopy(sddir, buff, sizeof(sddir));
-
-                if (sd_scan(sddir) &&
-                    if_directory_chdir(sddir, ".") &&
-                    get_value(sddir, "protection_mode", value,
-                              sizeof(value))) {
-
-                        if (!strcmp(value, "none"))
-                                printf("  %-4s", "-");
-                        else
-                                printf("  %-4s", value);
-                } else
-                        printf("  %-4s", "-");
-        }
-#endif
 
         if (op->ssize) {
                 enum string_size_units unit_val = (1 == op->ssize) ?
@@ -3694,8 +3695,8 @@ one_ndev_entry(const char * nvme_ctl_abs, const char * nvme_ns_rel,
 
         printf("\n");
         if (op->long_opt > 0)
-                longer_d_entry(buff, devname, op);
-        if (op->verbose > 0) {
+                longer_nd_entry(buff, devname, op);
+        if (vb > 0) {
                 printf("  dir: %s  [", buff);
                 if (if_directory_chdir(buff, "")) {
                         if (NULL == getcwd(wd, sizeof(wd)))
@@ -3737,7 +3738,11 @@ ndev_dir_scan_select2(const struct dirent * s)
         /* What to do about NVMe controller CNTLID field? */
         if (strncmp(s->d_name, "nvme", 4))
                 return 0;
+#ifdef __cplusplus
+        cp = strchr((char *)s->d_name + 4, 'n');
+#else
         cp = strchr(s->d_name + 4, 'n');
+#endif
         if (NULL == cp)
                 return 0;
         if ((1 == sscanf(s->d_name + 4, "%d", &cdev_minor)) &&
@@ -3762,11 +3767,15 @@ one_nhost_entry(const char * dir_name, const char * nvme_ctl_rel,
                 const struct lsscsi_opts * op)
 {
         int vlen;
+        int vb = op->verbose;
         uint32_t cdev_minor;
         const char * nullname1 = "<NULL>";
         const char * nullname2 = "(null)";
         char buff[LMAX_DEVPATH];
         char value[LMAX_DEVPATH];
+        char wd[LMAX_PATH];
+        char b[80];
+        char bb[80];
 
         vlen = sizeof(value);
         if (1 == sscanf(nvme_ctl_rel, "nvme%u", &cdev_minor))
@@ -3781,64 +3790,118 @@ one_nhost_entry(const char * dir_name, const char * nvme_ctl_rel,
                 snprintf(value, vlen, "-       ");
         printf("%-9s", value);
         if (op->dev_maj_min) {
-                char b[32];
-                char bb[32];
                 char * bp;
 
                 bp = name_eq2value(buff, "uevent", "MAJOR", sizeof(b), b);
                 if (strlen(bp) > 1)
                         printf("[%s:%s]", bp, name_eq2value(buff, "uevent",
                                                  "MINOR", sizeof(bb), bb));
-#if 0
-                if (get_value(buff, "dev", value, vlen))
-                        printf("[%s]", value);
-#endif
                 else
                         printf("[dev?]");
         }
-        if (get_value(buff, "model", value, sizeof(value)) &&
-            strncmp(value, nullname1, 6) && strncmp(value, nullname2, 6)) {
-                trim_lead_trail(value, true, true);
-                trunc_pad2n(value, 24, true);
-        } else
-                strcpy(value, nullname1);
-        printf("  %-24s  ", value);
-        if (get_value(buff, "serial", value, sizeof(value)) &&
-            strncmp(value, nullname1, 6) && strncmp(value, nullname2, 6)) {
-                trim_lead_trail(value, true, true);
-                trunc_pad2n(value, 16, true);
-        } else
-                strcpy(value, nullname1);
-        printf("  %-16s  ", value);
-        if (get_value(buff, "firmware_rev", value, sizeof(value)) &&
-            strncmp(value, nullname1, 6) && strncmp(value, nullname2, 6)) {
-                trim_lead_trail(value, true, true);
-                trunc_pad2n(value, 8, false);
-        } else
-                strcpy(value, nullname1);
-        printf("  %-8s\n", value);
-
-#if 0
-        else if (if_directory_chdir(buff, "device/../driver")) {
-                if (NULL == getcwd(wd, sizeof(wd)))
-                        printf("  %-12s  ", nullname2);
-                else
-                        printf("  %-12s  ", basename(wd));
-
-        } else
-                printf("  proc_name=????  ");
         if (op->transport_info) {
-                if (transport_init(devname, /* op, */ sizeof(value), value))
-                        printf("%s\n", value);
-                else
-                        printf("\n");
-        } else
+                const char * svp = "device/subsystem_vendor";
+                const char * sdp = "device/subsystem_device";
+
+                printf("    ");
+                if (get_value(buff, "transport", value, vlen)) {
+                        if (0 == strcmp("pcie" , value)) {
+                                if (get_value(buff, svp, b, sizeof(b)) &&
+                                    get_value(buff, sdp, bb, sizeof(bb)))
+                                        printf("pcie %s:%s", b, bb);
+                                else
+                                        printf("pcie ?:?");
+                        } else
+                                printf("%s%s\n", (vb ? "transport=" : ""),
+                                       value);
+                } else if (vb)
+                        printf("transport=?\n");
                 printf("\n");
+        } else if (op->wwn) {
+                if (get_value(buff, "subsysnqn", value, vlen))
+                        printf("   %s%s\n", (vb ? "subsysnqn=" : ""),
+                              value);
+                else if (vb)
+                        printf("subsysnqn=?\n");
+        } else if (op->unit) {
+                if (get_value(buff, "device/subsystem_vendor", value, vlen)) {
+                        printf("   %s%s:", (vb ? "vin=" : ""), value);
+                        if (get_value(buff, "device/subsystem_device", value,
+                            vlen))
+                                printf("%s\n", value);
+                        else
+                                printf("??\n");
+                } else if (vb)
+                        printf("subsystem_vendor=?\n");
+        } else if (op->long_opt > 0) {
+                bool sing = (op->long_opt > 2);
+                const char * sep = sing ? "\n" : "";
 
-        if (op->long_opt > 0)
-                longer_h_entry(buff, op);
-
-        if (op->verbose > 0) {
+                if (get_value(buff, "cntlid", value, vlen))
+                        printf("%s  cntlid=%s%s", sep, value, sep);
+                else if (vb)
+                        printf("%s  cntlid=?%s", sep, sep);
+                if (get_value(buff, "state", value, vlen))
+                        printf("  state=%s%s", value, sep);
+                else if (vb)
+                        printf("  state=?%s", sep);
+                if (get_value(buff, "device/current_link_width", value, vlen))
+                        printf("  current_link_width=%s%s", value, sep);
+                else if (vb)
+                        printf("  current_link_width=?%s", sep);
+                if (get_value(buff, "firmware_rev", value, vlen))
+                        printf("  firmware_rev=%s%s", value, sep);
+                else if (vb)
+                        printf("  firmware_rev=?%s", sep);
+                if (! sing)
+                        printf("\n");
+                if (op->long_opt > 1) {
+                        if (get_value(buff, "device/current_link_speed",
+                                      value, vlen))
+                                printf("  current_link_speed=%s%s", value,
+                                       sep);
+                        else if (vb)
+                                printf("  current_link_speed=?%s", sep);
+                        if (get_value(buff, "model", value, vlen)) {
+                                trim_lead_trail(value, true, true);
+                                printf("  model=%s%s", value, sep);
+                        } else if (vb)
+                                printf("  model=?%s", sep);
+                        if (get_value(buff, "serial", value, vlen)) {
+                                trim_lead_trail(value, true, true);
+                                printf("  serial=%s%s", value, sep);
+                        } else if (vb)
+                                printf("  serial=?%s", sep);
+                        if (! sing)
+                                printf("\n");
+                }
+        } else {
+                if (get_value(buff, "model", value, vlen) &&
+                    strncmp(value, nullname1, 6) &&
+                    strncmp(value, nullname2, 6)) {
+                        trim_lead_trail(value, true, true);
+                        trunc_pad2n(value, 24, true);
+                } else
+                        strcpy(value, nullname1);
+                printf("  %-24s  ", value);
+                if (get_value(buff, "serial", value, vlen) &&
+                    strncmp(value, nullname1, 6) &&
+                    strncmp(value, nullname2, 6)) {
+                        trim_lead_trail(value, true, true);
+                        trunc_pad2n(value, 16, true);
+                } else
+                        strcpy(value, nullname1);
+                printf("  %-16s  ", value);
+                if (get_value(buff, "firmware_rev", value, vlen) &&
+                    strncmp(value, nullname1, 6) &&
+                    strncmp(value, nullname2, 6)) {
+                        trim_lead_trail(value, true, true);
+                        trunc_pad2n(value, 8, false);
+                } else
+                        strcpy(value, nullname1);
+                printf("  %-8s\n", value);
+        }
+        if (vb > 0) {
                 printf("  dir: %s\n  device dir: ", buff);
                 if (if_directory_chdir(buff, "device")) {
                         if (NULL == getcwd(wd, sizeof(wd)))
@@ -3848,7 +3911,6 @@ one_nhost_entry(const char * dir_name, const char * nvme_ctl_rel,
                 }
                 printf("\n");
         }
-#endif
 }
 
 #endif
@@ -4355,7 +4417,7 @@ main(int argc, char **argv)
         while (1) {
                 int option_index = 0;
 
-                c = getopt_long(argc, argv, "cdghHiklLpPstuUvVwxy:",
+                c = getopt_long(argc, argv, "cdghHiklLNpPstuUvVwxy:",
                                 long_options, &option_index);
                 if (c == -1)
                         break;
@@ -4387,6 +4449,9 @@ main(int argc, char **argv)
                         break;
                 case 'L':
                         op->long_opt += 3;
+                        break;
+                case 'N':
+                        op->no_nvme = true;
                         break;
                 case 'p':
                         op->protection = true;
@@ -4454,8 +4519,15 @@ main(int argc, char **argv)
                                         a4p = argv[optind++];
                         }
                 }
-                if (! decode_filter_arg(a1p, a2p, a3p, a4p, &filter))
-                        return 1;
+                if ((0 == memcmp("host", a1p, 4)) ||
+                    (0 == memcmp("HOST", a1p, 4))) {
+                        if (! decode_filter_arg(a1p + 4, a2p, a3p, a4p,
+                                                &filter))
+                                return 1;
+                } else {
+                        if (! decode_filter_arg(a1p, a2p, a3p, a4p, &filter))
+                                return 1;
+                }
                 if ((filter.h != -1) || (filter.c != -1) ||
                     (filter.t != -1) || (filter.l != UINT64_LAST))
                         filter_active = true;
@@ -4489,12 +4561,14 @@ main(int argc, char **argv)
         if (do_hosts) {
                 list_hosts(op);
 #if (HAVE_NVME && (! IGNORE_NVME))
-                list_nhosts(op);
+                if (! op->no_nvme)
+                        list_nhosts(op);
 #endif
         } else if (do_sdevices) {
                 list_sdevices(op);
 #if (HAVE_NVME && (! IGNORE_NVME))
-                list_ndevices(op);
+                if (! op->no_nvme)
+                        list_ndevices(op);
 #endif
         }
 
