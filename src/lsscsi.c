@@ -45,7 +45,7 @@
 #include "sg_unaligned.h"
 
 
-static const char * version_str = "0.30  2018/04/24 [svn: r143]";
+static const char * version_str = "0.30  2018/05/03 [svn: r144]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -3671,9 +3671,9 @@ one_ndev_entry(const char * nvme_ctl_abs, const char * nvme_ns_rel,
         printf("%-9s", dev_node);
         if (op->dev_maj_min) {
                 if (get_value(buff, "dev", value, vlen))
-                        printf("[%s]", value);
+                        printf(" [%s]", value);
                 else
-                        printf("[dev?]");
+                        printf(" [dev?]");
         }
 
         if (op->ssize) {
@@ -3794,10 +3794,10 @@ one_nhost_entry(const char * dir_name, const char * nvme_ctl_rel,
 
                 bp = name_eq2value(buff, "uevent", "MAJOR", sizeof(b), b);
                 if (strlen(bp) > 1)
-                        printf("[%s:%s]", bp, name_eq2value(buff, "uevent",
+                        printf(" [%s:%s]", bp, name_eq2value(buff, "uevent",
                                                  "MINOR", sizeof(bb), bb));
                 else
-                        printf("[dev?]");
+                        printf(" [dev?]");
         }
         if (op->transport_info) {
                 const char * svp = "device/subsystem_vendor";

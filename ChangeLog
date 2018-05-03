@@ -1,6 +1,6 @@
 Linux utility for listing SCSI devices.
 
-Version 0.30 2018/04/24 [svn: r143]
+Version 0.30 2018/05/23 [svn: r144]
   - add support for NVMe devices and controllers
   - '-w' now decodes 128 bit WWN without truncation
   - /dev/disk/by-id/wwn- is not guaranteed to be

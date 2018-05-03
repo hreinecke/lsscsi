@@ -1,4 +1,4 @@
-.TH lsscsi "8" "April 2018" "lsscsi\-0.30" LSSCSI
+.TH lsscsi "8" "May 2018" "lsscsi\-0.30" LSSCSI
 .SH NAME
 lsscsi \- list SCSI devices (or hosts), list NVMe devices
 .SH SYNOPSIS
@@ -43,7 +43,7 @@ numeric sort used to show hosts (controllers) and devices (LUs or logical
 units) will always place NVMe devices and controllers after those that use
 the SCSI subsystem. To filter using a \fIH:C:T:L\fR argument for NVMe
 controllers, "hostN", "hostN:<num>", "N" or "N:<num>" may be used; when
-no "<num>" is given, only NVMe contollers will be listed (i.e. it lists no
+no "<num>" is given, only NVMe controllers will be listed (i.e. it lists no
 SCSI hosts (HBAs)).
 .PP
 By default in this utility device node names (e.g. "/dev/sda"
@@ -300,6 +300,26 @@ For the SCSI Parallel Interface (SPI) the target port identifier (usually
 a number between 0 and 15 inclusive) is output when \fI\-\-transport\fR is
 given, in the absence of the \fI\-\-hosts\fR option. When the \fI\-\-hosts\fR
 option is given then only "spi:" is output on the summary line.
+.PP
+For the PCIe transport (a.k.a. PCI Express) there at two possible storage
+types: NVMe and SOP/PQI (SCSI over PCIe). There are very few examples of the
+latter currently so this utility concentrates on NVMe. NVMe uses its own
+command set and not SCSI but has many things in common. Rather than
+re\-invent everything currently in use that SCSI has accumulated over nearly
+40 years, NVMe is beginning to use some parts of SCSI. A recent example is
+the SES\-3 standard for enclosure management which has been adopted by NVMe.
+In SCSI a SES device is a logical unit with a peripheral device type (PDT)
+of 0xd (for enclosure) so it will appear when the lsscsi utility is invoked
+without any options. In NVMe is seems that an enclosure with appear as 
+attached to the management interface (MI) of a NVMe controller. This means
+it should appear when "lsscsi \-\-hosts" is invoked. It is unclear whether
+such a NVMe controller can have any storage namespaces associated with
+it. The sg_ses utility (in the sg3_utils package) can then be given that NVMe
+controller's device name (e.g. /dev/nmve1).
+.br
+When the \fI\-\-transport\fR option is given, after "pcie" the NVMe
+controller's subsystem vendor id and device id are output, separated by a
+colon (e.g. "pcie 0x8086:0x390a").
 .PP
 For the SCSI RDMA Protocol (SRP) the IB (InfiniBand) port's GUID is given.
 As an example, it has a form like this: 0002:c903:00fa:abcd .
