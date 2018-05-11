@@ -53,7 +53,7 @@ fi
 
 
 %changelog
-* Thu May 03 2018 - dgilbert at interlog dot com
+* Fri May 11 2018 - dgilbert at interlog dot com
 - add NVMe support, minor tweaks
   * lsscsi-0.30
 * Fri May 13 2016 - dgilbert at interlog dot com
