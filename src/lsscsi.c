@@ -45,7 +45,7 @@
 #include "sg_unaligned.h"
 
 
-static const char * version_str = "0.30  2018/05/11 [svn: r147]";
+static const char * version_str = "0.30  2018/05/21 [svn: r148]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -132,11 +132,13 @@ struct addr_hctl filter;
 static bool filter_active = false;
 
 struct lsscsi_opts {
+        bool brief;
         bool classic;
         bool dev_maj_min;        /* --device */
         bool generic;
         bool kname;
         bool no_nvme;
+        bool pdt;               /* (-D) peripheral device type in hex */
         bool protection;        /* data integrity */
         bool protmode;          /* data integrity */
         bool scsi_id;           /* udev derived from /dev/disk/by-id/scsi* */
@@ -195,6 +197,7 @@ static const char * scsi_short_device_types[] =
 
 /* '--name' ('-n') option removed in version 0.11 and can now be reused */
 static struct option long_options[] = {
+        {"brief", no_argument, 0, 'b'},
         {"classic", no_argument, 0, 'c'},
         {"device", no_argument, 0, 'd'},
         {"generic", no_argument, 0, 'g'},
@@ -206,6 +209,7 @@ static struct option long_options[] = {
         {"lunhex", no_argument, 0, 'x'},
         {"no-nvme", no_argument, 0, 'N'},
         {"no_nvme", no_argument, 0, 'N'},
+        {"pdt", no_argument, 0, 'D'},
         {"protection", no_argument, 0, 'p'},
         {"protmode", no_argument, 0, 'P'},
         {"scsi_id", no_argument, 0, 'i'},
@@ -294,12 +298,13 @@ static char errpath[LMAX_PATH];
 
 
 static const char * usage_message1 =
-"Usage: lsscsi   [--classic] [--device] [--generic] [--help] [--hosts]\n"
-            "\t\t[--kname] [--list] [--long] [--long-unit] [--lunhex]\n"
-            "\t\t[--no-nvme] [--protection] [--scsi_id] [--size]\n"
-            "\t\t[--sysfsroot=PATH] [--transport] [--unit] [--verbose]\n"
-            "\t\t[--version] [--wwn]  [<h:c:t:l>]\n"
+"Usage: lsscsi   [--brief] [--classic] [--device] [--generic] [--help]\n"
+            "\t\t[--hosts] [--kname] [--list] [--long] [--long-unit]\n"
+            "\t\t[--lunhex] [--no-nvme] [--pdt] [--protection] [--scsi_id]\n"
+            "\t\t[--size] [--sysfsroot=PATH] [--transport] [--unit]\n"
+            "\t\t[--verbose] [--version] [--wwn]  [<h:c:t:l>]\n"
 "  where:\n"
+"    --brief|-b        tuple and device name only\n"
 "    --classic|-c      alternate output similar to 'cat /proc/scsi/scsi'\n"
 "    --device|-d       show device node's major + minor numbers\n"
 "    --generic|-g      show scsi generic device name\n"
@@ -317,6 +322,7 @@ static const char * usage_message1 =
 static const char * usage_message2 =
 "                      use twice to get full 16 digit hexadecimal LUN\n"
 "    --no-nvme|-N      exclude NVMe devices from output\n"
+"    --pdt|-D          show the peripheral device type in hex\n"
 "    --protection|-p   show target and initiator protection information\n"
 "    --protmode|-P     show negotiated protection information mode\n"
 "    --scsi_id|-i      show udev derived /dev/disk/by-id/scsi* entry\n"
@@ -3264,7 +3270,19 @@ one_sdev_entry(const char * dir_name, const char * devname,
                  printf("%s ", value);  /* if very long, append a space */
         else /* left justified with field length of devname_len */
                 printf("%-*s", devname_len, value);
-        if (! get_value(buff, "type", value, vlen)) {
+        if (op->pdt) {
+                char b[16];
+
+                if (get_value(buff, "type", value, vlen) &&
+                    (1 == sscanf(value, "%d", &type)) &&
+                    (type >= 0) && (type < 32))
+                        snprintf(b, sizeof(b), "0x%x", type);
+                else
+                        snprintf(b, sizeof(b), "-1");
+                printf("%-8s", b);
+        } else if (op->brief)
+                ;
+        else if (! get_value(buff, "type", value, vlen)) {
                 printf("type?   ");
         } else if (1 != sscanf(value, "%d", &type)) {
                 printf("type??  ");
@@ -3303,7 +3321,7 @@ one_sdev_entry(const char * dir_name, const char * devname,
                         }
                 } else     /* -uuu, output in full, append rest of line */
                         printf("%-s  ", value);
-        } else {
+        } else if (! op->brief) {
                 if (get_value(buff, "vendor", value, vlen))
                         printf("%-8s ", value);
                 else
@@ -3609,7 +3627,11 @@ one_ndev_entry(const char * nvme_ctl_abs, const char * nvme_ns_rel,
         else /* left justified with field length of devname_len */
                 printf("%-*s", devname_len, value);
 
-        if (vb) /* NVMe namespace can only be NVM device */
+        if (op->pdt)
+                printf("%-8s", "0x0");
+        else if (op->brief)
+                ;
+        else if (vb) /* NVMe namespace can only be NVM device */
                 printf("dsk/nvm ");
         else
                 printf("disk    ");
@@ -3648,7 +3670,7 @@ one_ndev_entry(const char * nvme_ctl_abs, const char * nvme_ns_rel,
                                 printf("%-41s  ", value);
                 } else
                         printf("%-41s  ", "wwid?");
-        } else {
+        } else if (! op->brief) {
                 if (! get_value(nvme_ctl_abs, "model", ctl_model,
                                 sizeof(ctl_model)))
                         snprintf(ctl_model, sizeof(ctl_model), "-    ");
@@ -3875,7 +3897,7 @@ one_nhost_entry(const char * dir_name, const char * nvme_ctl_rel,
                         if (! sing)
                                 printf("\n");
                 }
-        } else {
+        } else if (! op->brief) {
                 if (get_value(buff, "model", value, vlen) &&
                     strncmp(value, nullname1, 6) &&
                     strncmp(value, nullname2, 6)) {
@@ -3900,7 +3922,8 @@ one_nhost_entry(const char * dir_name, const char * nvme_ctl_rel,
                 } else
                         strcpy(value, nullname1);
                 printf("  %-8s\n", value);
-        }
+        } else
+                printf("\n");
         if (vb > 0) {
                 printf("  dir: %s\n  device dir: ", buff);
                 if (if_directory_chdir(buff, "device")) {
@@ -4417,17 +4440,23 @@ main(int argc, char **argv)
         while (1) {
                 int option_index = 0;
 
-                c = getopt_long(argc, argv, "cdghHiklLNpPstuUvVwxy:",
+                c = getopt_long(argc, argv, "bcdDghHiklLNpPstuUvVwxy:",
                                 long_options, &option_index);
                 if (c == -1)
                         break;
 
                 switch (c) {
+                case 'b':
+                        op->brief = true;
+                        break;
                 case 'c':
                         op->classic = true;
                         break;
                 case 'd':
                         op->dev_maj_min = true;
+                        break;
+                case 'D':       /* --pdt */
+                        op->pdt = true;
                         break;
                 case 'g':
                         op->generic = true;

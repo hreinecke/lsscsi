@@ -3,10 +3,11 @@
 lsscsi \- list SCSI devices (or hosts), list NVMe devices
 .SH SYNOPSIS
 .B lsscsi
-[\fI\-\-classic\fR] [\fI\-\-device\fR] [\fI\-\-generic\fR] [\fI\-\-help\fR]
-[\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-long\fR]
-[\fI\-\-long\-unit\fR] [\fI\-\-lunhex\fR] [\fI\-\-protection\fR]
-[\fI\-\-no\-nvme\fR] [\fI\-\-protmode\fR] [\fI\-\-scsi_id\fR] [\fI\-\-size\fR]
+[\fI\-\-brief\fR] [\fI\-\-classic\fR] [\fI\-\-device\fR] [\fI\-\-generic\fR]
+[\fI\-\-help\fR] [\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR]
+[\fI\-\-long\fR] [\fI\-\-long\-unit\fR] [\fI\-\-lunhex\fR]
+[\fI\-\-no\-nvme\fR] [\fI\-\-pdt\fR] [\fI\-\-protection\fR]
+[\fI\-\-protmode\fR] [\fI\-\-scsi_id\fR] [\fI\-\-size\fR]
 [\fI\-\-sysfsroot=PATH\fR] [\fI\-\-transport\fR] [\fI\-\-unit\fR]
 [\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fI\-\-wwn\fR] [\fIH:C:T:L\fR]
 .SH DESCRIPTION
@@ -17,18 +18,27 @@ devices (or hosts) currently attached to the system. Many non\-SCSI storage
 devices (but not all) used the SCSI subsystem in Linux. In lsscsi version
 0.30 support was added to list NVMe devices.
 .PP
-If a \fIH:C:T:L\fR argument is given then it acts as a filter and only
-devices that match it are listed. The colons don't have to be present,
-and '\-', '*', '?' or missing arguments at the end are interpreted as
-wildcards. The default is '*:*:*:*' which means to match devices (i.e.
-Logical Units). Any filter string using '*' of '?' should be surrounded by
-single or double quotes to stop shell expansions. If '\-' is used as a
-wildcard then the whole filter argument should be prefixed by '\-\- ' to
-tell this utility there are no more options on the command line to be
-interpreted.  A leading '[' and trailing ']' are permitted (e.g. '[1:0:0]'
-matches all LUNs on 1:0:0). May also be used to filter \fI\-\-hosts\fR
-in which case only the \fIH\fR is active and may be either a number
-or in the form "host<n>" where <n> is a host number.
+In single line per device (LU or NVMe namespace) mode, the default, each
+line starts with a 4 element tuple surrounded by square brackets. For SCSI
+devices the first element 'H' is the host number, the second element 'C' is
+the controller number, the third element 'T' is the target number and the
+final element is the Logical Unit Number (LUN). All four are integers.
+For NVMe namespaces see two paragraphs down. When the \fI\-\-hosts\fR option
+is given for SCSI devices the tuple is reduced to one element: the host
+number.
+.PP
+If a \fIH:C:T:L\fR tuple is given as an argument on the command line then
+it acts as a filter and only devices that match it are listed. The colons
+don't have to be present, and '\-', '*', '?' or missing components at the
+end are interpreted as wildcards. The default is '*:*:*:*' which means to
+match devices (i.e.  Logical Units). Any filter string using '*' of '?'
+should be surrounded by single or double quotes to stop shell expansions.
+If '\-' is used as a wildcard then the whole filter tuple should be prefixed
+by '\-\- ' to tell this utility there are no more options on the command
+line to be interpreted.  A leading '[' and trailing ']' are permitted (
+e.g. '[1:0:0]' matches all LUNs on 1:0:0). May also be used to filter
+\fI\-\-hosts\fR in which case only the \fIH\fR is active and may be either
+a number or in the form "host<n>" where <n> is a host number.
 .PP
 For NVMe devices and controllers almost all of the previous paragraph
 applies. The main difference is that "N" appears in the 'H' (first) position.
@@ -62,6 +72,19 @@ report disk error messages using the disk's default kernel name.
 Arguments to long options are mandatory for short options as well.
 The options are arranged in alphabetical order based on the long
 option name.
+.TP
+\fB\-b\fR, \fB\-\-brief\fR
+reduces one line per device output to the tuple and the primary device name.
+This may simplify scripts that process the output of this utility. With the
+\fI\-\-generic\fR option it will show on each line the tuple (from which
+the bsg pass\-through device name can be deduced), the primary device
+name (which the block subsystem uses) and the sg device name (also a
+pass-through).
+.br
+When the \fI\-\-pdt\fR option is used together with this option the SCSI
+Peripheral Device Type (PDT) is displayed in hex (with a leading "0x")
+between the tuple and the primary device name. For NVMe namespaces "0x0"
+is displayed (for a disk or direct access device).
 .TP
 \fB\-c\fR, \fB\-\-classic\fR
 The output is similar to that obtained from 'cat /proc/scsi/scsi'
@@ -101,14 +124,6 @@ form is more convenient (e.g. '\-lll'). When used three times (i.e. '\-lll')
 outputs SCSI device (host) attributes one per line; preceded by
 two spaces; in the form "<attribute_name>=<value>".
 .TP
-\fB\-N\fR, \fB\-\-no\-nvme\fR
-this option excludes NVMe devices and controllers for the output. This option
-may be needed to stop NVMe device output interfering with specific format
-output like that produced when the \fI\-\-classic\fR option is used.
-.br
-To only show NVMe devices, use 'lsscsi N', to only show NVMe controllers,
-use 'lsscsi \-H N'.
-.TP
 \fB\-U\fR, \fB\-\-long\-unit\fR
 Output logical unit name in full, if available. It replaces the normal
 vendor, product and revision strings given in the single logical unit per
@@ -139,8 +154,23 @@ For NVMe, the namespace identifier (nsid) is shown in the "L" position. The
 nsid is a 32 bit unsigned quantities with 0x0 and 0xffffffff reserved.
 Without this option, the nsid is shown in decimal. When this option is used
 once the nsid is output in hex with a lead 0x and with up to 3 leading zeros.
-When this option ia used twice the nsid is output in hex with up to 7 leading
+When this option is used twice the nsid is output in hex with up to 7 leading
 zeros.
+.TP
+\fB\-N\fR, \fB\-\-no\-nvme\fR
+this option excludes NVMe devices and controllers for the output. This option
+may be needed to stop NVMe device output interfering with specific format
+output like that produced when the \fI\-\-classic\fR option is used.
+.br
+To only show NVMe devices, use 'lsscsi N', to only show NVMe controllers,
+use 'lsscsi \-H N'.
+.TP
+\fB\-D\fR, \fB\-\-pdt\fR
+this option displays the SCSI Peripheral Device Type (PDT) in hex preceded
+by "0x". For NVME namespaces "0x0' is displayed which corresponds to a
+disk ("Direct Access Device" or SSD). In single line output this hex PDT
+replaces the device type abbreviation (e.g. "0x0     " replaces "disk    ")
+and appears after the tuple.
 .TP
 \fB\-p\fR, \fB\-\-protection\fR
 Output target (DIF) and initiator (DIX) protection types.
@@ -310,7 +340,7 @@ re\-invent everything currently in use that SCSI has accumulated over nearly
 the SES\-3 standard for enclosure management which has been adopted by NVMe.
 In SCSI a SES device is a logical unit with a peripheral device type (PDT)
 of 0xd (for enclosure) so it will appear when the lsscsi utility is invoked
-without any options. In NVMe is seems that an enclosure with appear as 
+without any options. In NVMe is seems that an enclosure with appear as
 attached to the management interface (MI) of a NVMe controller. This means
 it should appear when "lsscsi \-\-hosts" is invoked. It is unclear whether
 such a NVMe controller can have any storage namespaces associated with
