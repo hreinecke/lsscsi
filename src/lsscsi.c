@@ -45,7 +45,7 @@
 #include "sg_unaligned.h"
 
 
-static const char * version_str = "0.30  2018/05/21 [svn: r148]";
+static const char * version_str = "0.30  2018/05/27 [svn: r149]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -4429,6 +4429,7 @@ main(int argc, char **argv)
         bool do_sdevices = true;
         bool do_hosts = false;  /* checked before do_sdevices */
         int c;
+        int version_count = 0;
         const char * cp;
         struct lsscsi_opts * op;
         struct lsscsi_opts opts;
@@ -4504,8 +4505,8 @@ main(int argc, char **argv)
                         ++op->verbose;
                         break;
                 case 'V':
-                        pr2serr("version: %s\n", version_str);
-                        return 0;
+                        ++version_count;
+                        break;
                 case 'w':
                         op->wwn = true;
                         break;
@@ -4524,6 +4525,30 @@ main(int argc, char **argv)
                         usage();
                         return 1;
                }
+        }
+        if (version_count > 0) {
+                int yr, mon, day;
+                char * p;
+                char b[64];
+
+                if (1 == version_count) {
+                        pr2serr("version: %s\n", version_str);
+                        return 0;
+                }
+                cp = strchr(version_str, '/');
+                if (cp && (3 == sscanf(cp - 4, "%d/%d/%d", &yr, &mon, &day)))
+                    ;
+                else {
+                        pr2serr("version:: %s\n", version_str);
+                        return 0;
+                }
+                strncpy(b, version_str, sizeof(b) - 1);
+                p = (char *)strchr(b, '/');
+                snprintf(p - 4, sizeof(b) - (p - 4 - b), "%d%02d%02d  ",
+                         yr, mon, day);
+                b[strlen(b)] = ' ';
+                printf("%s\n", b);
+                return 0;
         }
 
         if (optind < argc) {

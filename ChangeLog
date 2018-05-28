@@ -1,6 +1,6 @@
 Linux utility for listing SCSI devices.
 
-Version 0.30 2018/05/21 [svn: r148]
+Version 0.30 2018/05/28 [svn: r149]
   - add support for NVMe devices and controllers
   - add --brief for tuple + device_name(s) only
   - add --pdt (-D) for device type in hex
