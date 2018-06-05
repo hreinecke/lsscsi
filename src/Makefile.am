@@ -1,7 +1,7 @@
 bin_PROGRAMS = lsscsi
 
 # C++/clang testing
-## CC = gcc
+## CC = gcc-8
 ## CC = g++
 ## CC = clang
 ## CC = clang++

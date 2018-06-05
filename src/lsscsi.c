@@ -45,7 +45,7 @@
 #include "sg_unaligned.h"
 
 
-static const char * version_str = "0.30  2018/06/05 [svn: r151]";
+static const char * version_str = "0.30  2018/06/05 [svn: r152]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -199,6 +199,7 @@ static const char * scsi_short_device_types[] =
 static struct option long_options[] = {
         {"brief", no_argument, 0, 'b'},
         {"classic", no_argument, 0, 'c'},
+        {"controllers", no_argument, 0, 'C'},
         {"device", no_argument, 0, 'd'},
         {"generic", no_argument, 0, 'g'},
         {"help", no_argument, 0, 'h'},
@@ -298,14 +299,18 @@ static char errpath[LMAX_PATH];
 
 
 static const char * usage_message1 =
-"Usage: lsscsi   [--brief] [--classic] [--device] [--generic] [--help]\n"
-            "\t\t[--hosts] [--kname] [--list] [--long] [--long-unit]\n"
+"Usage: lsscsi   [--brief] [--classic] [--controllers] [--device] "
+            "[--generic]\n"
+            "\t\t[--help] [--hosts] [--kname] [--list] [--long] "
+            "[--long-unit]\n"
             "\t\t[--lunhex] [--no-nvme] [--pdt] [--protection] [--scsi_id]\n"
             "\t\t[--size] [--sysfsroot=PATH] [--transport] [--unit]\n"
             "\t\t[--verbose] [--version] [--wwn]  [<h:c:t:l>]\n"
 "  where:\n"
 "    --brief|-b        tuple and device name only\n"
 "    --classic|-c      alternate output similar to 'cat /proc/scsi/scsi'\n"
+"    --controllers|-C   synonym for --hosts since NVMe controllers treated\n"
+"                       like SCSI hosts\n"
 "    --device|-d       show device node's major + minor numbers\n"
 "    --generic|-g      show scsi generic device name\n"
 "    --help|-h         this usage information\n"
@@ -414,6 +419,8 @@ all_ffs(const uint8_t * bp, int b_len)
         return true;
 }
 #endif
+
+#if (HAVE_NVME && (! IGNORE_NVME))
 
 /* trims leading whitespaces, if trim_leading is true; and trims trailing
  * whitespaces, if trim_trailing is true. Edits s in place. If s is NULL
@@ -537,6 +544,8 @@ clean_up:
                 fclose(fp);
         return b;
 }
+
+#endif          /* (HAVE_NVME && (! IGNORE_NVME)) */
 
 /* Returns true if dirent entry is either a symlink or a directory
  * starting_with given name. If starting_with is NULL choose all that are
@@ -3084,7 +3093,7 @@ longer_nd_entry(const char * path_name, const char * devname,
         }
 }
 
-#endif
+#endif          /* (HAVE_NVME && (! IGNORE_NVME)) */
 
 static void
 one_classic_sdev_entry(const char * dir_name, const char * devname,
@@ -3939,13 +3948,11 @@ one_nhost_entry(const char * dir_name, const char * nvme_ctl_rel,
         }
 }
 
-#endif
+#endif          /* (HAVE_NVME && (! IGNORE_NVME)) */
 
-/* Returns -1 if (a->d_name < b->d_name) ; 0 if they are equal
- * and 1 otherwise.
- * Function signature was more generic before version 0.23 :
- * static int sdev_scandir_sort(const void * a, const void * b)
- */
+/* This is a compare function for numeric sort based on hctl tuple.
+ * Returns -1 if (a->d_name < b->d_name) ; 0 if they are equal
+ * and 1 otherwise. */
 static int
 sdev_scandir_sort(const struct dirent ** a, const struct dirent ** b)
 {
@@ -3966,6 +3973,59 @@ sdev_scandir_sort(const struct dirent ** a, const struct dirent ** b)
         }
         return cmp_hctl(&left_hctl, &right_hctl);
 }
+
+#if (HAVE_NVME && (! IGNORE_NVME))
+
+/* This is a compare function for numeric sort based on hctl tuple. Similar
+ * to sdev_scandir_sort() but converts entries like "nvme2" into a hctl tuple.
+ * Returns -1 if (a->d_name < b->d_name) ; 0 if they are equal
+ * and 1 otherwise. */
+static int
+nhost_scandir_sort(const struct dirent ** a, const struct dirent ** b)
+{
+        const char * lnam = (*a)->d_name;
+        const char * rnam = (*b)->d_name;
+        struct addr_hctl left_hctl;
+        struct addr_hctl right_hctl;
+
+        if (strchr(lnam, ':')) {
+                if (! parse_colon_list(lnam, &left_hctl)) {
+                        pr2serr("%s: left parse failed: %.20s\n", __func__,
+                                (lnam ? lnam : "<null>"));
+                        return -1;
+                }
+        } else {
+                if (1 == sscanf(lnam, "nvme%d", &left_hctl.c)) {
+                        left_hctl.h = NVME_HOST_NUM;
+                        left_hctl.t = 0;
+                        left_hctl.l = 0;
+                } else {
+                        pr2serr("%s: left sscanf failed: %.20s\n", __func__,
+                                (lnam ? lnam : "<null>"));
+                        return -1;
+                }
+        }
+        if (strchr(rnam, ':')) {
+                if (! parse_colon_list(rnam, &right_hctl)) {
+                        pr2serr("%s: right parse failed: %.20s\n", __func__,
+                                (rnam ? rnam : "<null>"));
+                        return 1;
+                }
+        } else {
+                if (1 == sscanf(rnam, "nvme%d", &right_hctl.c)) {
+                        right_hctl.h = NVME_HOST_NUM;
+                        right_hctl.t = 0;
+                        right_hctl.l = 0;
+                } else {
+                        pr2serr("%s: right sscanf failed: %.20s\n", __func__,
+                                (rnam ? rnam : "<null>"));
+                        return -1;
+                }
+        }
+        return cmp_hctl(&left_hctl, &right_hctl);
+}
+
+#endif          /* (HAVE_NVME && (! IGNORE_NVME)) */
 
 /* List SCSI devices (LUs). */
 static void
@@ -4021,7 +4081,7 @@ list_ndevices(const struct lsscsi_opts * op)
         snprintf(buff, sizeof(buff), "%s%s", sysfsroot, class_nvme);
 
         num = scandir(buff, &name_list, ndev_dir_scan_select,
-                      sdev_scandir_sort);
+                      nhost_scandir_sort);
         if (num < 0) {  /* NVMe module may not be loaded */
                 if (op->verbose > 0) {
                         snprintf(ebuf, sizeof(ebuf), "%s: scandir: %s",
@@ -4062,7 +4122,7 @@ list_ndevices(const struct lsscsi_opts * op)
                 free_disk_wwn_node_list();
 }
 
-#endif
+#endif          /* (HAVE_NVME && (! IGNORE_NVME)) */
 
 /* List host (initiator) attributes when --long given (one or more times). */
 static void
@@ -4220,11 +4280,9 @@ host_dir_scan_select(const struct dirent * s)
 
 /* Returns -1 if (a->d_name < b->d_name) ; 0 if they are equal
  * and 1 otherwise.
- * Function signature was more generic before version 0.23 :
- * static int host_scandir_sort(const void * a, const void * b)
  */
 static int
-host_scandir_sort(const struct dirent ** a, const struct dirent ** b)
+shost_scandir_sort(const struct dirent ** a, const struct dirent ** b)
 {
         unsigned int l, r;
         const char * lnam = (*a)->d_name;
@@ -4252,7 +4310,7 @@ list_shosts(const struct lsscsi_opts * op)
         snprintf(buff, sizeof(buff), "%s%s", sysfsroot, scsi_host);
 
         num = scandir(buff, &namelist, host_dir_scan_select,
-                      host_scandir_sort);
+                      shost_scandir_sort);
         if (num < 0) {
                 snprintf(name, sizeof(name), "%s: scandir: %s",
                          __func__, buff);
@@ -4285,7 +4343,7 @@ list_nhosts(const struct lsscsi_opts * op)
         snprintf(buff, sizeof(buff), "%s%s", sysfsroot, class_nvme);
 
         num = scandir(buff, &namelist, ndev_dir_scan_select,
-                      host_scandir_sort);
+                      nhost_scandir_sort);
         if (num < 0) {  /* NVMe module may not be loaded */
                 if (op->verbose > 0) {
                         snprintf(ebuf, sizeof(ebuf), "%s: scandir: %s",
@@ -4305,7 +4363,7 @@ list_nhosts(const struct lsscsi_opts * op)
                 free_disk_wwn_node_list();
 }
 
-#endif
+#endif          /* (HAVE_NVME && (! IGNORE_NVME)) */
 
 /* Return true if able to decode, otherwise false */
 static bool
@@ -4456,7 +4514,7 @@ main(int argc, char **argv)
         while (1) {
                 int option_index = 0;
 
-                c = getopt_long(argc, argv, "bcdDghHiklLNpPstuUvVwxy:",
+                c = getopt_long(argc, argv, "bcCdDghHiklLNpPstuUvVwxy:",
                                 long_options, &option_index);
                 if (c == -1)
                         break;
@@ -4467,6 +4525,9 @@ main(int argc, char **argv)
                         break;
                 case 'c':
                         op->classic = true;
+                        break;
+                case 'C':       /* synonym for --hosts, NVMe perspective */
+                        do_hosts = true;
                         break;
                 case 'd':
                         op->dev_maj_min = true;

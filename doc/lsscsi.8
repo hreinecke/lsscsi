@@ -3,10 +3,10 @@
 lsscsi \- list SCSI devices (or hosts), list NVMe devices
 .SH SYNOPSIS
 .B lsscsi
-[\fI\-\-brief\fR] [\fI\-\-classic\fR] [\fI\-\-device\fR] [\fI\-\-generic\fR]
-[\fI\-\-help\fR] [\fI\-\-hosts\fR] [\fI\-\-kname\fR] [\fI\-\-list\fR]
-[\fI\-\-long\fR] [\fI\-\-long\-unit\fR] [\fI\-\-lunhex\fR]
-[\fI\-\-no\-nvme\fR] [\fI\-\-pdt\fR] [\fI\-\-protection\fR]
+[\fI\-\-brief\fR] [\fI\-\-classic\fR] [\fI\-\-controllers\fR]
+[\fI\-\-device\fR] [\fI\-\-generic\fR] [\fI\-\-help\fR] [\fI\-\-hosts\fR]
+[\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-long\fR] [\fI\-\-long\-unit\fR]
+[\fI\-\-lunhex\fR] [\fI\-\-no\-nvme\fR] [\fI\-\-pdt\fR] [\fI\-\-protection\fR]
 [\fI\-\-protmode\fR] [\fI\-\-scsi_id\fR] [\fI\-\-size\fR]
 [\fI\-\-sysfsroot=PATH\fR] [\fI\-\-transport\fR] [\fI\-\-unit\fR]
 [\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fI\-\-wwn\fR] [\fIH:C:T:L\fR]
@@ -89,6 +89,10 @@ is displayed (for a disk or direct access device).
 \fB\-c\fR, \fB\-\-classic\fR
 The output is similar to that obtained from 'cat /proc/scsi/scsi'
 .TP
+\fB\-C\fR, \fB\-\-controllers\fR
+Lists NVMe controllers and SCSI hosts. This is a synonym for the
+\fI\-\-hosts\fR option.
+.TP
 \fB\-d\fR, \fB\-\-device\fR
 After outputting the (probable) SCSI device name the device node
 major and minor numbers are shown in brackets (e.g. "/dev/sda[8:0]").
@@ -105,8 +109,9 @@ Output the usage message and exit.
 .TP
 \fB\-H\fR, \fB\-\-hosts\fR
 List the SCSI hosts and NVMe controllers currently attached to
-the system. If this option is not given then SCSI devices (logical
-units (LUs)) followed by NVMe devices are listed.
+the system. If this option is not given (and the \fI\-\-controllers\fR
+option is not given) then SCSI devices (logical units (LUs)) followed by
+NVMe devices (namespaces) are listed.
 .TP
 \fB\-k\fR, \fB\-\-kname\fR
 Use Linux default algorithm for naming devices (e.g. block major 8,
