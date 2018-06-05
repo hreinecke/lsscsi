@@ -45,7 +45,7 @@
 #include "sg_unaligned.h"
 
 
-static const char * version_str = "0.30  2018/05/27 [svn: r149]";
+static const char * version_str = "0.30  2018/06/04 [svn: r150]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -493,6 +493,8 @@ name_eq2value(const char * dirp, const char * fname, const char * name,
         }
         len += 20;
         full_name = (char *)calloc(1, len);
+        if (NULL == full_name)
+                goto clean_up;
         if (dirp && fname)
                 snprintf(full_name, len - 2, "%s/%s", dirp, fname);
         else if (dirp)
@@ -866,7 +868,7 @@ typedef int (* dirent_select_fn) (const struct dirent *);
 static bool
 sub_scan(char * dir_name, const char * sub_str, dirent_select_fn fn)
 {
-        int num, i, len;
+        int num, k, len;
         struct dirent ** namelist;
 
         num = scandir(dir_name, &namelist, fn, NULL);
@@ -877,8 +879,8 @@ sub_scan(char * dir_name, const char * sub_str, dirent_select_fn fn)
                 return false;
         snprintf(dir_name + len, LMAX_PATH - len, "/%s", namelist[0]->d_name);
 
-        for (i = 0; i < num; i++)
-                free(namelist[i]);
+        for (k = 0; k < num; ++k)
+                free(namelist[k]);
         free(namelist);
 
         if (strstr(dir_name, sub_str) == 0) {
@@ -891,8 +893,8 @@ sub_scan(char * dir_name, const char * sub_str, dirent_select_fn fn)
                 snprintf(dir_name + len, LMAX_PATH - len, "/%s",
                          namelist[0]->d_name);
 
-                for (i = 0; i < num; i++)
-                        free(namelist[i]);
+                for (k = 0; k < num; ++k)
+                        free(namelist[k]);
                 free(namelist);
         }
         return true;
@@ -1135,8 +1137,8 @@ sas_low_phy_scan(const char * dir_name, struct dirent ***phy_list)
         num = scandir(dir_name, &namelist, sas_low_phy_dir_scan_select, NULL);
         if (num < 0)
                 return -1;
-        if (!phy_list) {
-                for (k=0; k<num; ++k)
+        if (! phy_list) {
+                for (k = 0; k < num; ++k)
                         free(namelist[k]);
                 free(namelist);
         }
@@ -1553,8 +1555,9 @@ get_disk_wwn(const char *wd, char * wwn_str, int max_wwn_str_len)
  * @pfx: Prefix of the symlink, e.g. "scsi-".
  * @dev: Device node to look up, e.g. "/dev/sda".
  * Returns a pointer to the name of the symlink without the prefix if a match
- * has been found. The caller must free the pointer returned by this function.
+ * has been found.
  * Side effect: changes the working directory to @dir.
+ * Note: The caller must free the pointer returned by this function.
  */
 static char *
 lookup_dev(const char *dir, const char *pfx, const char *dev)
@@ -1591,7 +1594,7 @@ out:
  * @dev_node: Device node of the disk, e.g. "/dev/sda".
  * Return value: pointer to the SCSI ID if lookup succeeded or NULL if lookup
  * failed.
- * The caller must free the returned buffer with free().
+ * Note: The caller must free the returned buffer with free().
  */
 static char *
 get_disk_scsi_id(const char *dev_node)
@@ -2145,7 +2148,7 @@ transport_init(const char * devname, /* const struct lsscsi_opts * op, */
 static void
 transport_init_longer(const char * path_name, const struct lsscsi_opts * op)
 {
-        int i, j, len;
+        int k, j, len;
         int phynum;
         int portnum;
         char * cp;
@@ -2236,12 +2239,12 @@ transport_init_longer(const char * path_name, const struct lsscsi_opts * op)
                                 printf("  no configured phys\n");
                                 return;
                         }
-                        for (i = 0; i < phynum; ++i) {
+                        for (k = 0; k < phynum; ++k) {
                                 /* emit something potentially useful */
                                 snprintf(buff, sizeof(buff), "%s%s%s",
                                          sysfsroot, sas_phy,
-                                         phylist[i]->d_name);
-                                printf("  %s\n",phylist[i]->d_name);
+                                         phylist[k]->d_name);
+                                printf("  %s\n",phylist[k]->d_name);
                                 if (get_value(buff, "sas_address", value,
                                               sizeof(value)))
                                         printf("    sas_address=%s\n", value);
@@ -2272,22 +2275,22 @@ transport_init_longer(const char * path_name, const struct lsscsi_opts * op)
                         }
                         return;
                 }
-                for (i = 0; i < portnum; ++i) {     /* for each host port */
+                for (k = 0; k < portnum; ++k) {     /* for each host port */
                         snprintf(buff, sizeof(buff), "%s%s%s", path_name,
-                                 "/device/", portlist[i]->d_name);
+                                 "/device/", portlist[k]->d_name);
                         if ((phynum = sas_low_phy_scan(buff, &phylist)) < 1) {
                                 printf("  %s: phy list not available\n",
-                                       portlist[i]->d_name);
-                                free(portlist[i]);
+                                       portlist[k]->d_name);
+                                free(portlist[k]);
                                 continue;
                         }
 
                         snprintf(buff, sizeof(buff), "%s%s%s", sysfsroot,
-                                 sas_port, portlist[i]->d_name);
+                                 sas_port, portlist[k]->d_name);
                         if (get_value(buff, "num_phys", value,
                                       sizeof(value))) {
                                 printf("  %s: num_phys=%s,",
-                                       portlist[i]->d_name, value);
+                                       portlist[k]->d_name, value);
                                 for (j = 0; j < phynum; ++j) {
                                         printf(" %s", phylist[j]->d_name);
                                         free(phylist[j]);
@@ -2350,7 +2353,7 @@ transport_init_longer(const char * path_name, const struct lsscsi_opts * op)
                         if (op->verbose > 2)
                                 printf("  fetched from directory: %s\n", buff);
 
-                        free(portlist[i]);
+                        free(portlist[k]);
 
                 }
                 free(portlist);
@@ -4039,7 +4042,7 @@ static void
 list_ndevices(const struct lsscsi_opts * op)
 {
         int num, num2, k, j;
-        struct dirent ** namelist;
+        struct dirent ** name_list;
         struct dirent ** namelist2;
         char buff[LMAX_DEVPATH];
         char buff2[LMAX_DEVPATH];
@@ -4047,7 +4050,7 @@ list_ndevices(const struct lsscsi_opts * op)
 
         snprintf(buff, sizeof(buff), "%s%s", sysfsroot, class_nvme);
 
-        num = scandir(buff, &namelist, ndev_dir_scan_select,
+        num = scandir(buff, &name_list, ndev_dir_scan_select,
                       sdev_scandir_sort);
         if (num < 0) {  /* NVMe module may not be loaded */
                 if (op->verbose > 0) {
@@ -4060,7 +4063,8 @@ list_ndevices(const struct lsscsi_opts * op)
         }
         for (k = 0; k < num; ++k) {
                 snprintf(buff2, sizeof(buff2), "%s%s", buff,
-                         namelist[k]->d_name);
+                         name_list[k]->d_name);
+                free(name_list[k]);
                 num2 = scandir(buff2, &namelist2, ndev_dir_scan_select2,
                                sdev_scandir_sort);
                 if (num2 < 0) {
@@ -4069,7 +4073,9 @@ list_ndevices(const struct lsscsi_opts * op)
                                          "(2): %s", __func__, buff);
                                 perror(ebuf);
                         }
-                        return;
+                        /* already freed name_list[k] so move to next */
+                        ++k;
+                        break;
                 }
                 for (j = 0; j < num2; ++j) {
                         transport_id = TRANSPORT_UNKNOWN;
@@ -4078,7 +4084,10 @@ list_ndevices(const struct lsscsi_opts * op)
                 }
                 free(namelist2);
         }
-        free(namelist);
+        for ( ; k < num; ++k) /* clean out rest of name_list[] */
+                free(name_list[k]);
+
+        free(name_list);
         if (op->wwn)
                 free_disk_wwn_node_list();
 }
