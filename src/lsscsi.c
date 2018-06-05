@@ -45,7 +45,7 @@
 #include "sg_unaligned.h"
 
 
-static const char * version_str = "0.30  2018/06/04 [svn: r150]";
+static const char * version_str = "0.30  2018/06/05 [svn: r151]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -3955,11 +3955,13 @@ sdev_scandir_sort(const struct dirent ** a, const struct dirent ** b)
         struct addr_hctl right_hctl;
 
         if (! parse_colon_list(lnam, &left_hctl)) {
-                pr2serr("%s: left parse failed\n", __func__);
+                pr2serr("%s: left parse failed: %.20s\n", __func__,
+                        (lnam ? lnam : "<null>"));
                 return -1;
         }
         if (! parse_colon_list(rnam, &right_hctl)) {
-                pr2serr("%s: right parse failed\n", __func__);
+                pr2serr("%s: right parse failed: %.20s\n", __func__,
+                        (rnam ? rnam : "<null>"));
                 return 1;
         }
         return cmp_hctl(&left_hctl, &right_hctl);
@@ -4005,38 +4007,6 @@ list_sdevices(const struct lsscsi_opts * op)
 
 #if (HAVE_NVME && (! IGNORE_NVME))
 
-/* List NVME hosts (controllers). */
-static void
-list_nhosts(const struct lsscsi_opts * op)
-{
-        int num, k;
-        struct dirent ** namelist;
-        char buff[LMAX_DEVPATH];
-        char ebuf[120];
-
-        snprintf(buff, sizeof(buff), "%s%s", sysfsroot, class_nvme);
-
-        num = scandir(buff, &namelist, ndev_dir_scan_select,
-                      sdev_scandir_sort);
-        if (num < 0) {  /* NVMe module may not be loaded */
-                if (op->verbose > 0) {
-                        snprintf(ebuf, sizeof(ebuf), "%s: scandir: %s",
-                                 __func__, buff);
-                        perror(ebuf);
-                        printf("NVMe module may not be loaded\n");
-                }
-                return;
-        }
-        for (k = 0; k < num; ++k) {
-                transport_id = TRANSPORT_UNKNOWN;
-                one_nhost_entry(buff, namelist[k]->d_name, op);
-                free(namelist[k]);
-        }
-        free(namelist);
-        if (op->wwn)
-                free_disk_wwn_node_list();
-}
-
 /* List NVME devices (namespaces). */
 static void
 list_ndevices(const struct lsscsi_opts * op)
@@ -4079,8 +4049,8 @@ list_ndevices(const struct lsscsi_opts * op)
                 }
                 for (j = 0; j < num2; ++j) {
                         transport_id = TRANSPORT_UNKNOWN;
-                        one_ndev_entry(buff2, namelist2[k]->d_name, op);
-                        free(namelist2[k]);
+                        one_ndev_entry(buff2, namelist2[j]->d_name, op);
+                        free(namelist2[j]);
                 }
                 free(namelist2);
         }
@@ -4272,7 +4242,7 @@ host_scandir_sort(const struct dirent ** a, const struct dirent ** b)
 }
 
 static void
-list_hosts(const struct lsscsi_opts * op)
+list_shosts(const struct lsscsi_opts * op)
 {
         int num, k;
         struct dirent ** namelist;
@@ -4300,6 +4270,42 @@ list_hosts(const struct lsscsi_opts * op)
         }
         free(namelist);
 }
+
+#if (HAVE_NVME && (! IGNORE_NVME))
+
+/* List NVME hosts (controllers). */
+static void
+list_nhosts(const struct lsscsi_opts * op)
+{
+        int num, k;
+        struct dirent ** namelist;
+        char buff[LMAX_DEVPATH];
+        char ebuf[120];
+
+        snprintf(buff, sizeof(buff), "%s%s", sysfsroot, class_nvme);
+
+        num = scandir(buff, &namelist, ndev_dir_scan_select,
+                      host_scandir_sort);
+        if (num < 0) {  /* NVMe module may not be loaded */
+                if (op->verbose > 0) {
+                        snprintf(ebuf, sizeof(ebuf), "%s: scandir: %s",
+                                 __func__, buff);
+                        perror(ebuf);
+                        printf("NVMe module may not be loaded\n");
+                }
+                return;
+        }
+        for (k = 0; k < num; ++k) {
+                transport_id = TRANSPORT_UNKNOWN;
+                one_nhost_entry(buff, namelist[k]->d_name, op);
+                free(namelist[k]);
+        }
+        free(namelist);
+        if (op->wwn)
+                free_disk_wwn_node_list();
+}
+
+#endif
 
 /* Return true if able to decode, otherwise false */
 static bool
@@ -4622,7 +4628,7 @@ main(int argc, char **argv)
                 printf(" sysfsroot: %s\n", sysfsroot);
         }
         if (do_hosts) {
-                list_hosts(op);
+                list_shosts(op);
 #if (HAVE_NVME && (! IGNORE_NVME))
                 if (! op->no_nvme)
                         list_nhosts(op);
