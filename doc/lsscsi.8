@@ -42,17 +42,17 @@ a number or in the form "host<n>" where <n> is a host number.
 .PP
 For NVMe devices and controllers almost all of the previous paragraph
 applies. The main difference is that "N" appears in the 'H' (first) position.
-The 'C' position for NVMe is the controller's "char" device minor number
-which is the first number that appears in a typical NVMe controller
-name, for example: "/dev/nvme2". The 'T' position for NVMe is the "CNTLID"
-value. The final 'L' position is the NVMe namespace identifier which is
-typically a sequential value starting at 1. The leading explicit "N" for
-NVMe devices is converted internally into a large value (32,767) that should
-not interfere with any SCSI host number; it also means means that the
-numeric sort used to show hosts (controllers) and devices (LUs or logical
-units) will always place NVMe devices and controllers after those that use
-the SCSI subsystem. To filter using a \fIH:C:T:L\fR argument for NVMe
-controllers, "hostN", "hostN:<num>", "N" or "N:<num>" may be used; when
+The 'C' position for NVMe is the controller's Linux generated "char" device
+minor number which is the first number that appears in a typical NVMe
+controller name, for example: "/dev/nvme2". The 'T' position for NVMe is
+the "CNTLID" value. The final 'L' position is the NVMe namespace identifier
+which is typically a sequential value starting at 1. The leading explicit "N"
+for NVMe devices is converted internally into a large value (32,767) that
+should not interfere with any Linux generated SCSI host number; it also means
+that the numeric sort used to show hosts (controllers) and devices (LUs or
+logical units) will always place NVMe devices and controllers after those
+that use the SCSI subsystem. To filter using a \fIH:C:T:L\fR argument for
+NVMe controllers, "hostN", "hostN:<num>", "N" or "N:<num>" may be used; when
 no "<num>" is given, only NVMe controllers will be listed (i.e. it lists no
 SCSI hosts (HBAs)).
 .PP

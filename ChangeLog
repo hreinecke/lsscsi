@@ -1,7 +1,10 @@
 Linux utility for listing SCSI devices.
 
-Version 0.30 2018/06/05 [svn: r152]
+Version 0.30 2018/06/06 [svn: r153]
   - add support for NVMe devices and controllers
+    - to build without: ./configure --disable-nvme-supp
+    - deselect at runtime: lsscsi --no-nvme
+    - deselect SCSI devices at runtime: lsscsi N
   - add --brief for tuple + device_name(s) only
   - add --pdt (-D) for device type in hex
   - '-w' now decodes 128 bit WWN without truncation
@@ -10,7 +13,6 @@ Version 0.30 2018/06/05 [svn: r152]
     /dev/disk/by-id/scsi-
   - '-t' on a FC host was not printing the comma
     separator resulting in garbled output, fix
-  - change many two valued ints to bools
   - debian: bump compat file contents from 7 to 10
 
 Version 0.29 2016/05/14 [svn: r137]

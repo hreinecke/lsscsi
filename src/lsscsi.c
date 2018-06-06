@@ -45,7 +45,7 @@
 #include "sg_unaligned.h"
 
 
-static const char * version_str = "0.30  2018/06/05 [svn: r152]";
+static const char * version_str = "0.30  2018/06/06 [svn: r153]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -116,12 +116,12 @@ static const char * class_nvme = "/class/nvme/";
 /* For SCSI 'h' is host_num, 'c' is channel, 't' is target, 'l' is LUN is
  * uint64_t and lun_arr[8] is LUN as 8 byte array. For NVMe, h=0x7fff
  * (NVME_HOST_NUM) and displayed as 'N'; 'c' is Linux's NVMe controller
- * number, 't' is NVMe Identify controller CTNLID field, and 'l' is namespace
- * (1 to (2**32)-1) rendered as a little endian 4 byte sequence in lun_arr,
- * last 4 bytes are zeros. invalidate_hctl() puts -1 in integers, 0xff in
- * bytes */
+ * number, 't' is NVMe Identify controller CTNLID field, and 'l' is
+ * namespace id (1 to (2**32)-1) rendered as a little endian 4 byte sequence
+ * in lun_arr, last 4 bytes are zeros. invalidate_hctl() puts -1 in
+ * integers, 0xff in bytes */
 struct addr_hctl {
-        int h;          /* if h==0x7fff, display as 'N' for NVMe */
+        int h;                 /* if h==0x7fff, display as 'N' for NVMe */
         int c;
         int t;
         uint64_t l;           /* SCSI: Linux word flipped; NVME: uint32_t */
@@ -208,7 +208,7 @@ static struct option long_options[] = {
         {"long", no_argument, 0, 'l'},
         {"list", no_argument, 0, 'L'},
         {"lunhex", no_argument, 0, 'x'},
-        {"no-nvme", no_argument, 0, 'N'},
+        {"no-nvme", no_argument, 0, 'N'},       /* allow both '-' and '_' */
         {"no_nvme", no_argument, 0, 'N'},
         {"pdt", no_argument, 0, 'D'},
         {"protection", no_argument, 0, 'p'},
@@ -303,9 +303,9 @@ static const char * usage_message1 =
             "[--generic]\n"
             "\t\t[--help] [--hosts] [--kname] [--list] [--long] "
             "[--long-unit]\n"
-            "\t\t[--lunhex] [--no-nvme] [--pdt] [--protection] [--scsi_id]\n"
-            "\t\t[--size] [--sysfsroot=PATH] [--transport] [--unit]\n"
-            "\t\t[--verbose] [--version] [--wwn]  [<h:c:t:l>]\n"
+            "\t\t[--lunhex] [--no-nvme] [--pdt] [--protection] [--prot-mode]\n"
+            "\t\t[--scsi_id] [--size] [--sysfsroot=PATH] [--transport]\n"
+            "\t\t[--unit] [--verbose] [--version] [--wwn]  [<h:c:t:l>]\n"
 "  where:\n"
 "    --brief|-b        tuple and device name only\n"
 "    --classic|-c      alternate output similar to 'cat /proc/scsi/scsi'\n"
@@ -340,10 +340,12 @@ static const char * usage_message2 =
 "    --verbose|-v      output path names where data is found\n"
 "    --version|-V      output version string and exit\n"
 "    --wwn|-w          output WWN for disks (from /dev/disk/by-id/wwn*)\n"
-"    <h:c:t:l>         filter output list (def: '*:*:*:*' (all))\n\n"
-"List SCSI devices or hosts, optionally with additional information. Many\n"
-"storage devices (e.g. SATA disks and USB keys) use SCSI protocols and\n"
-"hence are also listed by this utility.\n";
+"    <h:c:t:l>         filter output list (def: '*:*:*:*' (all)). Meaning:\n"
+"                      <host_num:controller:target:lun> or for NVMe:\n"
+"                      <'N':ctl_num:cntlid:namespace_id>\n\n"
+"List SCSI devices or hosts, followed by NVMe namespaces or controllers.\n"
+"Many storage devices (e.g. SATA disks and USB attached storage) use SCSI\n"
+"command sets and hence are also listed by this utility.\n";
 
 
 #ifdef __GNUC__
