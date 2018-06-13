@@ -2,7 +2,7 @@
 %define version 0.30
 %define release 1
 
-Summary: 	List SCSI devices (or hosts) and associated information
+Summary: 	List SCSI devices (or hosts) plus NVMe namespaces and ctls
 Name: 		%{name}
 Version: 	%{version}
 Release: 	%{release}
@@ -16,10 +16,11 @@ Packager:	dgilbert at interlog dot com
 %description
 Uses information provided by the sysfs pseudo file system in the Linux
 kernel 2.6 series, and later, to list SCSI devices (Logical
-Units (e.g. disks)). It can list transport identifiers (e.g. SAS address
-of a SAS disk), protection information configuration and size for storage
-devices. Alternatively it can be used to list SCSI hosts (e.g. HBAs). By
-default one line of information is output per device (or host).
+Units (e.g. disks)) plus NVMe namespaces (SSDs). It can list transport
+identifiers (e.g. SAS address of a SAS disk), protection information
+configuration and size for storage devices. Alternatively it can be used
+to list SCSI hosts (e.g. HBAs) or NVMe controllers. By default one line
+of information is output per device (or host).
 
 Author:
 --------
@@ -53,7 +54,7 @@ fi
 
 
 %changelog
-* Wed Jun 06 2018 - dgilbert at interlog dot com
+* Tue Jun 12 2018 - dgilbert at interlog dot com
 - add NVMe support, minor tweaks
   * lsscsi-0.30
 * Fri May 13 2016 - dgilbert at interlog dot com

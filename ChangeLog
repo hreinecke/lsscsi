@@ -1,12 +1,16 @@
 Linux utility for listing SCSI devices.
 
-Version 0.30 2018/06/06 [svn: r153]
+Version 0.30 2018/06/12 [svn: r154]
   - add support for NVMe devices and controllers
     - to build without: ./configure --disable-nvme-supp
     - deselect at runtime: lsscsi --no-nvme
     - deselect SCSI devices at runtime: lsscsi N
   - add --brief for tuple + device_name(s) only
   - add --pdt (-D) for device type in hex
+  - extend --size (-s) so when given three times
+    the size as a logical block count is output
+  - add --sz-lbs (-S) that is equivalent to '-sss'
+    when used twice adds comma then logical block size
   - '-w' now decodes 128 bit WWN without truncation
   - /dev/disk/by-id/wwn- is not guaranteed to be
     persistent (or stable); instead use

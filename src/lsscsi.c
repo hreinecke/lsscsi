@@ -45,7 +45,7 @@
 #include "sg_unaligned.h"
 
 
-static const char * version_str = "0.30  2018/06/06 [svn: r153]";
+static const char * version_str = "0.30  2018/06/12 [svn: r154]";
 
 #define FT_OTHER 0
 #define FT_BLOCK 1
@@ -147,7 +147,8 @@ struct lsscsi_opts {
         int long_opt;           /* --long */
         int lunhex;
         int ssize;              /* show storage size, once->base 10 (e.g. 3 GB
-                                 * twice (or more)->base 2 (e.g. 3.1 GiB) */
+                                 * twice ->base 2 (e.g. 3.1 GiB)
+                                 * thrice for number of logical blocks */
         int unit;               /* logical unit (LU) name: from vpd_pg83 */
         int verbose;
 };
@@ -216,6 +217,8 @@ static struct option long_options[] = {
         {"scsi_id", no_argument, 0, 'i'},
         {"scsi-id", no_argument, 0, 'i'}, /* convenience, not documented */
         {"size", no_argument, 0, 's'},
+        {"sz-lbs", no_argument, 0, 'S'},
+        {"sz_lbs", no_argument, 0, 'S'},  /* convenience, not documented */
         {"sysfsroot", required_argument, 0, 'y'},
         {"transport", no_argument, 0, 't'},
         {"unit", no_argument, 0, 'u'},
@@ -304,7 +307,8 @@ static const char * usage_message1 =
             "\t\t[--help] [--hosts] [--kname] [--list] [--long] "
             "[--long-unit]\n"
             "\t\t[--lunhex] [--no-nvme] [--pdt] [--protection] [--prot-mode]\n"
-            "\t\t[--scsi_id] [--size] [--sysfsroot=PATH] [--transport]\n"
+            "\t\t[--scsi_id] [--size] [--sz-lbs] [--sysfsroot=PATH] "
+            "[--transport]\n"
             "\t\t[--unit] [--verbose] [--version] [--wwn]  [<h:c:t:l>]\n"
 "  where:\n"
 "    --brief|-b        tuple and device name only\n"
@@ -332,8 +336,12 @@ static const char * usage_message2 =
 "    --protmode|-P     show negotiated protection information mode\n"
 "    --scsi_id|-i      show udev derived /dev/disk/by-id/scsi* entry\n"
 "    --size|-s         show disk size, (once for decimal (e.g. 3 GB),\n"
-"                      twice for power of two (e.g. 2.7 GiB))\n"
+"                      twice for power of two (e.g. 2.7 GiB),\n"
+"                      thrice for number of blocks))\n"
 "    --sysfsroot=PATH|-y PATH    set sysfs mount point to PATH (def: /sys)\n"
+"    --sz-lbs|-S       show size as a number of logical blocks; if used "
+"twice\n"
+"                      adds comma followed by logical block size in bytes\n"
 "    --transport|-t    transport information for target or, if '--hosts'\n"
 "                      given, for initiator\n"
 "    --unit|-u         logical unit (LU) name (aka WWN for ATA/SATA)\n"
@@ -345,7 +353,8 @@ static const char * usage_message2 =
 "                      <'N':ctl_num:cntlid:namespace_id>\n\n"
 "List SCSI devices or hosts, followed by NVMe namespaces or controllers.\n"
 "Many storage devices (e.g. SATA disks and USB attached storage) use SCSI\n"
-"command sets and hence are also listed by this utility.\n";
+"command sets and hence are also listed by this utility. Hyphenated long\n"
+"options can also take underscore (and vice versa).\n";
 
 
 #ifdef __GNUC__
@@ -3495,29 +3504,58 @@ one_sdev_entry(const char * dir_name, const char * devname,
         }
 
         if (op->ssize) {
+                uint64_t blk512s;
                 char blkdir[LMAX_DEVPATH];
-                enum string_size_units unit_val =
-                         (1 == op->ssize) ? STRING_UNITS_10 : STRING_UNITS_2;
 
                 my_strcopy(blkdir, buff, sizeof(blkdir));
-
                 value[0] = 0;
-                if (type == 0 &&
-                    block_scan(blkdir) &&
-                    if_directory_chdir(blkdir, ".") &&
-                    get_value(".", "size", value, vlen)) {
-                        uint64_t blocks = atoll(value);
+                if (! ((0 == type) && block_scan(blkdir) &&
+                       if_directory_chdir(blkdir, ".") &&
+                       get_value(".", "size", value, vlen)) ) {
+                        printf("  %6s", "-");
+                        goto fini_line;
+                }
+                blk512s = atoll(value);
 
-                        blocks <<= 9;
-                        if (blocks > 0 &&
-                            size2string(blocks, unit_val, value, vlen))
+                if (op->ssize > 2) {
+                        int lbs = 0;
+                        char bb[32];
+
+                        if (get_value(".", "queue/logical_block_size", bb,
+                                      sizeof(bb))) {
+                                lbs = atoi(bb);
+                                if (lbs < 1)
+                                        printf("  %12s,[lbs<1 ?]", value);
+                                else if (512 == lbs)
+                                        printf("  %12s%s", value,
+                                               (op->ssize > 3) ? ",512" : "");
+                                else {
+                                        int64_t byts = 512 * blk512s;
+
+                                        snprintf(value, vlen, "%" PRId64,
+                                                 (byts / lbs));
+                                        if (op->ssize > 3)
+                                                printf("  %12s,%d", value,
+                                                       lbs);
+                                        else
+                                                printf("  %12s", value);
+                                }
+                        } else
+                                printf("  %12s,512", value);
+                } else {
+                        enum string_size_units unit_val = (0x1 & op->ssize) ?
+                                         STRING_UNITS_10 : STRING_UNITS_2;
+
+                        blk512s <<= 9;
+                        if (blk512s > 0 &&
+                            size2string(blk512s, unit_val, value, vlen))
                                 printf("  %6s", value);
                         else
                                 printf("  %6s", "-");
-                } else
-                        printf("  %6s", "-");
+                }
         }
 
+fini_line:
         printf("\n");
         if (op->long_opt > 0)
                 longer_d_entry(buff, devname, op);
@@ -3713,22 +3751,53 @@ one_ndev_entry(const char * nvme_ctl_abs, const char * nvme_ns_rel,
         }
 
         if (op->ssize) {
-                enum string_size_units unit_val = (1 == op->ssize) ?
+                uint64_t blk512s;
+
+                if (! get_value(buff, "size", value, vlen)) {
+                        printf("  %6s", "-");
+                        goto fini_line;
+                }
+                blk512s = atoll(value);
+                /* tabbing 8 should be banned, use goto to win some space */
+                if (op->ssize > 2) {
+                        int lbs = 0;
+                        char bb[32];
+
+                        if (get_value(buff, "queue/logical_block_size", bb,
+                                      sizeof(bb))) {
+                                lbs = atoi(bb);
+                                if (lbs < 1)
+                                        printf("  %12s,[lbs<1 ?]", value);
+                                else if (512 == lbs)
+                                        printf("  %12s%s", value,
+                                               (op->ssize > 3) ? ",512" : "");
+                                else {
+                                        int64_t byts = 512 * blk512s;
+
+                                        snprintf(value, vlen, "%" PRId64,
+                                                 (byts / lbs));
+                                        if (op->ssize > 3)
+                                                printf("  %12s,%d", value,
+                                                       lbs);
+                                        else
+                                                printf("  %12s", value);
+                                }
+                        } else
+                                printf("  %12s,512", value);
+                } else {
+                        enum string_size_units unit_val = (0x1 & op->ssize) ?
                                          STRING_UNITS_10 : STRING_UNITS_2;
 
-                if (get_value(buff, "size", value, vlen)) {
-                        uint64_t blocks = atoll(value);
-
-                        blocks <<= 9;
-                        if (blocks > 0 &&
-                            size2string(blocks, unit_val, value, vlen))
+                        blk512s <<= 9;
+                        if (blk512s > 0 &&
+                            size2string(blk512s, unit_val, value, vlen))
                                 printf("  %6s", value);
                         else
                                 printf("  %6s", "-");
-                } else
-                        printf("  %6s", "-");
+                }
         }
 
+fini_line:
         printf("\n");
         if (op->long_opt > 0)
                 longer_nd_entry(buff, devname, op);
@@ -3916,18 +3985,20 @@ one_nhost_entry(const char * dir_name, const char * nvme_ctl_rel,
                     strncmp(value, nullname1, 6) &&
                     strncmp(value, nullname2, 6)) {
                         trim_lead_trail(value, true, true);
-                        trunc_pad2n(value, 24, true);
+                        trunc_pad2n(value, 32, true);
                 } else
                         strcpy(value, nullname1);
-                printf("  %-24s  ", value);
+                printf("  %-32s ", value);
+
                 if (get_value(buff, "serial", value, vlen) &&
                     strncmp(value, nullname1, 6) &&
                     strncmp(value, nullname2, 6)) {
                         trim_lead_trail(value, true, true);
-                        trunc_pad2n(value, 16, true);
+                        trunc_pad2n(value, 18, true);
                 } else
                         strcpy(value, nullname1);
-                printf("  %-16s  ", value);
+                printf(" %-18s ", value);
+
                 if (get_value(buff, "firmware_rev", value, vlen) &&
                     strncmp(value, nullname1, 6) &&
                     strncmp(value, nullname2, 6)) {
@@ -3935,7 +4006,7 @@ one_nhost_entry(const char * dir_name, const char * nvme_ctl_rel,
                         trunc_pad2n(value, 8, false);
                 } else
                         strcpy(value, nullname1);
-                printf("  %-8s\n", value);
+                printf(" %-8s\n", value);
         } else
                 printf("\n");
         if (vb > 0) {
@@ -4516,7 +4587,7 @@ main(int argc, char **argv)
         while (1) {
                 int option_index = 0;
 
-                c = getopt_long(argc, argv, "bcCdDghHiklLNpPstuUvVwxy:",
+                c = getopt_long(argc, argv, "bcCdDghHiklLNpPsStuUvVwxy:",
                                 long_options, &option_index);
                 if (c == -1)
                         break;
@@ -4569,6 +4640,9 @@ main(int argc, char **argv)
                         break;
                 case 's':
                         ++op->ssize;
+                        break;
+                case 'S':
+                        op->ssize += 3;
                         break;
                 case 't':
                         op->transport_info = true;

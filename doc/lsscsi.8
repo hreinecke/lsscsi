@@ -8,8 +8,9 @@ lsscsi \- list SCSI devices (or hosts), list NVMe devices
 [\fI\-\-kname\fR] [\fI\-\-list\fR] [\fI\-\-long\fR] [\fI\-\-long\-unit\fR]
 [\fI\-\-lunhex\fR] [\fI\-\-no\-nvme\fR] [\fI\-\-pdt\fR] [\fI\-\-protection\fR]
 [\fI\-\-protmode\fR] [\fI\-\-scsi_id\fR] [\fI\-\-size\fR]
-[\fI\-\-sysfsroot=PATH\fR] [\fI\-\-transport\fR] [\fI\-\-unit\fR]
-[\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fI\-\-wwn\fR] [\fIH:C:T:L\fR]
+[\fI\-\-sysfsroot=PATH\fR] [\fI\-\-sz\-lbs] [\fI\-\-transport\fR]
+[\fI\-\-unit\fR] [\fI\-\-verbose\fR] [\fI\-\-version\fR] [\fI\-\-wwn\fR]
+[\fIH:C:T:L\fR]
 .SH DESCRIPTION
 .\" Add any additional description here
 .PP
@@ -69,9 +70,10 @@ Linux would produce by default, so the \fI\-\-kname\fR option is provided.
 An example of where this may be useful is kernel error logs which tend to
 report disk error messages using the disk's default kernel name.
 .SH OPTIONS
-Arguments to long options are mandatory for short options as well.
-The options are arranged in alphabetical order based on the long
-option name.
+Arguments to long options are mandatory for short options as well. The options
+are arranged in alphabetical order based on the long option name. Hyphenated
+long options can also take underscore, and vice versa (e.g. \fI\-\-scsi_id\fR
+or \fI\-\-scsi\-id\fR are acceptable).
 .TP
 \fB\-b\fR, \fB\-\-brief\fR
 reduces one line per device output to the tuple and the primary device name.
@@ -99,10 +101,16 @@ major and minor numbers are shown in brackets (e.g. "/dev/sda[8:0]").
 .TP
 \fB\-g\fR, \fB\-\-generic\fR
 Output the SCSI generic device file name. Note that if the sg driver
-is a module it may need to be loaded otherwise '\-' may appear. NVMe
-has no generic devices, NVMe admin, nvm and MI commands are sent to
-the containing controller whose device name is shown when the
-\fI\-\-hosts\fR option is used.
+is a module it may need to be loaded otherwise '\-' may appear.
+.br
+NVMe does not have generic (char) devices in the same sense as SCSI.
+Instead NVMe Admin, NVM (i.e. block type commands such as Read and
+Write) and MI (Management Interface (e.g. to an enclosure)) commands
+are all sent to the containing controller whose device name is shown
+when the \fI\-\-hosts\fR option is used.
+.br
+To unclutter the single line per device mode the \fI\-\-brief\fR option
+combined with this option should help.
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Output the usage message and exit.
@@ -154,7 +162,7 @@ shown with a "_" character separating the levels. For example the
 two level LUN: 0x0355006600000000 will appear as 0x0355_0066. If this
 option is given twice (e.g. using the short form: '\-xx') then the full
 16 hexadecimal digits are shown for each LUN, prefixed by "0x".
-.PP
+.br
 For NVMe, the namespace identifier (nsid) is shown in the "L" position. The
 nsid is a 32 bit unsigned quantities with 0x0 and 0xffffffff reserved.
 Without this option, the nsid is shown in decimal. When this option is used
@@ -193,15 +201,39 @@ name (e.g.  /dev/sdc) and if there is no match "\-" is output.
 .TP
 \fB\-s\fR, \fB\-\-size\fR
 Print disk capacity in human readable form. When given once, normal base
-10 SI units are used; for example MB, GB and TB stand for 10^6, 10^9 and
-10^12 bytes respectively. When given more than once, IEC 80000\-3 prefixes
-for binary multiples are used; for example MiB, GiB and TiB stand for
-2^20, 2^30 and 2^40 bytes respectively. The output is rounded to 3
-significant figures in order to fit on a single line.
+10 SI units are used as a prefix for 'B' which is bytes (aka octets).
+For example MB, GB and TB stand for 10^6, 10^9 and 10^12 bytes
+respectively. When given twice, IEC 80000\-3 prefixes for 'B' are used;
+for example MiB, GiB and TiB stand for 2^20, 2^30 and 2^40
+bytes respectively. The output is rounded to 3 or less significant
+figures in order to fit on a single line.
+.br
+If given three times (short form is the more convenient: '\-sss') then
+the disk capacity as a logical block count is given. This is an exact
+figure in decimal reported by the storage device at discovery. Discovery
+is typically just after boot time, or when it was last attached if the
+storage device is removable.
+.br
+To unclutter the single line per device mode the \fI\-\-brief\fR option
+combined with this option should help.
 .TP
 \fB\-y\fR, \fB\-\-sysfsroot\fR=\fIPATH\fR
 assumes sysfs is mounted at PATH instead of the default '/sys' . If this
 option is given PATH should be an absolute path (i.e. start with '/').
+.TP
+\fB\-S\fR, \fB\-\-sz\-lbs\fR
+Print disk capacity as a number of logical blocks (which is the same
+as '\-sss'). When used twice a comma is added followed by the logical
+block size in bytes. It should be a number like 512 or 4096.
+.br
+If the logical block size cannot be found (e.g. because the version of
+Linux predates the /sys/block/<dev_name>/queue directory) then the number
+of 512 byte blocks followed comma and then '512' is output irrespective of
+what the true logical block size of the device is. This special case
+action occurs whether this option is given one or more times.
+.br
+To unclutter the single line per device mode the \fI\-\-brief\fR option
+combined with this option should help.
 .TP
 \fB\-t\fR, \fB\-\-transport\fR
 Output transport information. This will be target related information or,
